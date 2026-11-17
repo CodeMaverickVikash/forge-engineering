@@ -202,7 +202,7 @@ export async function checkGitHub(url, opts = {}) {
       if (spdx === 'NOASSERTION' && lic.content) spdx = classifyLicenseText(b64(lic.content));
       upper = { file: lic.path || 'LICENSE', spdx };
     }
-    const skillFiles = []; let declared = null;
+    const skillFiles = []; let declared = null; let skill = null;
     if (sub) {
       const dirs = [sub]; let p = sub;
       for (let i = 0; i < 3 && p.includes('/'); i++) { p = p.slice(0, p.lastIndexOf('/')); dirs.push(p); }
@@ -212,7 +212,7 @@ export async function checkGitHub(url, opts = {}) {
         if (!Array.isArray(list)) continue;
         if (i === 0) {
           const sk = list.find((f) => f.type === 'file' && /^SKILL\.md$/i.test(f.name));
-          if (sk) { const f = await ghGet(`${base}/contents/${encPath(sk.path)}${refQ}`, ctx); const fm = parseFrontmatter(b64(f?.content)); if (fm.data && typeof fm.data.license === 'string') declared = fm.data.license; }
+          if (sk) { const f = await ghGet(`${base}/contents/${encPath(sk.path)}${refQ}`, ctx); const fm = parseFrontmatter(b64(f?.content)); if (fm.data && typeof fm.data.license === 'string') declared = fm.data.license; if (fm.data) skill = { name: typeof fm.data.name === 'string' ? fm.data.name.trim() : '', description: typeof fm.data.description === 'string' ? fm.data.description.trim() : '' }; }
         }
         const files = list.filter((f) => f.type === 'file' && LICENSE_FILE_RE.test(f.name));
         if (!files.length) continue;
@@ -222,11 +222,28 @@ export async function checkGitHub(url, opts = {}) {
         break;
       }
     }
-    return { source, ...resolveLicense({ skillFiles, declared, upper, evidence }), maintenance };
+    return { source, ...resolveLicense({ skillFiles, declared, upper, evidence }), maintenance, ...(sub ? { skill } : {}) };
   } catch (e) {
     if (!(e instanceof Unverified)) throw e;
     return { source, spdx: 'NOASSERTION', category: 'unverified', recommendable: false, level: null, evidence: [e.message], maintenance };
   }
+}
+
+// Finds the repo path of a skill by name (the unique <...>/<name>/SKILL.md in the tree) via the git trees API.
+// Returns the unique path, or null when not found / ambiguous / offline.
+export async function findSkillPathOnGitHub(url, name, opts = {}) {
+  const gh = parseGitHubUrl(url);
+  if (!gh) return null;
+  const ctx = { fetchImpl: opts.fetchImpl || globalThis.fetch, env: opts.env || process.env };
+  const base = `/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}`;
+  try {
+    let ref = opts.ref || gh.ref;
+    if (!ref) { const meta = await ghGet(base, ctx); ref = meta?.default_branch; }
+    if (!ref) return null;
+    const tree = await ghGet(`${base}/git/trees/${encodeURIComponent(ref)}?recursive=1`, ctx);
+    const hits = (tree?.tree || []).filter((e) => e.type === 'blob' && (e.path === `${name}/SKILL.md` || e.path.endsWith(`/${name}/SKILL.md`)));
+    return hits.length === 1 ? hits[0].path.slice(0, -'/SKILL.md'.length) : null;
+  } catch (e) { if (e instanceof Unverified) return null; throw e; }
 }
 
 export function maintenanceOf(meta, now = Date.now()) {

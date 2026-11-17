@@ -13,8 +13,9 @@ FORGE is tested at four levels. Levels 1 to 3 are deterministic and free. Level 
 
 ## Plugin evals with a baseline (`claude plugin eval`)
 
-`evals/` holds four graded cases in the official `claude plugin eval` format:
+`evals/` holds five graded cases in the official `claude plugin eval` format:
 - `bug-fix-counter`
+- `skill-discovery-approval-gate`
 - `security-review-read-only`
 - `database-change-honest-gates`
 - `analysis-monorepo`
@@ -45,7 +46,8 @@ Defined in `tests/e2e/scenarios.mjs`:
 | `bug-fix` | `web-tasks` | code reviewer and browser QA invoked (the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
 | `security-review` | `web-tasks` | security engineer invoked; **no** source changes; report names the XSS sink |
 | `ui-improvement` | `web-tasks` | frontend, UX or accessibility, and browser QA; source changes; tests pass |
-| `new-feature` | `web-tasks` | engineers, a test owner and the reviewer; update endpoint added; tests pass |
+| `new-feature` | `web-tasks` | engineers, browser QA and the reviewer; update endpoint added **with an automated test**; tests pass |
+| `skill-discovery` | `web-tasks` | `forge-skill-scout` invoked; proposal mentions licenses and approval; headless means **nothing installed** (no new skill dirs, no lock file) and no source changes |
 | `database-change` | `spring-boot-app` | database engineer and code reviewer; a new Flyway migration; V1 untouched; Maven missing is reported as UNAVAILABLE / NOT RUN, not as passed |
 | `architecture-analysis` | monorepo (Next.js + FastAPI + Go) | explorer or architect plus security or performance; **no** changes |
 

@@ -4,13 +4,13 @@
 //   default output: compact Markdown (names only)  |  --json: full JSON (names, short descriptions, paths, licenses)
 // Scans Claude Code (user + project), Claude plugins, Antigravity (user + project, incl. legacy dirs) and MCP configs.
 // MCP configs are read for server NAMES only: env, args, headers and url values are never output.
-// Env: CLAUDE_CONFIG_DIR, FORGE_ANTIGRAVITY_HOME (root overrides); FORGE_SKIP_CLI_PROBE=1 skips the `npx --no-install skills` probe.
+// Env: CLAUDE_CONFIG_DIR, FORGE_ANTIGRAVITY_HOME (root overrides); FORGE_SKIP_CLI_PROBE=1 skips the skills CLI probe (reported unavailable).
+// skills CLI probe: `skills --version` on PATH, then `npx --no-install skills --version` (never downloads); also reports Node >= 22.20.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { UsageError, parseArgs, runMain, posix, isDir, readJson, roots, readSkillMeta, parseFrontmatter, readText, LOCK_FILE, oneLine, listLine } from './lib.mjs';
+import { UsageError, parseArgs, runMain, posix, isDir, readJson, roots, readSkillMeta, parseFrontmatter, readText, LOCK_FILE, oneLine, listLine, probeSkillsCli } from './lib.mjs';
 
 const DISCOVERY_RE = /find-skills|skill-?(finder|discovery|search)/i;
 
@@ -85,15 +85,6 @@ function readLockFile(file) {
     name: s.name, source: s.source, skillPath: s.skillPath, ref: s.ref ?? null, commit: s.commit ?? null, license: s.license ?? null,
     target: s.target, scope: s.scope, path: s.path, installedAt: s.installedAt, lockFile: posix(file)
   }));
-}
-
-function probeSkillsCli(env) {
-  if (env.FORGE_SKIP_CLI_PROBE === '1') return { checked: false, available: null, note: 'probe skipped (FORGE_SKIP_CLI_PROBE=1)' };
-  try {
-    // Fixed command string (no user input); a shell resolves npx/npx.cmd on every OS. --no-install never downloads.
-    const out = execSync('npx --no-install skills --version', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000, windowsHide: true });
-    return { checked: true, available: true, version: oneLine(out.split('\n')[0], 40) };
-  } catch { return { checked: true, available: false }; }
 }
 
 export function inventory({ home, project, env = process.env } = {}) {
@@ -171,7 +162,7 @@ export function toMarkdown(inv) {
   const dt = inv.discoveryTools;
   L.push(`- skills: ${dt.skills.length ? dt.skills.map((s) => `${s.name} (${s.location})`).join(', ') : 'none'}`);
   const cli = dt.skillsCli;
-  L.push(`- skills CLI (npx --no-install skills): ${!cli.checked ? 'not probed' : cli.available ? `available${cli.version ? ` (${cli.version})` : ''}` : 'not available (do not npx-install it without approval)'}`);
+  L.push(`- skills CLI: ${!cli.checked ? 'not probed' : cli.available ? `available via ${cli.via}${cli.version ? ` (${cli.version})` : ''}` : 'not available (running it via npx downloads it: needs the user\'s approval)'}; Node ${cli.node} ${cli.nodeSupportsSkillsCli ? 'meets' : 'is BELOW'} the CLI's >= 22.20`);
   L.push(`\n## Duplicates (${inv.duplicates.length})${inv.duplicates.length ? '' : ': none'}`);
   for (const d of inv.duplicates.slice(0, 8)) L.push(`- ${d.name}: ${d.locations.join(', ')}`);
   if (inv.duplicates.length > 8) L.push(`- +${inv.duplicates.length - 8} more`);

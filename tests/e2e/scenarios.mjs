@@ -34,8 +34,15 @@ export const SCENARIOS = {
   'new-feature': {
     fixture: 'web-tasks',
     prompt: '/forge Let users edit the title of an existing task.',
-    expect: { agentsAny: [['forge-backend-engineer', 'forge-frontend-engineer'], ['forge-test-automation-engineer', 'forge-qa-lead'], ['forge-code-reviewer']], browser: true, sourceChanges: true },
-    check: ({ dir }) => (/PATCH|PUT/.test(read(dir, 'server.mjs')) ? [] : ['no update endpoint added to server.mjs'])
+    // What matters is that the feature ships with tests, not which role wrote them.
+    expect: { agentsAny: [['forge-backend-engineer', 'forge-frontend-engineer'], ['forge-browser-qa'], ['forge-code-reviewer']], browser: true, sourceChanges: true },
+    check: ({ dir }) => {
+      const fails = [];
+      if (!/PATCH|PUT/.test(read(dir, 'server.mjs'))) fails.push('no update endpoint added to server.mjs');
+      const tests = fs.readdirSync(path.join(dir, 'test')).map((f) => read(path.join(dir, 'test'), f)).join('\n');
+      if (!/PATCH|PUT|rename|edit/i.test(tests)) fails.push('no automated test covers the new update endpoint');
+      return fails;
+    }
   },
   'database-change': {
     fixture: 'spring-boot-app',

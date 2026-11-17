@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 // ---------- errors / exit codes ----------
 export class UsageError extends Error { constructor(m) { super(m); this.exitCode = 2; } }
@@ -143,4 +144,59 @@ export function readSkillMeta(dir) {
   if (!name) errors.push('frontmatter "name" missing');
   if (!description) errors.push('frontmatter "description" missing');
   return { exists: true, valid: Boolean(fm.data && name && description), name, description, license, errors };
+}
+
+// ---------- Vercel skills CLI (npm package `skills`, needs Node >= 22.20) ----------
+export const SKILLS_CLI_MIN_NODE = '22.20.0';
+export function nodeSatisfies(version = process.versions.node, min = SKILLS_CLI_MIN_NODE) {
+  const a = String(version).replace(/^v/, '').split('.').map(Number); const b = min.split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((a[i] || 0) > b[i]) return true; if ((a[i] || 0) < b[i]) return false; }
+  return true;
+}
+
+// How to run npx without a shell: on Windows npx is a .cmd shim, which Node refuses to spawn with shell:false,
+// so we run npm's own npx-cli.js with the current node when it sits next to node.exe (the standard layout).
+export function npxInvocation() {
+  if (process.platform !== 'win32') return { cmd: 'npx', pre: [] };
+  const cli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
+  return fs.existsSync(cli) ? { cmd: process.execPath, pre: [cli] } : { cmd: 'npx.cmd', pre: [] };
+}
+
+function findOnPath(names, env) {
+  const dirs = String(env.PATH || env.Path || '').split(path.delimiter).filter(Boolean);
+  for (const d of dirs) for (const n of names) {
+    const p = path.join(d, n);
+    try { if (fs.statSync(p).isFile()) return p; } catch { /* not here */ }
+  }
+  return null;
+}
+
+const versionOf = (r) => {
+  if (!r || r.error || r.status !== 0) return null;
+  const text = `${r.stdout || ''}\n${r.stderr || ''}`;
+  if (/canceled due to missing packages|could not determine executable|command not found|not recognized/i.test(text)) return null;
+  const m = String(r.stdout || '').match(/\d+\.\d+\.\d+[\w.-]*/);
+  return m ? m[0] : null;
+};
+
+// Detects an already-available skills CLI. Never downloads anything (npx --no-install). FORGE_SKIP_CLI_PROBE=1 => unavailable.
+export function probeSkillsCli(env = process.env) {
+  const base = { node: process.versions.node, nodeSupportsSkillsCli: nodeSatisfies() };
+  if (env.FORGE_SKIP_CLI_PROBE === '1') return { checked: false, available: false, via: null, version: null, ...base, note: 'probe skipped (FORGE_SKIP_CLI_PROBE=1): treated as unavailable' };
+  const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000, windowsHide: true, env };
+  // (a) a `skills` binary on PATH
+  const bin = findOnPath(process.platform === 'win32' ? ['skills.exe', 'skills.cmd'] : ['skills'], env);
+  if (bin) {
+    let r;
+    if (process.platform === 'win32' && bin.toLowerCase().endsWith('.cmd')) {
+      r = spawnSync(env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${bin}" --version"`], { ...opts, windowsVerbatimArguments: true });
+    } else r = spawnSync(bin, ['--version'], opts);
+    const v = versionOf(r);
+    if (v) return { checked: true, available: true, via: 'path', version: v, ...base };
+  }
+  // (b) npx cache / local or global install, without downloading
+  const npx = npxInvocation();
+  const v = versionOf(spawnSync(npx.cmd, [...npx.pre, '--no-install', 'skills', '--version'], opts));
+  if (v) return { checked: true, available: true, via: 'npx-cache', version: v, ...base };
+  return { checked: true, available: false, via: null, version: null, ...base };
 }

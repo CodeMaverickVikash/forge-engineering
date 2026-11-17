@@ -18,6 +18,20 @@ FORGE can find, evaluate and (with your permission) install **free and open-sour
 | **No auto-update, replace or remove** | `install-skill.mjs` refuses to overwrite. Updates and removals are proposed for approval |
 | **Provenance** | Each install is recorded in `forge-skills.lock.json` (in `~/.claude`, `<project>/.claude`, `~/.gemini/config` or `<project>/.agents`): source, path, pinned commit, license, scope, time, and your approving words |
 
+## Primary engine: Vercel Skills CLI
+
+| | |
+|---|---|
+| **Tool** | `skills` (npm). Source: https://github.com/vercel-labs/skills. Directory: https://skills.sh/ |
+| **License** | MIT (verified from the repository LICENSE) |
+| **Requires** | Node.js ≥ 22.20 |
+| **Used for** | `skills find <query>` (search), `skills add <repo> --list` (inspect without installing), and `skills add <repo>@<ref> --skill <name> -a claude-code\|antigravity [-g] -y --copy` (install, **only after approval**) |
+| **Telemetry** | On by default in the CLI. FORGE always sets `DISABLE_TELEMETRY=1` |
+
+- **If the CLI is already available** (on PATH or in the npx cache), FORGE uses it with `npx --no-install`, which never downloads anything.
+- **If it is not available,** FORGE lists the CLI itself in the proposal as a discovery tool, with its source, license, Node requirement and telemetry note, and asks for approval before using it (`npx --yes skills@<pinned-version>`). Until then, FORGE uses the documented alternative: skills.sh browsed read-only, curated sources, and GitHub search. The report says which path was used.
+- **The CLI is not a quality gate.** Listing on skills.sh implies nothing about license, maintenance or safety, so FORGE evaluates every skill independently (license per skill folder, security read-through, overlap) before recommending it.
+
 ## Flow
 
 1. **Inventory (always, local).** `skill-inventory.mjs` lists the skills, agents, plugins and MCP servers (names only) in every Claude Code and Antigravity location. It flags duplicates and detects existing discovery tools such as `find-skills`.

@@ -9,7 +9,7 @@ Read this in Step 3. These are **starting points, not endorsements**. Verify eve
 | `github.com/anthropics/skills` | Anthropic's public Agent Skills repo | **Mixed licensing per skill folder.** Some folders are open source, others carry a source-available LICENSE. Check each skill folder's own LICENSE with `--path`. Verify license at evaluation time. |
 | VoltAgent `awesome-agent-skills` (GitHub) | Community index of skills | An index only. Each linked skill has its own repo and license. Verify license at evaluation time. |
 | Official vendor or framework repos | Skills published by the org that owns the technology | Search GitHub for `<framework> agent skills` and prefer repos owned by the vendor's org. Verify license at evaluation time. |
-| `skills.sh` directory | The `skills` CLI's catalog | Use only through `npx --no-install skills find <query>` when the CLI is already present. Verify license at evaluation time. |
+| **Primary:** Vercel Skills CLI + `skills.sh` directory (github.com/vercel-labs/skills, MIT) | Primary discovery and distribution engine | Search with `DISABLE_TELEMETRY=1 npx --no-install skills find <query>` when the CLI is present. Without the CLI, browse https://skills.sh/ read-only via WebFetch and propose the CLI for approval. A listing is **not** a license or safety guarantee, so verify each skill. |
 | `ChromeDevTools/chrome-devtools-mcp` | Chrome DevTools MCP server | For browser runtime diagnostics. It is an MCP server, so proposing it is a tool install that needs approval. Verify license at evaluation time. |
 | `microsoft/playwright-mcp` | Playwright MCP server | For browser journeys. Same approval rule as any MCP server. Verify license at evaluation time. |
 

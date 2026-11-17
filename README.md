@@ -13,9 +13,10 @@ It runs on **Claude Code** and **Google Antigravity** from one shared core.
 | | |
 |---|---|
 | **Entry point** | `/forge <request>` (the only user-facing command) |
-| **Specialists** | 25 subagents in 5 divisions: product, architecture & engineering, quality, delivery, intelligence ([docs/agents.md](docs/agents.md)) |
-| **Skills** | 26 reusable, technology-independent skills with per-stack references ([docs/skills.md](docs/skills.md)) |
+| **Specialists** | 26 subagents in 5 divisions: product, architecture & engineering, quality, delivery, intelligence ([docs/agents.md](docs/agents.md)) |
+| **Skills** | 27 reusable, technology-independent skills with per-stack references ([docs/skills.md](docs/skills.md)) |
 | **Stacks** | Any stack, discovered from evidence. The registry ships 116 technology signatures plus references for Node, Python, Java/Spring, Go, PHP/Laravel, .NET, Ruby/Rails, Rust, React/Next, Vue, Angular, Svelte, React Native/Expo, Flutter, Android and iOS |
+| **Skill discovery** | Free & open-source only, license-verified per skill, with the Vercel Skills CLI as the primary engine. **Nothing is installed without your explicit approval** ([docs/skill-discovery.md](docs/skill-discovery.md)) |
 | **Browser QA** | Playwright journeys + Chrome DevTools MCP (console, network, performance) with a hard completion gate |
 | **Runtime deps** | None. Node ≥ 18 is optional and powers the fast stack detector, with a manual fallback |
 
@@ -62,8 +63,8 @@ Phases scale with the task. A one-line bug fix skips the written spec and plan, 
 ## Repository layout
 
 ```
-skills/            shared core: forge (orchestrator + core/ + templates/) and 25 specialist skills
-agents/            25 specialist definitions (canonical source) + _shared/operating-rules.md
+skills/            shared core: forge (orchestrator + core/ + templates/) and 26 specialist skills
+agents/            26 specialist definitions (canonical source) + _shared/operating-rules.md
 scripts/           build.mjs (adapters), validate.mjs, install/uninstall (.sh + .ps1), validate.sh
 dist/              generated adapters: claude-code/ (Claude plugin) and antigravity/ (Antigravity plugin)
 adapters/          host-specific adapter notes (the transforms live in scripts/build.mjs)

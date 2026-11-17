@@ -4,24 +4,22 @@
   "fixture": "web-tasks",
   "model": "sonnet",
   "date": "2026-11-17",
-  "pass": false,
-  "failures": [
-    "agent not invoked: forge-browser-qa",
-    "browser change neither verified with both MCPs nor reported as not browser-verified",
-    "remaining counter still counts completed tasks"
-  ],
+  "pass": true,
+  "failures": [],
   "exitCode": 0,
-  "durationMin": 1.3,
-  "costUsd": 0.38714450000000006,
-  "turns": 3,
+  "durationMin": 1.7,
+  "costUsd": 0.5595377,
+  "turns": 4,
   "skillsInvoked": [],
   "agentsInvoked": [
+    "forge-browser-qa",
     "forge-code-reviewer"
   ],
   "mcpToolCalls": {
-    "playwright": 6
+    "playwright": 7,
+    "chrome-devtools": 7
   },
-  "toolUses": 28,
+  "toolUses": 46,
   "permissionDenials": [],
   "filesChanged": [
     "README.md",
@@ -34,6 +32,6 @@
     "public/remaining.js",
     "test/remaining.test.mjs"
   ],
-  "diffStat": "public/app.js | 5 +++--\n 1 file changed, 3 insertions(+), 2 deletions(-)",
+  "diffStat": "public/app.js | 6 +++---\n 1 file changed, 3 insertions(+), 3 deletions(-)",
   "projectTestsAfter": "PASSED"
 }

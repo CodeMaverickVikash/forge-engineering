@@ -25,13 +25,13 @@ Every change goes through the same loop: edit the sources in `skills/` or `agent
 
 ## Add a specialist agent
 
-1. Create `agents/forge-<role>.md` (see existing agents). The frontmatter needs `name`, `description`, `tools` (least privilege), `model: inherit`, `color` and `skills` (1 or 2). Leave the shared operating rules out of the body, because the build appends them.
+1. Create `agents/forge-<role>.md` (see existing agents). The frontmatter needs `name`, `description` (≤ 170 characters), `tools` (least privilege), `model: inherit`, `color` and `skills` (1 or 2). Leave the shared operating rules out of the body, because the build appends them.
 2. Add the agent to the roster and the routing matrix in `skills/forge/core/routing.md`. The validator fails otherwise.
 3. Rebuild and validate.
 
 ## Add a skill
 
-1. Create `skills/forge-<name>/SKILL.md` with `name` equal to the directory name, a `description` of 150 to 300 characters (what it covers and when to use it), and `user-invocable: false`.
+1. Create `skills/forge-<name>/SKILL.md` with `name` equal to the directory name, a `description` of at most 200 characters (what it covers and when to use it), and `user-invocable: false`.
 2. Keep it to 150 lines or fewer and put stack detail in `references/`.
 3. Reference it from an agent's `skills:` list or by name in another skill.
 

@@ -9,6 +9,7 @@ FORGE proceeds through normal engineering work without asking at every step. Eve
 - Run local, non-destructive tools: tests, linters, typecheckers, builds, local dev servers, the detector script.
 - Install dependencies the project already declares (`npm ci`, `pip install -r`, and so on) into the local workspace when they are needed for verification.
 - Write to `.forge/` (self-gitignored).
+- Start **ephemeral, local** verification services (for example a throwaway database container) when the project's own tooling can't verify a change. They must be uniquely named, self-removing (`docker run --rm`) and on a non-default port, and they must be stopped when you finish. Never connect to, modify or stop **existing** containers, volumes or databases, which may hold the user's data.
 
 ## Requires explicit user authorization
 

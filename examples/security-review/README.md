@@ -5,7 +5,7 @@
 ```
 
 ## Expected flow
-- **Team:** `forge-security-engineer` (core) + `forge-qa-lead` as needed. Analysis requests skip phases 6 to 8.
+- **Team:** `forge-security-engineer` + `forge-qa-lead` (core; the relevant engineer joins only if fixes are requested). Analysis requests skip phases 6 to 8.
 - **Method:** threat model the web UI and JSON API, run the OWASP checklist, scan for secrets (names only), and run the dependency audit if a tool exists.
 - **Report:** findings ranked by severity, each with an exploit scenario, `file:line` evidence and a recommended fix. **No files are modified.**
 

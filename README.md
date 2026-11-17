@@ -27,7 +27,7 @@ git clone <this-repo> forge-engineering && cd forge-engineering
 .\scripts\install.ps1                # Windows PowerShell
 ```
 
-The options are `--target claude|antigravity|all`, `--scope user|project`, `--project <dir>`, `--dry-run`, `--force` and `--uninstall`. Restart your session, then run `/forge`. Details, plugin-marketplace installs and MCP setup are in [docs/installation.md](docs/installation.md).
+The options are `--target claude|antigravity|all`, `--scope user|project`, `--project <dir>`, `--dry-run`, `--force` and `--uninstall` (PowerShell: `-Target`, `-Scope`, `-Project`, `-DryRun`, `-Force`, `-Uninstall`). Restart your session, then run `/forge`. Details, plugin-marketplace installs and MCP setup are in [docs/installation.md](docs/installation.md).
 
 **Recommended for web apps:** connect the browser-QA MCP servers:
 ```bash
@@ -51,7 +51,7 @@ claude mcp add playwright -- npx @playwright/mcp@latest
   └ 10 REPORT       FORGE Execution Report, saying what really ran and what didn't
 ```
 
-Phases scale with the task. A one-line bug fix skips the ceremony, while a new subsystem gets the full process. Read [docs/architecture.md](docs/architecture.md) for the design and [docs/usage.md](docs/usage.md) for examples.
+Phases scale with the task. A one-line bug fix skips the written spec and plan, but never the detector run, a regression test, browser QA or the independent review; a new subsystem gets the full process. Tasks touching auth, payments, PII, migrations or a public API contract are sized up one step. Read [docs/architecture.md](docs/architecture.md) for the design and [docs/usage.md](docs/usage.md) for examples.
 
 ## Guarantees and limits
 
@@ -66,6 +66,7 @@ skills/            shared core: forge (orchestrator + core/ + templates/) and 25
 agents/            25 specialist definitions (canonical source) + _shared/operating-rules.md
 scripts/           build.mjs (adapters), validate.mjs, install/uninstall (.sh + .ps1), validate.sh
 dist/              generated adapters: claude-code/ (Claude plugin) and antigravity/ (Antigravity plugin)
+adapters/          host-specific adapter notes (the transforms live in scripts/build.mjs)
 .claude-plugin/    marketplace.json (plugin-style install for Claude Code)
 evals/             graded cases for `claude plugin eval` (with- vs without-FORGE baseline)
 docs/  examples/  tests/ (unit tests, live e2e runner, 7 stack fixtures)

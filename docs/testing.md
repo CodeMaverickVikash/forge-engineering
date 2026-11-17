@@ -42,11 +42,11 @@ Defined in `tests/e2e/scenarios.mjs`:
 
 | Scenario | Fixture | Checks |
 |---|---|---|
-| `bug-fix` | `web-tasks` | engineer and reviewer invoked; counter logic fixed; tests pass; browser-verified or honestly not |
+| `bug-fix` | `web-tasks` | code reviewer and browser QA invoked (the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
 | `security-review` | `web-tasks` | security engineer invoked; **no** source changes; report names the XSS sink |
 | `ui-improvement` | `web-tasks` | frontend, UX or accessibility, and browser QA; source changes; tests pass |
 | `new-feature` | `web-tasks` | engineers, a test owner and the reviewer; update endpoint added; tests pass |
-| `database-change` | `spring-boot-app` | database engineer; a new Flyway migration; V1 untouched; Maven missing is reported as UNAVAILABLE / NOT RUN, not as passed |
+| `database-change` | `spring-boot-app` | database engineer and code reviewer; a new Flyway migration; V1 untouched; Maven missing is reported as UNAVAILABLE / NOT RUN, not as passed |
 | `architecture-analysis` | monorepo (Next.js + FastAPI + Go) | explorer or architect plus security or performance; **no** changes |
 
 How the runner works:

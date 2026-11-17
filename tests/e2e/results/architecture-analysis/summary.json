@@ -1,0 +1,30 @@
+{
+  "scenario": "architecture-analysis",
+  "prompt": "/forge Analyze the project and suggest improvements.",
+  "fixture": [
+    "nextjs-app:apps/web",
+    "python-fastapi:services/orders",
+    "go-service:services/inventory"
+  ],
+  "model": "sonnet",
+  "date": "2026-11-17",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 2.3,
+  "costUsd": 0.9980658999999998,
+  "turns": 4,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-architect",
+    "forge-security-engineer",
+    "forge-performance-engineer",
+    "forge-dx-engineer"
+  ],
+  "mcpToolCalls": {},
+  "toolUses": 53,
+  "permissionDenials": [],
+  "filesChanged": [],
+  "diffStat": "",
+  "projectTestsAfter": "N/A"
+}

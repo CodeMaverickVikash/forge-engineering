@@ -1,0 +1,30 @@
+{
+  "scenario": "database-change",
+  "prompt": "/forge Add a status column to the orders table (values: PENDING, PAID, CANCELLED; default PENDING).",
+  "fixture": "spring-boot-app",
+  "model": "sonnet",
+  "date": "2026-11-17",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 8.5,
+  "costUsd": 1.5524961999999998,
+  "turns": 8,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-architect",
+    "forge-backend-engineer",
+    "forge-qa-lead",
+    "forge-database-engineer",
+    "forge-code-reviewer"
+  ],
+  "mcpToolCalls": {},
+  "toolUses": 79,
+  "permissionDenials": [],
+  "filesChanged": [
+    "src/main/resources/db/migration/V2__add_orders_status.sql",
+    "src/test/java/com/acme/orders/StatusMigrationTest.java"
+  ],
+  "diffStat": "",
+  "projectTestsAfter": "N/A"
+}

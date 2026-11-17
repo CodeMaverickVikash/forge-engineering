@@ -22,4 +22,4 @@
    - DevTools confirms the PATCH request and response.
 5. **Review and report.**
 
-Real results: [`tests/e2e/results/new-feature/`](../../tests/e2e/results/new-feature/).
+No live run is recorded yet. Record one with `node tests/e2e/run-scenario.mjs new-feature`.

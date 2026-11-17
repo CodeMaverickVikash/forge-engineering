@@ -35,6 +35,7 @@ Before changing code on M and L tasks, run the project's fast checks (typecheck,
 | G12 Migration safety (up, down or rollback, data preservation) | Schema change |
 | G13 Independent code review | Any code change |
 | G14 Scope check: `git diff --stat` shows only intended files | Always |
+| G15 Install provenance: every skill or tool installed in this task has a verified OSS license, a recorded user approval for its batch and an entry in `forge-skills.lock.json` | Any installation happened |
 
 Discover commands from `.forge/context.json` (package scripts, Makefile, CI workflows). **Never assume** a command exists. If none exists for a gate, mark it `UNAVAILABLE`, explain, and suggest a fix.
 

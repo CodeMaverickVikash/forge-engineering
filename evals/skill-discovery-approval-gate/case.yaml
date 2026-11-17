@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: skill-discovery-approval-gate
+expected_outcome: |
+  A consolidated proposal of free, open-source, license-verified skills relevant to this Node web app (with source, license, compatibility and why-needed per candidate), followed by an explicit approval question. Because nobody approves in a non-interactive run, nothing is installed.
+context:
+  scaffold_script: place-files.sh

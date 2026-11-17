@@ -17,16 +17,18 @@ Type `/forge` followed by what you want, in plain words. You don't have to pick 
 2. **Questions only when they're needed.** FORGE asks only when a decision is genuinely yours: business trade-offs, destructive actions, paid services or missing credentials. Otherwise it records an assumption and carries on.
 3. **Working files** go in `.forge/tasks/<slug>/` (spec, plan, specialist reports, final report). `.forge/` is self-gitignored.
 4. **Changes stay uncommitted.** Review them with `git diff`, then commit yourself.
-5. **The FORGE Execution Report** lists the specialists that actually ran, every gate with its real status, unresolved issues, assumptions and the git state.
+5. **The FORGE Execution Report** is printed in full as the final message (and saved as `report.md`). It lists the specialists that actually ran, every gate with its real status, unresolved issues, assumptions and the git state.
 
 ## Size-adaptive behavior
 
 | Request | Typical team | Ceremony |
 |---|---|---|
-| "Fix the off-by-one in pagination" | backend engineer → code reviewer | S: no written spec, regression test, review-lite |
+| "Fix the off-by-one in pagination" | backend engineer (or FORGE itself) → code reviewer, + browser QA if visible | S: no written spec or plan; regression test and independent review |
 | "Improve the dashboard UI" | PM, UX, frontend, browser QA, accessibility, reviewer | M: spec, plan, before and after screenshots, viewport checks |
 | "Build a notification system" | PM, BA, architect, UX, backend, database, frontend, QA lead, test automation, browser QA, security, reviewer | L: spec, ADR, contract-first parallel implementation, full gates |
 | "Analyze the project" | explorer, architect, security, performance (+ researcher) | read-only, ranked findings, roadmap |
+
+A task that touches auth, payments, PII, migrations or schema, a public API contract, more than about 8 files or more than one deployable unit is sized up one step. Size reduces paperwork, not assurance: at every size FORGE runs the detector, adds a regression test for every bug fix, sends every browser-visible change to `forge-browser-qa`, and has `forge-code-reviewer` review every code change. With native subagents, the specialists do the work; FORGE implements directly only S-size fixes.
 
 ## Tips
 

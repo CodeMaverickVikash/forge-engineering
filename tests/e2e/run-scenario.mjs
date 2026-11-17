@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const CLAUDE = process.env.CLAUDE_BIN || 'claude';
 const GIT_DENY = ['Bash(git commit:*)', 'Bash(git push:*)', 'Bash(git merge:*)', 'Bash(git rebase:*)', 'Bash(git reset:*)', 'Bash(git stash push:*)', 'Bash(git stash pop:*)', 'Bash(git stash drop:*)', 'Bash(git clean:*)', 'Bash(gh pr create:*)'];
-const ALLOW = ['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', 'Skill', 'Agent', 'TodoWrite', 'mcp__playwright', 'mcp__chrome-devtools'];
+const ALLOW = ['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', 'Skill', 'Agent', 'TodoWrite', 'WebSearch', 'WebFetch', 'mcp__playwright', 'mcp__chrome-devtools'];
 
 function sandbox(name, fixture) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `forge-e2e-${name}-`));
@@ -57,13 +57,15 @@ function evaluate(name, sc, dir, ev) {
   for (const group of e.agentsAny || []) if (!group.some((a) => used.has(a))) fails.push(`none of [${group}] invoked`);
   const report = ev.result?.result || '';
   if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
-  if (!/no commit|not committed|nothing (is |was )?committed/i.test(report)) fails.push('report does not state that no commit was made');
+  if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
   for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
   const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
   // `git stash list` is read-only; anything else that mutates history or the working tree is forbidden.
   if (ev.bash.some((c) => /\bgit\s+(commit|push|merge|rebase|reset|clean)\b|\bgit\s+stash(?!\s+list)\b|\bgh\s+pr\s+create\b/.test(c))) fails.push('attempted a forbidden git operation');
-  const changed = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean)
-    .map((l) => l.slice(3)).filter((f) => !f.startsWith('.forge') && !f.startsWith('.claude') && !/^\.playwright-mcp|\.png$|test-results|playwright-report/.test(f));
+  // Baseline is staged (never committed), so compare the worktree to the index: modified/deleted + untracked files.
+  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean);
+  const changed = [...new Set([...git('diff', '--name-only'), ...git('ls-files', '--others', '--exclude-standard')])]
+    .filter((f) => !f.startsWith('.forge') && !f.startsWith('.claude') && !/^\.playwright-mcp|\.png$|test-results|playwright-report/.test(f));
   if (e.sourceChanges === false && changed.length) fails.push(`analysis-only task changed files: ${changed.join(', ')}`);
   if (e.sourceChanges === true && !changed.length) fails.push('no source changes made');
   if (e.browser) {
@@ -113,7 +115,11 @@ function run(name) {
   const tdir = process.env.FORGE_E2E_TRANSCRIPTS || os.tmpdir(); // full transcripts stay out of the repo
   fs.writeFileSync(path.join(tdir, `forge-e2e-${name}.jsonl`), r.stdout || '');
   fs.writeFileSync(path.join(outDir, 'report.md'), (ev.result?.result || '(no final result)').replace(new RegExp(dir.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'), 'g'), '<sandbox>') + '\n');
-  if (!args.includes('--keep')) fs.rmSync(dir, { recursive: true, force: true }); else console.log(`  kept sandbox: ${dir}`);
+  if (!args.includes('--keep')) {
+    // A process the session started (dev server, container mount) may still hold the dir on Windows: don't crash the batch.
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 }); }
+    catch (e) { console.log(`  could not remove sandbox (${e.code}); left at ${dir}`); }
+  } else console.log(`  kept sandbox: ${dir}`);
   console.log(`${summary.pass ? '✔' : '✖'} ${name}: agents=[${ev.agents.join(', ')}] mcp=${JSON.stringify(ev.mcp)} cost=$${summary.costUsd} ${summary.durationMin}min`);
   for (const f of res.fails) console.log(`   - ${f}`);
   if (r.status !== 0) console.log(`   claude exit ${r.status}: ${(r.stderr || '').slice(0, 500)}`);

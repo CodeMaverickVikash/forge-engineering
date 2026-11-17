@@ -42,17 +42,17 @@ It runs in the **main conversation**, not as a subagent, for three reasons: it k
 
 **Operating modes**
 
-- **Mode A (native subagents).** Claude Code uses the `Agent` tool; the Antigravity App and CLI use `invoke_subagent`. Independent specialists run in parallel.
+- **Mode A (native subagents).** Claude Code uses the `Agent` tool; the Antigravity App and CLI use `invoke_subagent`. Independent specialists run in parallel. The routing matrix's core team does the specialist work, even on small-looking tasks; the orchestrator plans, briefs, verifies and integrates, and implements directly only S-size fixes. Browser QA always goes to `forge-browser-qa` and the final review to `forge-code-reviewer`.
 - **Mode B (sequential role emulation).** For hosts without custom subagents, the orchestrator reads `roles/<agent>.md` and performs each role in turn. The final report states that the roles were emulated.
 
 ### Specialists (agents)
 
-Each agent is short (30 to 55 lines). It preloads 1 or 2 skills (`skills:` frontmatter, supported by both hosts), so its expertise loads at startup without extra tool calls. Tool access is least-privilege in Claude Code:
+Each agent is short (about 30 to 40 lines). It preloads 1 or 2 skills (`skills:` frontmatter, supported by both hosts), so its expertise loads at startup without extra tool calls. Tool access is least-privilege in Claude Code:
 
 | Class | Tools | Agents |
 |---|---|---|
 | Read-only analysts and reviewers | `Read, Grep, Glob, Bash, Skill` (+ web for researcher, architect, security) | PM, BA, researcher, UX, architect, QA lead, manual QA, security, performance, accessibility, code reviewer, release, SRE, explorer |
-| Implementers | `Read, Edit, Write, Grep, Glob, Bash, Skill` | frontend, mobile, backend, database, integration, AI, devops, test automation, tech writer, DX |
+| Implementers | `Read, Edit, Write, Grep, Glob, Bash, Skill` (+ `WebFetch` for AI) | frontend, mobile, backend, database, integration, AI, devops, test automation, tech writer, DX |
 | Browser QA | everything (needed for MCP tools) **except** `Agent` | browser QA |
 
 No specialist can spawn agents. The orchestrator is the only coordinator, which keeps delegation shallow and auditable.
@@ -88,7 +88,7 @@ Precedence: safety/security/data integrity → correctness → backward compatib
 - **Evidence-based.** A technology is reported only with evidence (`npm:next@15.1.0`, `file:go.mod`, `maven:spring-boot`).
 - **Monorepo-aware.** Every directory with a manifest becomes a *unit* with its own stack and commands.
 - **Commands with provenance.** Each command records its source: `package.json#scripts.test`, `Makefile#lint`, or `inferred: <evidence>`.
-- **Secret-safe.** `.env*` files are listed by name. Only `*.example`/`*.sample`/`*.template` files are parsed, and only for variable names.
+- **Secret-safe.** `.env*` files are listed by name. Only `*.example`/`*.sample`/`*.template`/`*.dist` files are parsed, and only for variable names.
 - **Incremental.** `--write` diffs against the previous `context.json` (manifest fingerprint plus added and removed technologies), so stale knowledge gets flagged.
 - **Compact.** The Markdown summary is under 60 lines even for monorepos.
 

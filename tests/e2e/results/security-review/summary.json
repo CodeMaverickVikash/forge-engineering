@@ -1,0 +1,23 @@
+{
+  "scenario": "security-review",
+  "prompt": "/forge Do a security review of this app. Report findings only — do not change any code.",
+  "fixture": "web-tasks",
+  "model": "sonnet",
+  "date": "2026-11-17",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 2.3,
+  "costUsd": 0.4434798,
+  "turns": 4,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-security-engineer"
+  ],
+  "mcpToolCalls": {},
+  "toolUses": 17,
+  "permissionDenials": [],
+  "filesChanged": [],
+  "diffStat": "",
+  "projectTestsAfter": "PASSED"
+}

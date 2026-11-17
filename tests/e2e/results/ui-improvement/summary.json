@@ -1,0 +1,42 @@
+{
+  "scenario": "ui-improvement",
+  "prompt": "/forge Improve the task board UI: clear loading, empty and error states, and better accessibility.",
+  "fixture": "web-tasks",
+  "model": "sonnet",
+  "date": "2026-11-17",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 12.4,
+  "costUsd": 2.3455687999999997,
+  "turns": 4,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-frontend-engineer",
+    "forge-test-automation-engineer",
+    "forge-accessibility-specialist",
+    "forge-frontend-engineer",
+    "forge-browser-qa",
+    "forge-code-reviewer",
+    "forge-browser-qa"
+  ],
+  "mcpToolCalls": {
+    "playwright": 23,
+    "chrome-devtools": 10
+  },
+  "toolUses": 119,
+  "permissionDenials": [],
+  "filesChanged": [
+    "README.md",
+    "package.json",
+    "public/app.js",
+    "public/index.html",
+    "public/styles.css",
+    "server.mjs",
+    "test/api.test.mjs",
+    "public/view.js",
+    "test/view.test.mjs"
+  ],
+  "diffStat": "README.md         |   2 +-\n public/app.js     | 214 ++++++++++++++++++++++++++++++++++++++++++++----------\n public/index.html |  55 ++++++++------\n public/styles.css |  37 ++++++++--\n 4 files changed, 237 insertions(+), 71 deletions(-)",
+  "projectTestsAfter": "PASSED"
+}

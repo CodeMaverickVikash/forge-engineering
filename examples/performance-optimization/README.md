@@ -10,7 +10,7 @@
    - The network waterfall.
    - Server latency for the dashboard API calls.
 2. **Diagnose.** Attribute the time to a cause, for example a render-blocking bundle, N+1 queries, waterfall requests or missing caching. Cite `file:line`.
-3. **Team:** `forge-architect` and `forge-performance-engineer`, plus the relevant engineer. Add `forge-database-engineer` for query issues.
+3. **Team:** `forge-architect`, `forge-performance-engineer`, the relevant engineer and `forge-qa-lead`. Add `forge-browser-qa` for frontend metrics. Add `forge-database-engineer` for query issues.
 4. **Fix** the top bottleneck(s) with minimal changes.
 5. **Re-measure** under the same conditions. The report gives before and after numbers. **No improvement is claimed without measurements.**
 

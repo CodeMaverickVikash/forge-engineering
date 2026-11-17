@@ -12,6 +12,7 @@ FORGE is instructions plus a small amount of local tooling. It gains no privileg
 | No new dependencies, major upgrades or project-wide config changes | Require user authorization (safety policy) |
 | No destructive data ops, production access, deploys or paid services | Require explicit authorization. Test or sandbox modes only |
 | User work preserved | `git status` before edits. Never revert unrelated changes. The installer refuses to overwrite files it didn't create |
+| Existing containers and data untouched | When the project's own tooling can't verify a change, FORGE may start **ephemeral, local** services (for example a throwaway database container): uniquely named, self-removing (`docker run --rm`), on a non-default port and stopped when done. It never connects to, modifies or stops existing containers, volumes or databases |
 
 ## Recommended hard guardrails (optional)
 

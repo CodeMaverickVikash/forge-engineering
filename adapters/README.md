@@ -10,6 +10,7 @@ The adapters are intentionally thin. They **transform metadata only**, and every
 | Agent frontmatter | unchanged: `tools` / `disallowedTools` least-privilege, `model: inherit`, `color`, `skills` | `name`, `description`, `model: inherit`, `skills`. `tools` is omitted because Antigravity tool names differ and an unknown name can hang the agent |
 | Agent body | source body + `agents/_shared/operating-rules.md` | identical |
 | Mode B fallback | `skills/forge/roles/*.md` | identical |
+| Eval cases | `evals/` (from `evals/`, each with its fixture project in `files/`) | — |
 | Install targets | `~/.claude/` or `<project>/.claude/` | `~/.gemini/config/` or `<project>/.agents/` |
 
 To support another host that reads Agent Skills (for example Codex or Gemini CLI), add a `buildX()` function that copies `skills/` and maps agents to that host's subagent format. If the host has no subagents, ship only `roles/` and Mode B covers it. Then add an install target in `scripts/install.sh` and `install.ps1`.

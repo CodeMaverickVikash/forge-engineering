@@ -1,0 +1,12 @@
+{
+  "name": "forge-engineering",
+  "owner": { "name": "FORGE contributors" },
+  "metadata": { "description": "FORGE: one /forge command, a whole software engineering organization." },
+  "plugins": [
+    {
+      "name": "forge",
+      "source": "./dist/claude-code",
+      "description": "Autonomous multi-agent software engineering: explore, specify, delegate, implement, verify (incl. Playwright + Chrome DevTools MCP browser QA) and report. Never commits."
+    }
+  ]
+}

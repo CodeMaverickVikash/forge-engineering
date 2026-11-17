@@ -1,0 +1,23 @@
+{
+  "scenario": "skill-discovery",
+  "prompt": "/forge Find free and open-source skills that would help with this project.",
+  "fixture": "web-tasks",
+  "model": "sonnet",
+  "date": "2026-11-17",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 3.8,
+  "costUsd": 0.7289935,
+  "turns": 3,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-skill-scout"
+  ],
+  "mcpToolCalls": {},
+  "toolUses": 34,
+  "permissionDenials": [],
+  "filesChanged": [],
+  "diffStat": "",
+  "projectTestsAfter": "PASSED"
+}

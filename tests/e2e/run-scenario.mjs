@@ -97,6 +97,7 @@ function run(name) {
   console.log(`▶ ${name}: sandbox ${dir}`);
   const t0 = Date.now();
   const r = spawnSync(CLAUDE, cliArgs, { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 });
+  try { fs.rmSync(mcpCfg, { force: true }); } catch { /* best effort */ }
   console.log(`  claude finished: exit=${r.status} signal=${r.signal} error=${r.error?.code || 'none'} after ${((Date.now() - t0) / 60000).toFixed(1)}min, ${(r.stdout || '').length} bytes`);
   const lines = (r.stdout || '').split('\n');
   const ev = analyzeStream(lines);

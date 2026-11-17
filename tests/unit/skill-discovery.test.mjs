@@ -6,9 +6,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { inventory, toMarkdown } from '../../skills/forge-skill-discovery/scripts/skill-inventory.mjs';
-import { classifyLicenseText, categorize, checkLocal, checkGitHub, normalizeDeclared, parseGitHubUrl } from '../../skills/forge-skill-discovery/scripts/license-check.mjs';
-import { installSkill } from '../../skills/forge-skill-discovery/scripts/install-skill.mjs';
-import { parseFrontmatter } from '../../skills/forge-skill-discovery/scripts/lib.mjs';
+import { classifyLicenseText, categorize, checkLocal, checkGitHub, normalizeDeclared, parseGitHubUrl, findSkillPathOnGitHub } from '../../skills/forge-skill-discovery/scripts/license-check.mjs';
+import { installSkill, toMarkdown as toInstallMarkdown } from '../../skills/forge-skill-discovery/scripts/install-skill.mjs';
+import { parseFrontmatter, nodeSatisfies } from '../../skills/forge-skill-discovery/scripts/lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPTS = path.join(ROOT, 'skills', 'forge-skill-discovery', 'scripts');
@@ -191,6 +191,7 @@ test('license-check (GitHub) uses the API via an injected fetch: skill LICENSE b
     '/repos/acme/skills/license?ref=main': { path: 'LICENSE', license: { spdx_id: 'Apache-2.0' } },
     '/repos/acme/skills/contents/skills/pdf?ref=main': [{ type: 'file', name: 'SKILL.md', path: 'skills/pdf/SKILL.md' }, { type: 'file', name: 'LICENSE.txt', path: 'skills/pdf/LICENSE.txt' }],
     '/repos/acme/skills/contents/skills/pdf/SKILL.md?ref=main': { content: b64(skillMd('pdf', undefined, 'license: Proprietary. LICENSE.txt has complete terms\n')) },
+    '/repos/acme/skills/git/trees/main?recursive=1': { tree: [{ type: 'blob', path: 'skills/pdf/SKILL.md' }, { type: 'blob', path: 'README.md' }] },
     '/repos/acme/skills/contents/skills/pdf/LICENSE.txt?ref=main': { content: b64('(c) 2025 Acme. All rights reserved. Use is governed by your agreement with Acme.') }
   };
   const seen = [];
@@ -202,6 +203,9 @@ test('license-check (GitHub) uses the API via an injected fetch: skill LICENSE b
   const r = await checkGitHub('https://github.com/acme/skills/tree/main/skills/pdf', { fetchImpl: fakeFetch, env: {}, now: Date.parse('2026-11-01') });
   assert.equal(r.category, 'proprietary'); assert.equal(r.level, 'skill'); assert.equal(r.recommendable, false);
   assert.equal(r.maintenance.archived, true); assert.equal(r.maintenance.stars, 42); assert.match(r.maintenance.warning, /archived/);
+  assert.equal(r.skill.name, 'pdf');
+  assert.equal(await findSkillPathOnGitHub('https://github.com/acme/skills', 'pdf', { fetchImpl: fakeFetch, env: {} }), 'skills/pdf');
+  assert.equal(await findSkillPathOnGitHub('https://github.com/acme/skills', 'nope', { fetchImpl: fakeFetch, env: {} }), null);
   assert.ok(seen.every((ua) => ua === 'forge-license-check'));
   const repoOnly = await checkGitHub('https://github.com/acme/skills/tree/main', { fetchImpl: fakeFetch, env: {} });
   assert.equal(repoOnly.spdx, 'Apache-2.0'); assert.equal(repoOnly.level, 'repo'); assert.equal(repoOnly.recommendable, true);
@@ -277,6 +281,92 @@ test('install --dry-run writes nothing', () => {
     assert.deepEqual(fs.readdirSync(sb.home), []);
     assert.deepEqual(fs.readdirSync(sb.project), []);
   } finally { sb.cleanup(); fs.rmSync(src, { recursive: true, force: true }); }
+});
+
+// ---------------- install --via skills-cli (no network, no real CLI) ----------------
+const okLicense = (name = 'pdf-tools', extra = {}) => async (repoUrl, { skillPath }) => ({
+  source: repoUrl, spdx: 'MIT', category: 'oss-permissive', recommendable: true, level: 'skill', evidence: ['stub'], maintenance: null,
+  skillPath: skillPath.includes('/') ? skillPath : `skills/${skillPath}`, skill: { name, description: 'PDF tools skill for tests.' }, ...extra
+});
+const cliBase = (sb, extra = {}) => ({ via: 'skills-cli', source: 'acme/skills', skillPath: 'pdf-tools', target: 'both', scope: 'user', home: sb.home, project: sb.project, approval: 'yes install pdf-tools', ...extra });
+const available = () => ({ checked: true, available: true, via: 'npx-cache', version: '1.9.0', node: '24.0.0', nodeSupportsSkillsCli: true });
+
+test('skills-cli dry-run builds the exact non-interactive command and writes nothing', async () => {
+  const sb = sandbox();
+  try {
+    const res = await installSkill(cliBase(sb, { ref: 'v1.2.0', dryRun: true }), ENV, { probe: available, licenseCheck: okLicense() });
+    assert.equal(res.via, 'skills-cli'); assert.equal(res.dryRun, true);
+    assert.match(res.command, /^DISABLE_TELEMETRY=1 /);
+    assert.match(res.command, / npx --no-install skills add acme\/skills@v1\.2\.0 --skill pdf-tools -a claude-code antigravity -g -y --copy$/);
+    assert.ok(!/--all\b/.test(res.command));
+    assert.equal(res.installed.length, 2);
+    assert.equal(res.installed[0].record.installer, 'skills-cli'); assert.equal(res.installed[0].record.cliVersion, '1.9.0');
+    assert.deepEqual(fs.readdirSync(sb.home), []); assert.deepEqual(fs.readdirSync(sb.project), []);
+    assert.match(toInstallMarkdown(res), /would run[\s\S]*--skill pdf-tools/);
+    // Unavailable CLI + explicit CLI approval: pinned npx download, project scope (no -g), Claude only.
+    const res2 = await installSkill(cliBase(sb, { target: 'claude', scope: 'project', dryRun: true, cliVersion: '1.9.0', cliApproval: 'yes, use skills 1.9.0', source: 'https://github.com/acme/skills' }), ENV, { licenseCheck: okLicense() });
+    assert.match(res2.command, / npx --yes skills@1\.9\.0 add acme\/skills --skill pdf-tools -a claude-code -y --copy$/);
+    assert.equal(res2.installed[0].record.cliApproval, 'yes, use skills 1.9.0');
+    assert.equal(res2.cwd, sb.project.split(path.sep).join('/'));
+  } finally { sb.cleanup(); }
+});
+
+test('skills-cli refuses: CLI unavailable without --cli-approval, non-GitHub source, bad license, existing target', async () => {
+  const sb = sandbox();
+  try {
+    // FORGE_SKIP_CLI_PROBE=1 (in ENV) forces "unavailable".
+    await assert.rejects(installSkill(cliBase(sb, { dryRun: true, cliVersion: '1.9.0' }), ENV, { licenseCheck: okLicense() }), (e) => e.exitCode === 1 && /cli-approval/.test(e.message));
+    await assert.rejects(installSkill(cliBase(sb, { dryRun: true, cliApproval: 'ok' }), ENV, { licenseCheck: okLicense() }), (e) => e.exitCode === 1 && /cli-version/.test(e.message));
+    await assert.rejects(installSkill(cliBase(sb, { source: 'https://gitlab.com/acme/skills' }), ENV, { probe: available, licenseCheck: okLicense() }), (e) => e.exitCode === 1 && /GitHub/.test(e.message));
+    await assert.rejects(installSkill(cliBase(sb), ENV, { probe: available, licenseCheck: okLicense('pdf-tools', { spdx: 'BUSL-1.1', category: 'source-available', recommendable: false }) }), (e) => e.exitCode === 1 && /source-available/.test(e.message));
+    await assert.rejects(installSkill(cliBase(sb), ENV, { probe: available, licenseCheck: okLicense('forge-pdf') }), (e) => e.exitCode === 1 && /reserved/.test(e.message));
+    await assert.rejects(installSkill(cliBase(sb), ENV, { probe: () => ({ ...available(), nodeSupportsSkillsCli: false, node: '20.0.0' }), licenseCheck: okLicense() }), (e) => e.exitCode === 1 && /22\.20/.test(e.message));
+    write(path.join(sb.home, '.claude', 'skills', 'pdf-tools', 'SKILL.md'), skillMd('pdf-tools'));
+    let ran = false;
+    await assert.rejects(installSkill(cliBase(sb), ENV, { probe: available, licenseCheck: okLicense(), runCli: () => { ran = true; return { status: 0 }; } }), (e) => e.exitCode === 1 && /already exists/.test(e.message));
+    assert.equal(ran, false, 'CLI never runs when a target exists');
+    // CLI process: refusal exit 1 before any network use; usage errors exit 2.
+    const r = run('install-skill.mjs', ['--via', 'skills-cli', '--source', 'acme/skills', '--skill-path', 'pdf-tools', '--target', 'claude', '--scope', 'user', '--home', sb.home, '--approval', 'yes', '--dry-run']);
+    assert.equal(r.status, 1); assert.match(r.stderr, /REFUSED.*not available/);
+    const nonGh = run('install-skill.mjs', ['--via', 'skills-cli', '--source', 'https://gitlab.com/a/b', '--skill-path', 'x', '--target', 'claude', '--scope', 'user', '--home', sb.home, '--approval', 'yes']);
+    assert.equal(nonGh.status, 1); assert.match(nonGh.stderr, /GitHub/);
+    assert.equal(run('install-skill.mjs', ['--via', 'npm', '--source', 'a/b', '--skill-path', 'x', '--target', 'claude', '--scope', 'user', '--approval', 'yes']).status, 2);
+  } finally { sb.cleanup(); }
+});
+
+test('skills-cli run: args array without shell, telemetry off, validates the installed skill, then records the lock', async () => {
+  const sb = sandbox();
+  try {
+    const calls = [];
+    const fakeCli = (cmd, args, { cwd, env }) => {
+      calls.push({ cmd, args, cwd, env });
+      write(path.join(sb.project, '.agents', 'skills', 'pdf-tools', 'SKILL.md'), skillMd('pdf-tools'));
+      return { status: 0, stdout: 'done', stderr: '' };
+    };
+    const res = await installSkill(cliBase(sb, { target: 'antigravity', scope: 'project', ref: 'a'.repeat(40) }), ENV, { probe: available, licenseCheck: okLicense(), runCli: fakeCli });
+    assert.equal(calls.length, 1);
+    const { args, cwd, env } = calls[0];
+    assert.equal(env.DISABLE_TELEMETRY, '1'); assert.equal(cwd, path.resolve(sb.project));
+    const i = args.indexOf('add');
+    assert.deepEqual(args.slice(i - 2), ['--no-install', 'skills', 'add', `acme/skills@${'a'.repeat(40)}`, '--skill', 'pdf-tools', '-a', 'antigravity', '-y', '--copy']);
+    assert.equal(res.commit, 'a'.repeat(40));
+    const lock = JSON.parse(fs.readFileSync(path.join(sb.project, '.agents', 'forge-skills.lock.json'), 'utf8'));
+    assert.equal(lock.skills[0].installer, 'skills-cli'); assert.equal(lock.skills[0].cliVersion, '1.9.0'); assert.ok(!('cliApproval' in lock.skills[0]));
+    // A CLI run that does not produce the skill fails and records nothing.
+    await assert.rejects(installSkill(cliBase(sb, { target: 'claude', scope: 'project', skillPath: 'other' }), ENV, { probe: available, licenseCheck: okLicense('other-skill'), runCli: () => ({ status: 0 }) }), /missing/);
+    assert.ok(!fs.existsSync(path.join(sb.project, '.claude', 'forge-skills.lock.json')));
+    await assert.rejects(installSkill(cliBase(sb, { target: 'claude', scope: 'project', skillPath: 'other' }), ENV, { probe: available, licenseCheck: okLicense('other-skill'), runCli: () => ({ status: 1, stderr: 'boom' }) }), /exit 1.*boom/);
+  } finally { sb.cleanup(); }
+});
+
+test('inventory reports the skills CLI probe shape and Node support', () => {
+  const sb = sandbox();
+  try {
+    const cli = inventory({ home: sb.home, project: sb.project, env: ENV }).discoveryTools.skillsCli;
+    assert.equal(cli.available, false); assert.equal(cli.via, null); assert.equal(cli.node, process.versions.node);
+    assert.equal(typeof cli.nodeSupportsSkillsCli, 'boolean');
+    assert.equal(nodeSatisfies('22.20.0'), true); assert.equal(nodeSatisfies('22.19.9'), false); assert.equal(nodeSatisfies('v24.1.0'), true); assert.equal(nodeSatisfies('18.20.0'), false);
+  } finally { sb.cleanup(); }
 });
 
 test('lenient frontmatter parser handles block scalars, lists, nested keys and CRLF', () => {

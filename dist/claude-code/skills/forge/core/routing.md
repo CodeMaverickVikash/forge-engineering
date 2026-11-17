@@ -7,6 +7,7 @@ Choose the **smallest team that covers the task's risks**. Never invoke every sp
 | Division | Agent | Owns |
 |---|---|---|
 | Intelligence | `forge-project-explorer` | Deep codebase mapping (read-only) |
+| Intelligence | `forge-skill-scout` | Finds, license-verifies and proposes free/open-source skills and tools (never installs) |
 | Product | `forge-product-manager` | Value, user stories, acceptance criteria, scope |
 | Product | `forge-business-analyst` | Business rules, workflows, edge cases, data dependencies |
 | Product | `forge-product-researcher` | Competitors, market, differentiation (web research) |
@@ -54,6 +55,7 @@ Choose the **smallest team that covers the task's risks**. Never invoke every sp
 | **Refactor / tech debt** | `forge-architect` + relevant engineer + `forge-test-automation-engineer` | `forge-qa-lead` for broad regression scope |
 | **Tests / coverage** | `forge-qa-lead` + `forge-test-automation-engineer` | `forge-browser-qa` for E2E |
 | **Documentation** | `forge-tech-writer` | `forge-dx-engineer` for setup guides |
+| **Skill / tool discovery** ("find skills for this project", or a capability gap on an M/L task) | `forge-skill-scout` (proposal only); the orchestrator handles the approval gate and the install | `forge-security-engineer` to review a candidate that ships executable scripts |
 
 ## Selecting "relevant engineer"
 

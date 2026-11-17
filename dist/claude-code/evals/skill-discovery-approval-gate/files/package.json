@@ -1,0 +1,11 @@
+{
+  "name": "web-tasks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny zero-dependency task board.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  }
+}

@@ -18,6 +18,7 @@ Downgrade to S only when the defect and its fix are both obvious after targeted 
 |---|---|---|
 | 1 | Understand | Task type, size, risks and a draft goal sentence are known |
 | 2 | Explore | Stack identified from evidence. Affected files and modules listed. Existing tests and validation commands known |
+| 2b | Capabilities | Local skill inventory done. If discovery ran, the proposal was presented and the user's answer is recorded (approved / rejected / not yet received). Only approved items are installed |
 | 3 | Specify | Spec has acceptance criteria (testable), edge cases, NFRs, boundaries, assumptions, and grounding references (file paths) |
 | 4 | Architect | Team chosen. Approach chosen with the alternatives considered. ADR for L tasks |
 | 5 | Plan | Ordered tasks with owners, dependencies and a validation strategy per task |

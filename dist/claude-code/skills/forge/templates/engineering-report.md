@@ -8,6 +8,8 @@
 
 **Specialists involved:** <agents actually invoked + skills actually loaded; state "native subagents" (Mode A) or "emulated sequentially" (Mode B). Never list agents that did not run.>
 
+**Skills & capabilities:** Relevant skills that already existed; skills recommended (with their source and license); user approval (approved / rejected / not yet received / not needed); skills installed, with their source and pinned commit; skills actually used; skills skipped and why. Confirm that no paid service or subscription was required. Never list an install or a skill use that did not happen.
+
 **Implementation:**
 - <features / fixes completed>
 - Files changed: <path — summary> (from `git diff --stat`)

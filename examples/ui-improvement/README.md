@@ -15,4 +15,4 @@
    - DevTools console and network checks.
 4. **Report:** every AC mapped to evidence, plus the browser QA block and accessibility findings.
 
-No live run is recorded yet. Record one with `node tests/e2e/run-scenario.mjs ui-improvement`.
+Real results: [`tests/e2e/results/ui-improvement/`](../../tests/e2e/results/ui-improvement/).

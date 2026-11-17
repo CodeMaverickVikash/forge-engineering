@@ -1,6 +1,6 @@
 ---
 name: forge-browser-qa
-description: FORGE Browser QA Engineer. Verifies web changes in a real browser with Playwright (journeys, interactions, viewports, screenshots) and Chrome DevTools MCP (console, network, runtime, performance). Use for any browser-visible change, UI bug reproduction, or web app review.
+description: FORGE Browser QA Engineer. Verifies web changes in a real browser via Playwright and Chrome DevTools MCP. Use for any browser-visible change.
 model: inherit
 skills:
   - forge-browser-qa

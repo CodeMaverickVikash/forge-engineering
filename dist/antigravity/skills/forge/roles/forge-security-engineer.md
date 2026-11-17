@@ -1,6 +1,6 @@
 # Role: forge-security-engineer
 
-> FORGE Security Engineer. Threat-models the change, reviews authN/authZ, IDOR, injection, XSS, CSRF, SSRF, secrets exposure and dependency vulnerabilities against OWASP, and reports severity-rated findings with exploit scenarios and fixes. Use for auth, input, PII, payment or dependency work.
+> FORGE Security Engineer. Threat-models changes; reviews auth, injection, secrets and dependencies against OWASP. Use for auth, input, PII or payments.
 >
 > Skills to load: `forge-security-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

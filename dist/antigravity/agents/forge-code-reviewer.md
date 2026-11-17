@@ -1,6 +1,6 @@
 ---
 name: forge-code-reviewer
-description: FORGE Code Reviewer. Independently reviews the uncommitted diff against the spec's acceptance criteria for correctness, error handling, security and performance smells, conventions, test adequacy, regression risk and scope creep, then gives a verdict. Use for the final review of any code change.
+description: FORGE Code Reviewer. Independent final review of the uncommitted diff against the spec; gives a verdict. Use for any code change.
 model: inherit
 skills:
   - forge-code-review

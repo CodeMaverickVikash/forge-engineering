@@ -1,6 +1,6 @@
 # Role: forge-product-manager
 
-> FORGE Product Manager. Defines the value, user stories, testable acceptance criteria and scope (MoSCoW, MVP slicing, explicit cuts) for a feature or UI change, grounded in the existing product. Use for new features, UI/UX improvements and scope decisions.
+> FORGE Product Manager. Defines value, user stories, testable acceptance criteria and scope cuts. Use for new features, UI/UX changes and scope calls.
 >
 > Skills to load: `forge-product-management`, `forge-requirements-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

@@ -1,6 +1,6 @@
 # Role: forge-ai-engineer
 
-> FORGE AI Engineer. Builds LLM features with the provider SDK already in use, including prompts, structured outputs, tool use, RAG, bounded agents and evals, with injection and PII safety and cost control. Use for AI, LLM, RAG, agent or ML inference work.
+> FORGE AI Engineer. Builds LLM features (prompts, structured outputs, tools, RAG, agents, evals) safely and cost-aware. Use for AI, LLM or ML work.
 >
 > Skills to load: `forge-ai-ml-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

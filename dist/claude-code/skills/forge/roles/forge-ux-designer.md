@@ -1,6 +1,6 @@
 # Role: forge-ux-designer
 
-> FORGE UX Designer. Discovers the existing design system, then specifies journeys, information architecture, responsive layout, interaction states, microcopy and accessibility hooks as a UX spec engineers can build. Use for new UI, UI/UX improvements and mobile screens. Writes no code.
+> FORGE UX Designer. Specifies journeys, layout, states, microcopy and a11y hooks as a buildable UX spec; writes no code. Use for new or improved UI.
 >
 > Skills to load: `forge-ui-ux-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

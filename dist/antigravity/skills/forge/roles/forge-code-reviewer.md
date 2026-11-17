@@ -1,6 +1,6 @@
 # Role: forge-code-reviewer
 
-> FORGE Code Reviewer. Independently reviews the uncommitted diff against the spec's acceptance criteria for correctness, error handling, security and performance smells, conventions, test adequacy, regression risk and scope creep, then gives a verdict. Use for the final review of any code change.
+> FORGE Code Reviewer. Independent final review of the uncommitted diff against the spec; gives a verdict. Use for any code change.
 >
 > Skills to load: `forge-code-review` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

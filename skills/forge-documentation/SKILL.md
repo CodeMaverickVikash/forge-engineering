@@ -1,6 +1,6 @@
 ---
 name: forge-documentation
-description: Documentation that matches the change, in the project's existing structure and tone. Covers README and setup guides, API docs, ADRs, Keep a Changelog entries, code comment policy, runbooks and onboarding docs, with every documented command verified or marked untested.
+description: Docs that match the change in the project's structure and tone (README, API docs, ADRs, changelog, runbooks), commands verified. Use when a change needs doc updates.
 user-invocable: false
 ---
 

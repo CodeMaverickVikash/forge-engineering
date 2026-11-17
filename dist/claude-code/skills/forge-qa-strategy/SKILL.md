@@ -1,6 +1,6 @@
 ---
 name: forge-qa-strategy
-description: Risk-based test strategy and verification for any stack. Covers test planning, regression scope analysis, mapping acceptance criteria to evidence, exploratory CLI/HTTP testing charters, edge-case heuristics, baseline-versus-after comparison, bug reports and exit criteria.
+description: Risk-based test strategy and verification covering test plans, regression scope, AC-to-evidence mapping, exploratory charters, bug reports and exit criteria.
 user-invocable: false
 ---
 

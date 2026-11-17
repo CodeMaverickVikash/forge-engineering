@@ -1,6 +1,6 @@
 ---
 name: forge-devops-cloud
-description: Containers, CI/CD, Kubernetes, cloud platforms and infrastructure as code for any stack. Covers Docker and compose best practice, probes and resources, pipeline caching and least privilege, environment config, Terraform plan-only review, and the safety rules for deploys and cloud changes.
+description: Containers, CI/CD, Kubernetes, cloud and IaC for any stack, with Terraform plan-only review and deploy safety rules. Use for build, pipeline or infra config changes.
 user-invocable: false
 ---
 

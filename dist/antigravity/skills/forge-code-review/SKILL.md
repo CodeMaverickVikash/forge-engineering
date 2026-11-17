@@ -1,6 +1,6 @@
 ---
 name: forge-code-review
-description: Independent code review of an uncommitted diff against the task spec. Checks acceptance criteria coverage, correctness, error handling, security and performance smells, conventions, test adequacy, regression risk and scope creep, with a verdict. Use for the final review of any code change.
+description: Independent review of the uncommitted diff against the spec for correctness, security, tests, regression risk and scope creep, with a verdict. Use for any final code review.
 disable-slash-command: true
 ---
 

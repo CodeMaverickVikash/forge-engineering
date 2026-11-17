@@ -1,6 +1,6 @@
 ---
 name: forge-requirements-engineering
-description: Requirements engineering for software changes. Covers testable acceptance criteria, an NFR catalogue with measurable targets, AC-to-test traceability, scope control, INVEST user stories and requirement smell detection. Use when writing, reviewing or tightening requirements and acceptance criteria.
+description: Requirements engineering covering testable acceptance criteria, measurable NFRs, AC-to-test traceability, scope control and INVEST stories. Use when writing requirements.
 disable-slash-command: true
 ---
 

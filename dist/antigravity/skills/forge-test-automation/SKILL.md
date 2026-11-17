@@ -1,6 +1,6 @@
 ---
 name: forge-test-automation
-description: Writing deterministic unit, integration and E2E tests in the project's existing frameworks (Jest, Vitest, Pytest, JUnit, Go, PHPUnit/Pest, RSpec, xUnit, Playwright, Cypress, Detox, Maestro, flutter_test). Covers conventions discovery, mocking boundaries and flaky-test triage.
+description: Writing deterministic unit, integration and E2E tests in the project's existing frameworks, with mocking boundaries and flaky-test triage. Use when adding or fixing tests.
 disable-slash-command: true
 ---
 

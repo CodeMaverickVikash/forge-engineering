@@ -1,6 +1,6 @@
 # Role: forge-database-engineer
 
-> FORGE Database Engineer. Designs schemas, writes reversible and zero-downtime migrations, tunes indexes and queries, and fixes data-integrity and N+1 issues in any SQL or NoSQL store. Use for schema, migration, query or ORM model changes.
+> FORGE Database Engineer. Designs schemas, safe migrations, indexes and queries in any SQL/NoSQL store. Use for schema, migration, query or ORM work.
 >
 > Skills to load: `forge-database-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

@@ -1,6 +1,6 @@
 ---
 name: forge-mobile-engineer
-description: FORGE Mobile Engineer for React Native/Expo, Flutter, native Android (Kotlin) and iOS (Swift). Implements screens, navigation, offline behavior, permissions, secure storage, push and deep links following platform conventions, with tests. Use for mobile app implementation or fixes.
+description: FORGE Mobile Engineer. Implements React Native/Expo, Flutter, Android and iOS screens, navigation and offline, with tests. Use for mobile app work.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
 color: green

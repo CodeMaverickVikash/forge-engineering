@@ -1,0 +1,7 @@
+{
+  "$comment": "Case name -> fixtures copied into files/ by scripts/build.mjs (fixture or fixture:subdir).",
+  "bug-fix-counter": ["web-tasks"],
+  "security-review-read-only": ["web-tasks"],
+  "database-change-honest-gates": ["spring-boot-app"],
+  "analysis-monorepo": ["nextjs-app:apps/web", "python-fastapi:services/orders", "go-service:services/inventory"]
+}

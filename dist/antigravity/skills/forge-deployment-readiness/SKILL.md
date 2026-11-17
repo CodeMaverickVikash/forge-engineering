@@ -1,6 +1,6 @@
 ---
 name: forge-deployment-readiness
-description: Production-readiness review for a service or release. Covers config and secrets, health checks, observability, resilience, scalability, security posture, backups and migrations, CI gates, release strategy, rollback, SLOs, runbooks and cost, ending in an evidence-based readiness scorecard.
+description: Production-readiness review of config, health checks, observability, resilience, rollback, SLOs and runbooks, ending in a readiness scorecard. Use before a release.
 disable-slash-command: true
 ---
 

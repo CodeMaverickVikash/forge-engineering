@@ -1,6 +1,6 @@
 ---
 name: forge-debugging
-description: Systematic root-cause debugging for any stack. Reproduce, minimize, hypothesize, instrument, bisect, fix the root cause, add a regression test and verify. Includes stack-agnostic tactics for logs, debuggers, network, races, config drift and dependencies. Use for any defect or failing check.
+description: Systematic root-cause debugging for any stack. Reproduce, hypothesize, instrument, bisect, fix and add a regression test. Use for any defect or failing check.
 user-invocable: false
 ---
 

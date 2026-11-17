@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+// Live end-to-end runner: executes a real headless Claude Code `/forge` session against a sandboxed fixture.
+//   node tests/e2e/run-scenario.mjs <scenario|all> [--model sonnet] [--budget 10] [--keep]
+// Requires: the `claude` CLI (or CLAUDE_BIN), bash (installer), git. Costs real API usage — run deliberately.
+// Safety: sandbox in the OS temp dir; FORGE installed at *project* scope (your ~/.claude is untouched);
+// git mutations are denied via --disallowedTools; only the Playwright + Chrome DevTools MCP servers are loaded.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { SCENARIOS } from './scenarios.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+const CLAUDE = process.env.CLAUDE_BIN || 'claude';
+const GIT_DENY = ['Bash(git commit:*)', 'Bash(git push:*)', 'Bash(git merge:*)', 'Bash(git rebase:*)', 'Bash(git reset:*)', 'Bash(git stash push:*)', 'Bash(git stash pop:*)', 'Bash(git stash drop:*)', 'Bash(git clean:*)', 'Bash(gh pr create:*)'];
+const ALLOW = ['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', 'Skill', 'Agent', 'TodoWrite', 'mcp__playwright', 'mcp__chrome-devtools'];
+
+function sandbox(name, fixture) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `forge-e2e-${name}-`));
+  for (const spec of [].concat(fixture)) {
+    const [fx, sub = ''] = spec.split(':');
+    fs.cpSync(path.join(ROOT, 'tests', 'fixtures', fx), path.join(dir, sub), { recursive: true });
+  }
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: dir }); // avoid CRLF noise in change detection
+  execFileSync('git', ['add', '-A'], { cwd: dir }); // baseline staged (never committed): `git diff` shows FORGE's changes
+  const r = spawnSync('bash', [path.join(ROOT, 'scripts', 'install.sh'), '--target', 'claude', '--scope', 'project', '--project', dir], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`install failed: ${r.stderr}`);
+  return dir;
+}
+
+function analyzeStream(lines) {
+  const ev = { skills: [], agents: [], bash: [], mcp: {}, result: null, toolUses: 0 };
+  for (const line of lines) {
+    let e; try { e = JSON.parse(line); } catch { continue; }
+    if (e.type === 'result') ev.result = e;
+    const content = e.type === 'assistant' ? e.message?.content || [] : [];
+    for (const c of content) {
+      if (c.type !== 'tool_use') continue;
+      ev.toolUses++;
+      if (c.name === 'Skill') ev.skills.push(c.input?.skill || c.input?.command);
+      else if (c.name === 'Agent' || c.name === 'Task') ev.agents.push(String(c.input?.subagent_type || '').replace(/^forge:/, ''));
+      else if (c.name === 'Bash') ev.bash.push(c.input?.command || '');
+      else if (c.name.startsWith('mcp__')) { const s = c.name.split('__')[1]; ev.mcp[s] = (ev.mcp[s] || 0) + 1; }
+    }
+  }
+  return ev;
+}
+
+function evaluate(name, sc, dir, ev) {
+  const fails = []; const e = sc.expect || {};
+  const used = new Set(ev.agents);
+  for (const a of e.agentsAll || []) if (!used.has(a)) fails.push(`agent not invoked: ${a}`);
+  for (const group of e.agentsAny || []) if (!group.some((a) => used.has(a))) fails.push(`none of [${group}] invoked`);
+  const report = ev.result?.result || '';
+  if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
+  if (!/no commit|not committed|nothing (is |was )?committed/i.test(report)) fails.push('report does not state that no commit was made');
+  for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
+  const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
+  // `git stash list` is read-only; anything else that mutates history or the working tree is forbidden.
+  if (ev.bash.some((c) => /\bgit\s+(commit|push|merge|rebase|reset|clean)\b|\bgit\s+stash(?!\s+list)\b|\bgh\s+pr\s+create\b/.test(c))) fails.push('attempted a forbidden git operation');
+  const changed = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean)
+    .map((l) => l.slice(3)).filter((f) => !f.startsWith('.forge') && !f.startsWith('.claude') && !/^\.playwright-mcp|\.png$|test-results|playwright-report/.test(f));
+  if (e.sourceChanges === false && changed.length) fails.push(`analysis-only task changed files: ${changed.join(', ')}`);
+  if (e.sourceChanges === true && !changed.length) fails.push('no source changes made');
+  if (e.browser) {
+    const both = ev.mcp.playwright && ev.mcp['chrome-devtools'];
+    if (!both && !/not browser-verified/i.test(report)) fails.push('browser change neither verified with both MCPs nor reported as not browser-verified');
+  }
+  if (sc.check) fails.push(...sc.check({ dir }));
+  let testsAfter = 'N/A';
+  if (fs.existsSync(path.join(dir, 'package.json')) && /"test"/.test(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))) {
+    const t = spawnSync('npm', ['test'], { cwd: dir, encoding: 'utf8', shell: process.platform === 'win32' });
+    testsAfter = t.status === 0 ? 'PASSED' : 'FAILED';
+    if (t.status !== 0) fails.push('project tests fail after FORGE run');
+  }
+  return { fails, changed, testsAfter, denied };
+}
+
+function run(name) {
+  const sc = SCENARIOS[name]; if (!sc) throw new Error(`unknown scenario ${name}`);
+  const dir = sandbox(name, sc.fixture);
+  const mcpCfg = path.join(os.tmpdir(), `forge-e2e-mcp-${process.pid}.json`);
+  const npx = process.platform === 'win32' ? { command: 'cmd', pre: ['/c', 'npx'] } : { command: 'npx', pre: [] };
+  fs.writeFileSync(mcpCfg, JSON.stringify({ mcpServers: {
+    playwright: { command: npx.command, args: [...npx.pre, '-y', '@playwright/mcp@latest', '--isolated'] },
+    'chrome-devtools': { command: npx.command, args: [...npx.pre, '-y', 'chrome-devtools-mcp@latest', '--isolated'] }
+  } }));
+  const cliArgs = ['-p', sc.prompt, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
+    '--allowedTools', ...ALLOW, '--disallowedTools', ...GIT_DENY, '--strict-mcp-config', '--mcp-config', mcpCfg,
+    '--model', opt('--model', 'sonnet'), '--max-budget-usd', opt('--budget', '10'), '--no-session-persistence'];
+  console.log(`▶ ${name}: sandbox ${dir}`);
+  const t0 = Date.now();
+  const r = spawnSync(CLAUDE, cliArgs, { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 });
+  console.log(`  claude finished: exit=${r.status} signal=${r.signal} error=${r.error?.code || 'none'} after ${((Date.now() - t0) / 60000).toFixed(1)}min, ${(r.stdout || '').length} bytes`);
+  const lines = (r.stdout || '').split('\n');
+  const ev = analyzeStream(lines);
+  const res = evaluate(name, sc, dir, ev);
+  const outDir = path.join(ROOT, 'tests', 'e2e', 'results', name);
+  fs.mkdirSync(outDir, { recursive: true });
+  const diff = execFileSync('git', ['diff', '--stat'], { cwd: dir, encoding: 'utf8' });
+  const summary = {
+    scenario: name, prompt: sc.prompt, fixture: sc.fixture, model: opt('--model', 'sonnet'), date: new Date().toISOString().slice(0, 10),
+    pass: res.fails.length === 0 && r.status === 0, failures: res.fails, exitCode: r.status,
+    durationMin: +((Date.now() - t0) / 60000).toFixed(1), costUsd: ev.result?.total_cost_usd ?? null, turns: ev.result?.num_turns ?? null,
+    skillsInvoked: [...new Set(ev.skills)], agentsInvoked: ev.agents, mcpToolCalls: ev.mcp, toolUses: ev.toolUses,
+    permissionDenials: res.denied, filesChanged: res.changed, diffStat: diff.trim(), projectTestsAfter: res.testsAfter
+  };
+  fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
+  const tdir = process.env.FORGE_E2E_TRANSCRIPTS || os.tmpdir(); // full transcripts stay out of the repo
+  fs.writeFileSync(path.join(tdir, `forge-e2e-${name}.jsonl`), r.stdout || '');
+  fs.writeFileSync(path.join(outDir, 'report.md'), (ev.result?.result || '(no final result)').replace(new RegExp(dir.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'), 'g'), '<sandbox>') + '\n');
+  if (!args.includes('--keep')) fs.rmSync(dir, { recursive: true, force: true }); else console.log(`  kept sandbox: ${dir}`);
+  console.log(`${summary.pass ? '✔' : '✖'} ${name}: agents=[${ev.agents.join(', ')}] mcp=${JSON.stringify(ev.mcp)} cost=$${summary.costUsd} ${summary.durationMin}min`);
+  for (const f of res.fails) console.log(`   - ${f}`);
+  if (r.status !== 0) console.log(`   claude exit ${r.status}: ${(r.stderr || '').slice(0, 500)}`);
+  return summary.pass;
+}
+
+const which = args[0];
+if (!which) { console.log(`Usage: node tests/e2e/run-scenario.mjs <${Object.keys(SCENARIOS).join('|')}|all> [--model sonnet] [--budget 10] [--keep]`); process.exit(0); }
+process.on('uncaughtException', (e) => { console.error(`run-scenario crashed: ${e.stack}`); process.exit(2); });
+const names = which === 'all' ? Object.keys(SCENARIOS) : which.split(',');
+const ok = names.map(run).every(Boolean);
+process.exit(ok ? 0 : 1);

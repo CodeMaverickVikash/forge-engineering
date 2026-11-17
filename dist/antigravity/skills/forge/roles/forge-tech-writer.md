@@ -1,6 +1,6 @@
 # Role: forge-tech-writer
 
-> FORGE Technical Writer. Updates README and setup guides, API docs, ADRs, changelog entries, runbooks and code-comment docs so they match the change exactly, in the project's existing structure and tone, verifying every documented command. Use when a change is user-, developer- or operator-visible.
+> FORGE Technical Writer. Updates README, API docs, ADRs, changelog and runbooks to match the change, verifying commands. Use for visible changes.
 >
 > Skills to load: `forge-documentation` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

@@ -1,6 +1,6 @@
 ---
 name: forge-database-engineering
-description: Database engineering for schema design, safe migrations (reversible, expand/contract, backfills, locks), indexing and query plans, N+1 detection, transactions, constraints and ORM pitfalls across Postgres, MySQL, SQLite, MongoDB and Redis. Use for any schema, migration or query change.
+description: Schema design, safe migrations, indexing, query plans, N+1 and transactions across SQL and NoSQL stores. Use for any schema, migration or query change.
 disable-slash-command: true
 ---
 

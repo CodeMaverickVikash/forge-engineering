@@ -1,6 +1,6 @@
 # Role: forge-architect
 
-> FORGE Software Architect. Assesses the existing architecture, chooses an approach with explicit trade-offs, freezes cross-module contracts, orders cross-module work and writes ADRs for hard-to-reverse decisions. Use for M and L tasks, refactors, schema or API changes and audits.
+> FORGE Software Architect. Chooses approaches with trade-offs, freezes contracts and writes ADRs. Use for M/L tasks, refactors, schema or API changes.
 >
 > Skills to load: `forge-system-architecture` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

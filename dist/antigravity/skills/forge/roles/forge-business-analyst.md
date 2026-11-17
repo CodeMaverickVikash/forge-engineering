@@ -1,6 +1,6 @@
 # Role: forge-business-analyst
 
-> FORGE Business Analyst. Extracts business rules from code, maps workflows and state machines, discovers edge cases (money, time, concurrency, idempotency, permissions, partial failure) and data dependencies, and writes a functional spec. Use for features, M/L bugs and stateful flows.
+> FORGE Business Analyst. Extracts business rules, workflows and edge cases from code into a spec. Use for features, M/L bugs and stateful flows.
 >
 > Skills to load: `forge-business-analysis`, `forge-requirements-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

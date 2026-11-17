@@ -1,6 +1,6 @@
 ---
 name: forge-backend-engineering
-description: Language-agnostic backend practices covering layering, boundary validation, authorization, error models, idempotency, transactions, concurrency, config, logging, pagination, API evolution, jobs and service tests. Use when building or fixing server-side code.
+description: Language-agnostic backend practices for validation, authorization, errors, idempotency, transactions, concurrency, jobs and tests. Use when building or fixing server-side code.
 user-invocable: false
 ---
 

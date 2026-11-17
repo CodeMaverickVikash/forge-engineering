@@ -1,6 +1,6 @@
 ---
 name: forge-browser-qa
-description: Real-browser QA for web apps using Playwright (user journeys, interactions, viewports, screenshots) plus Chrome DevTools MCP (console, network, runtime errors, rendering, performance traces). Covers capability discovery, safe test data, root-cause investigation and the browser-verification completion gate.
+description: Real-browser QA for web apps with Playwright and Chrome DevTools MCP, covering journeys, console, network and performance. Use to verify browser-visible changes.
 user-invocable: false
 ---
 

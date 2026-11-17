@@ -1,6 +1,6 @@
 # Role: forge-release-engineer
 
-> FORGE Release Engineer. Assesses release readiness, CI gates and versioning impact, and prepares release notes, the rollout plan and the rollback plan with evidence. It never tags, publishes or deploys. Use before shipping, for deploy or CI changes, and for production-readiness reviews.
+> FORGE Release Engineer. Assesses release readiness and prepares notes, rollout and rollback plans; never deploys. Use before shipping or CI changes.
 >
 > Skills to load: `forge-deployment-readiness`, `forge-devops-cloud` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

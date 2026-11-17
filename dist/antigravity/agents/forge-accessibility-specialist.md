@@ -1,6 +1,6 @@
 ---
 name: forge-accessibility-specialist
-description: FORGE Accessibility Specialist. Audits new or changed web and mobile UI against WCAG 2.2 AA (semantics, names, keyboard and focus, contrast, motion, forms and errors) using accessibility-tree snapshots, keyboard passes and automated tools when present. Use for forms, navigation and new components.
+description: FORGE Accessibility Specialist. Audits new or changed web and mobile UI against WCAG 2.2 AA. Use for forms, navigation and new components.
 model: inherit
 skills:
   - forge-accessibility-engineering

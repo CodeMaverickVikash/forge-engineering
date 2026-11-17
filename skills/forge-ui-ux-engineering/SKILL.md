@@ -1,6 +1,6 @@
 ---
 name: forge-ui-ux-engineering
-description: UI and UX engineering for web and mobile changes. Covers user journeys, information architecture, layout and responsive strategy, design-system discovery and consistency, interaction states, microcopy, accessibility hooks and Nielsen heuristic review, producing a UX spec engineers can build.
+description: UI and UX engineering for web and mobile covering journeys, IA, responsive layout, design-system consistency, states and microcopy, producing a buildable UX spec.
 user-invocable: false
 ---
 

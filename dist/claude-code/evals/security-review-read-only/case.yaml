@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: security-review-read-only
+expected_outcome: |
+  A read-only security review that finds the innerHTML stored-XSS sink and the missing title validation, ranks findings by severity with evidence and fixes, and modifies no project files.
+context:
+  scaffold_script: place-files.sh

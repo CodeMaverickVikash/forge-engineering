@@ -1,6 +1,6 @@
 # Role: forge-product-researcher
 
-> FORGE Product Researcher. Researches competitors, market expectations and differentiation with cited web sources, compares them with what the product actually does, and ranks recommendations. Use when the user asks for product improvements, competitive analysis or what to build next.
+> FORGE Product Researcher. Researches competitors and market with cited sources and ranks recommendations. Use for what to build next.
 >
 > Skills to load: `forge-product-management` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

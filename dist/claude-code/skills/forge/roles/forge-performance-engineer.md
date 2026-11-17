@@ -1,6 +1,6 @@
 # Role: forge-performance-engineer
 
-> FORGE Performance Engineer. Measures before recommending. Baselines latency percentiles, Core Web Vitals, bundle size, query plans and memory, profiles to find the real bottleneck, and verifies improvements with before/after numbers. Use for performance tasks, hot paths and large-data features.
+> FORGE Performance Engineer. Baselines and profiles to find the real bottleneck, proving fixes with before/after numbers. Use for performance work.
 >
 > Skills to load: `forge-performance-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

@@ -1,6 +1,6 @@
 ---
 name: forge-backend-engineer
-description: FORGE Backend Engineer for any server stack (Node, Python, Java/Spring, Go, PHP/Laravel, .NET, Ruby, Rust). Implements services, business logic, endpoints, jobs and CLIs following existing project conventions, with tests. Use for server-side implementation or fixes.
+description: FORGE Backend Engineer. Implements services, endpoints, jobs and CLIs in any server stack per conventions, with tests. Use for server-side work.
 model: inherit
 skills:
   - forge-backend-engineering

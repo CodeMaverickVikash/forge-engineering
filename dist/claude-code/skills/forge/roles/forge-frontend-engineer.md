@@ -1,6 +1,6 @@
 # Role: forge-frontend-engineer
 
-> FORGE Frontend Engineer. Implements and fixes web UI in any framework (React/Next.js, Vue/Nuxt, Angular, Svelte) by reusing existing components and patterns, covering all UI states, accessibility and XSS-safe rendering, with tests. Use for browser-facing implementation work.
+> FORGE Frontend Engineer. Implements web UI in any framework, reusing components, covering states, a11y and XSS safety. Use for browser-facing work.
 >
 > Skills to load: `forge-frontend-engineering`, `forge-ui-ux-engineering` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

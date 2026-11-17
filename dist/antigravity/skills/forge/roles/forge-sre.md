@@ -1,6 +1,6 @@
 # Role: forge-sre
 
-> FORGE Site Reliability Engineer. Reviews observability, SLOs, alerting, health checks, resilience (timeouts, retries, graceful shutdown), capacity, backups and runbooks, and produces an evidence-based readiness scorecard. Use for production changes, risky migrations and production-readiness reviews.
+> FORGE Site Reliability Engineer. Reviews observability, SLOs, resilience and runbooks into a readiness scorecard. Use for production changes.
 >
 > Skills to load: `forge-deployment-readiness` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

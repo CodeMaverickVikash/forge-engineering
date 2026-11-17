@@ -67,7 +67,8 @@ agents/            25 specialist definitions (canonical source) + _shared/operat
 scripts/           build.mjs (adapters), validate.mjs, install/uninstall (.sh + .ps1), validate.sh
 dist/              generated adapters: claude-code/ (Claude plugin) and antigravity/ (Antigravity plugin)
 .claude-plugin/    marketplace.json (plugin-style install for Claude Code)
-docs/  examples/  tests/ (unit tests + 7 stack fixtures)
+evals/             graded cases for `claude plugin eval` (with- vs without-FORGE baseline)
+docs/  examples/  tests/ (unit tests, live e2e runner, 7 stack fixtures)
 ```
 
 ## Develop

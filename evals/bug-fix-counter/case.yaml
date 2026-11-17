@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: bug-fix-counter
+expected_outcome: |
+  The counter in public/app.js counts open (not done) tasks, a regression test is added or its absence justified, tests are run, browser verification status is stated honestly, an independent review happens, and a FORGE Execution Report confirms nothing was committed.
+context:
+  scaffold_script: place-files.sh

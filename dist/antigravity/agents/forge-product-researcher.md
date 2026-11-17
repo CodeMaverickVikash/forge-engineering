@@ -1,6 +1,6 @@
 ---
 name: forge-product-researcher
-description: FORGE Product Researcher. Researches competitors, market expectations and differentiation with cited web sources, compares them with what the product actually does, and ranks recommendations. Use when the user asks for product improvements, competitive analysis or what to build next.
+description: FORGE Product Researcher. Researches competitors and market with cited sources and ranks recommendations. Use for what to build next.
 model: inherit
 skills:
   - forge-product-management

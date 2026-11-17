@@ -60,7 +60,7 @@ for (const s of skills) {
   else {
     if (d.length > 1024) err(where, `description ${d.length} chars > 1024 (Agent Skills spec)`);
     if (/[<>]/.test(d)) err(where, 'description must not contain < or >');
-    if (s !== 'forge' && d.length > 320) warn(where, `description ${d.length} chars; keep specialist descriptions <= 320 to save context`);
+    if (s !== 'forge' && d.length > 200) warn(where, `description ${d.length} chars; keep specialist descriptions <= 200 (always-loaded context)`);
     descChars += d.length;
   }
   if (s === 'forge') { if (fm.data['user-invocable'] === false) err(where, 'forge must be user-invocable'); }
@@ -99,7 +99,7 @@ for (const a of agents) {
   if (!a.startsWith('forge-') || !NAME_RE.test(a)) err(where, 'agent names must be forge-prefixed lowercase-hyphenated');
   const d = fm.data.description;
   if (typeof d !== 'string' || d.length < 40) err(where, 'description missing or too short');
-  else { if (d.length > 400) warn(where, `description ${d.length} chars; keep <= 300`); agentDescChars += d.length; if (/[<>]/.test(d)) err(where, 'description must not contain < or >'); }
+  else { if (d.length > 170) warn(where, `description ${d.length} chars; keep agent descriptions <= 170 (always-loaded context)`); agentDescChars += d.length; if (/[<>]/.test(d)) err(where, 'description must not contain < or >'); }
   for (const key of ['tools', 'disallowedTools']) {
     if (fm.data[key] === undefined) continue;
     const list = Array.isArray(fm.data[key]) ? fm.data[key] : String(fm.data[key]).split(',').map((t) => t.trim());
@@ -148,6 +148,31 @@ try {
 for (const f of ['.claude-plugin/marketplace.json']) {
   try { const j = JSON.parse(read(path.join(ROOT, f))); if (!j.name || !j.owner?.name || !Array.isArray(j.plugins)) err(f, 'marketplace requires name, owner.name, plugins[]'); }
   catch (e) { err(f, e.message); }
+}
+
+// ---------------- eval cases (claude plugin eval format) ----------------
+const evalsDir = path.join(ROOT, 'evals');
+if (fs.existsSync(evalsDir)) {
+  const fixtures = JSON.parse(read(path.join(evalsDir, 'fixtures.json')));
+  const cases = fs.readdirSync(evalsDir).filter((n) => fs.statSync(path.join(evalsDir, n)).isDirectory());
+  for (const c of cases) {
+    const w = `evals/${c}`;
+    if (!/^[a-z][a-z0-9-]*$/.test(c) || ['results', 'mocks', 'node_modules', 'files', 'true', 'false', 'null'].includes(c)) err(w, 'invalid case name');
+    const prompt = fs.existsSync(path.join(evalsDir, c, 'prompt.md')) ? read(path.join(evalsDir, c, 'prompt.md')) : '';
+    const settings = prompt.match(/^---\n([\s\S]*?)\n---\n/);
+    if (!settings) err(w, 'prompt.md must start with a --- settings block');
+    else for (const line of settings[1].split('\n')) { const k = line.split(':')[0]; if (!['tags', 'max_turns', 'timeout_seconds', 'allowed_tools'].includes(k)) err(w, `unknown prompt.md setting "${k}" (case would fail to load)`); }
+    const yaml = fs.existsSync(path.join(evalsDir, c, 'case.yaml')) ? read(path.join(evalsDir, c, 'case.yaml')) : '';
+    if (!/^schema_version: "1\.1"$/m.test(yaml)) err(w, 'case.yaml needs schema_version: "1.1" (quoted)');
+    if (!new RegExp(`^name: ${c}$`, 'm').test(yaml)) err(w, 'case.yaml name must equal folder name');
+    const graders = fs.existsSync(path.join(evalsDir, c, 'graders')) ? fs.readdirSync(path.join(evalsDir, c, 'graders')) : [];
+    if (!graders.length) err(w, 'needs at least one grader');
+    for (const g of graders) if (!/^---\ntype: llm\nfocus: trace\nweight: 1\n---\n/.test(read(path.join(evalsDir, c, 'graders', g)))) err(`${w}/graders/${g}`, 'grader header block missing or altered');
+    if (/scaffold_script: place-files\.sh/.test(yaml) && !fs.existsSync(path.join(evalsDir, c, 'place-files.sh'))) err(w, 'place-files.sh missing');
+    for (const spec of fixtures[c] || []) if (!fs.existsSync(path.join(ROOT, 'tests', 'fixtures', spec.split(':')[0]))) err(w, `unknown fixture ${spec}`);
+    if (!fixtures[c]) err(w, 'no fixture mapping in evals/fixtures.json');
+  }
+  stats.evalCases = cases.length;
 }
 
 // ---------------- dist freshness + adapter constraints ----------------

@@ -1,6 +1,6 @@
 ---
 name: forge-project-exploration
-description: Universal codebase exploration for any language or stack. Identifies languages, frameworks, versions, package managers, commands, architecture, API contracts, schema, auth, tests, CI/CD and deploy config from evidence, then builds a refreshable project context map. Use before changing an unfamiliar codebase.
+description: Evidence-based codebase exploration for any stack, mapping frameworks, commands, architecture, contracts, tests and CI into a context map. Use before changing unfamiliar code.
 user-invocable: false
 ---
 

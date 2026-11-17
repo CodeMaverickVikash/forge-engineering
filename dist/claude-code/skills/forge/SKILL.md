@@ -38,7 +38,7 @@ Size the task first, then run only the phases it needs. See [core/lifecycle.md](
 
 | Size | Typical signal | Phases |
 |---|---|---|
-| **S** | one obvious defect, 1 to 3 files, low risk | Understand → targeted explore → fix → verify → review-lite → report |
+| **S** | one obvious defect, 1 to 3 files, low risk | Understand → targeted explore → fix (yourself or one engineer) → verify → independent review → report. No written spec or plan |
 | **M** | a feature or change across a few modules | All 10 phases, written spec and plan, 3 to 6 specialists |
 | **L** | cross-cutting, new subsystem, security or data risk, "production-ready" | All 10 phases, architecture decision record, parallel specialists, full quality gates |
 
@@ -56,6 +56,19 @@ Size the task first, then run only the phases it needs. See [core/lifecycle.md](
 10. **Report.** Use [templates/engineering-report.md](templates/engineering-report.md). Save it to `.forge/tasks/<task-slug>/report.md` and print it.
 
 For analysis-only requests (analyze, review, audit, suggest), skip phases 6 to 8 unless the user asked for fixes. Deliver findings ranked by impact, with evidence (file:line).
+
+### Never skipped, at any size
+
+Size reduces paperwork, not assurance. Small fixes are where shortcuts feel safest, and they are also where users trust the result without looking. These steps are cheap and catch what reasoning alone misses:
+- **Run the detector** (phase 2) before the first edit. It costs one command and stops you assuming the wrong test runner or package manager.
+- **Add a regression test for every bug fix.** Without one, the same bug can quietly return. If the code is genuinely untestable without a refactor, say so and propose the smallest testable seam instead of widening the change.
+- **Run browser QA (G10) for every browser-visible change**, one-line fixes included. A stubbed DOM proves the logic, but not that the real page renders, wires events correctly and stays free of console errors. In Mode A, **always delegate to `forge-browser-qa` rather than driving the browser yourself**, for two reasons:
+  - It carries the full procedure: Playwright journeys *and* Chrome DevTools MCP console, network and runtime inspection. Ad-hoc checks tend to cover only the first half.
+  - Snapshots and screenshots are heavy, and keeping them in its context keeps yours lean for orchestration.
+
+  In Mode B, load the `forge-browser-qa` skill and follow it. If Playwright or Chrome DevTools MCP is unavailable, write the verdict as *"implemented, not browser-verified"* plus the reason, so the user knows exactly what still needs eyes.
+- **Get an independent review (G13)** of every code change from `forge-code-reviewer` (Mode A) or a deliberate fresh-eyes pass (Mode B). An author reviewing their own diff sees what they meant to write, not what they wrote.
+- **Use the report template exactly.** Read it, then copy its bold section labels verbatim, in order, and fill each one: Task, Enhanced specification, Project understanding, Specialists involved, Implementation, QA and verification (the gate table), Browser QA, Issues, Assumptions, Remaining work, Git status. Users compare reports across tasks and tools parse them, so a free-form summary, however good, breaks both. Write "N/A" in a section that doesn't apply rather than dropping it. End with the git line "No commit, push, or pull request was created."
 
 ## Workspace
 

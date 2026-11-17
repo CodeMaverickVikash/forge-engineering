@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: analysis-monorepo
+expected_outcome: |
+  A read-only, evidence-based analysis that recognizes the three units and their stacks, gives prioritized findings with file references, and changes no files.
+context:
+  scaffold_script: place-files.sh

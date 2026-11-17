@@ -1,6 +1,6 @@
 ---
 name: forge-engineering-reporting
-description: Honest engineering reporting. Covers the status vocabulary, evidence rules, filling the FORGE execution report template, browser QA and git status sections, and a ranked analysis-report format. Use when writing a final report, a specialist report or an analysis or audit deliverable.
+description: Honest engineering reporting with status vocabulary, evidence rules and the FORGE report template. Use when writing a final, specialist, analysis or audit report.
 user-invocable: false
 ---
 

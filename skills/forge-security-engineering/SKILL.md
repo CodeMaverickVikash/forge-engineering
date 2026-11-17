@@ -1,6 +1,6 @@
 ---
 name: forge-security-engineering
-description: Application security review for any stack. Covers STRIDE-lite threat modelling, OWASP Top 10 (2021) and API Security Top 10 checks, authN/authZ and IDOR, injection, XSS/CSRF/SSRF, secrets scanning, dependency audits, PII and logging, with severity-rated findings and fixes.
+description: Application security review for any stack covering threat modelling, OWASP checks, authN/authZ, IDOR, injection, XSS/CSRF/SSRF, secrets and dependency audits.
 user-invocable: false
 ---
 

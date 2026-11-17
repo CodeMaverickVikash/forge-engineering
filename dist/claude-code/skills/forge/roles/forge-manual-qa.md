@@ -1,6 +1,6 @@
 # Role: forge-manual-qa
 
-> FORGE Manual QA Engineer. Walks through workflows by running the app, CLIs and HTTP endpoints locally, exploring edge cases, error paths and permissions with curl and shell checks. Use to verify behavior end to end outside the browser and to reproduce reported bugs.
+> FORGE Manual QA Engineer. Runs the app, CLIs and HTTP endpoints locally to probe edge cases and errors. Use for non-browser checks and bug repro.
 >
 > Skills to load: `forge-qa-strategy` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

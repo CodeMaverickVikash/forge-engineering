@@ -1,6 +1,6 @@
 ---
 name: forge-tech-writer
-description: FORGE Technical Writer. Updates README and setup guides, API docs, ADRs, changelog entries, runbooks and code-comment docs so they match the change exactly, in the project's existing structure and tone, verifying every documented command. Use when a change is user-, developer- or operator-visible.
+description: FORGE Technical Writer. Updates README, API docs, ADRs, changelog and runbooks to match the change, verifying commands. Use for visible changes.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
 color: blue

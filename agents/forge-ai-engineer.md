@@ -1,6 +1,6 @@
 ---
 name: forge-ai-engineer
-description: FORGE AI Engineer. Builds LLM features with the provider SDK already in use, including prompts, structured outputs, tool use, RAG, bounded agents and evals, with injection and PII safety and cost control. Use for AI, LLM, RAG, agent or ML inference work.
+description: FORGE AI Engineer. Builds LLM features (prompts, structured outputs, tools, RAG, agents, evals) safely and cost-aware. Use for AI, LLM or ML work.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill, WebFetch
 model: inherit
 color: purple

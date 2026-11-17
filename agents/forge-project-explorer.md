@@ -1,6 +1,6 @@
 ---
 name: forge-project-explorer
-description: FORGE Project Explorer. Maps an unfamiliar codebase from evidence (stack, commands, architecture, feature paths, contracts, tests, conventions and risks) and returns a compact context map. Use for deep read-only exploration on M and L tasks or audits.
+description: FORGE Project Explorer. Maps an unfamiliar codebase from evidence into a compact context map. Use for read-only exploration on M/L tasks or audits.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
 color: blue

@@ -1,6 +1,6 @@
 # Role: forge-test-automation-engineer
 
-> FORGE Test Automation Engineer. Writes deterministic unit, integration and E2E tests in the project's existing frameworks, adds regression tests that fail before a fix, and triages flaky tests. Use for new features, bug fixes, coverage gaps and refactors that need a safety net.
+> FORGE Test Automation Engineer. Writes deterministic unit, integration, E2E and regression tests; triages flakes. Use for features, fixes, refactors.
 >
 > Skills to load: `forge-test-automation` (each at `<FORGE_HOME>/../<skill>/SKILL.md`).
 

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, visualResults, visualCheck, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, visualResults, visualCheck, affectedCommand, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -304,7 +304,7 @@ test('evidence lists real files as links and flags an index that cites a missing
   } finally { clean(dir); }
 });
 
-test('one run call validates and answers the gate; final checks everything phase 9 needs in one call', () => {
+test('one run call validates and answers the gate; final checks everything phase 9 needs in one call', async () => {
   const dir = monorepo();
   try {
     w(dir, 'packages/ui/src/index.js', '// This function is responsible for exporting a.\nexport const a = 2;\n');
@@ -314,6 +314,9 @@ test('one run call validates and answers the gate; final checks everything phase
     assert.match(r.stdout, /Pre-browser gate: OPEN/);
     assert.doesNotMatch(r.stdout, /packages\/ui:test PASSED \(cycle/, 'passing rows are summarized, not listed');
     assert.match(r.stdout, /DEFERRED until the final check: apps\/web:build\. Run `run --task t --build`/);
+    assert.match(r.stdout, /✗ comment packages\/ui\/src\/index\.js:1 \[restates-code\][\s\S]*Fix these comments now/, 'comment errors surface in the author\'s run, not first in final');
+    const other = await run(dir, 't', { units: ['apps/web'], checks: ['test'] });
+    assert.deepEqual(other.commentErrors, [], "an implementer's run shows only its own units' comments");
 
     const pending = cli(dir, 'final', '--task', 't');
     assert.match(pending.stdout, /✗ apps\/web:build MISSING .*run `run --task <slug> --build`/, 'the final check requires the deferred build');
@@ -440,4 +443,46 @@ test('visual evidence: before/after rows from real files; the final-state shot m
     w(dir, '.forge/tasks/t/evidence/index.md', '- Visual evidence unavailable: Playwright MCP is not connected\n');
     assert.equal(visualCheck(dir, 't', g, ev()), null, 'an honest, stated limitation is accepted');
   } finally { clean(dir); }
+});
+
+test('affectedCommand narrows only plain vitest and jest scripts', () => {
+  assert.equal(affectedCommand({ body: 'vitest run', command: 'pnpm test' }), 'pnpm exec vitest run --changed --passWithNoTests');
+  assert.equal(affectedCommand({ body: 'vitest run', command: 'pnpm test' }, 'main'), 'pnpm exec vitest run --changed main --passWithNoTests');
+  assert.equal(affectedCommand({ body: 'jest --ci', command: 'npm run test' }), 'npx --no-install jest --ci --onlyChanged --passWithNoTests');
+  assert.equal(affectedCommand({ body: 'jest', command: 'yarn test' }, 'main'), 'npx --no-install jest --changedSince=main --passWithNoTests');
+  for (const body of ['turbo test', 'vitest run && node x.js', 'npm run unit', 'vitest --ui', 'vitest bench', 'NODE_ENV=test jest', 'node t.js']) assert.equal(affectedCommand({ body, command: 'npm run test' }), null, body);
+});
+
+// A fake vitest that records its arguments outside the repo, so the call log never changes the code fingerprint.
+const FAKE_VITEST = {
+  'packages/lib/node_modules/vitest/package.json': JSON.stringify({ name: 'vitest', version: '0.0.0', bin: { vitest: 'cli.js' } }),
+  'packages/lib/node_modules/vitest/cli.js': "require('fs').appendFileSync(process.env.FAKE_VITEST_LOG, process.argv.slice(2).join(' ') + String.fromCharCode(10));\n",
+  'packages/lib/node_modules/.bin/vitest': '#!/bin/sh\nexec node "$(dirname "$0")/../vitest/cli.js" "$@"\n',
+  'packages/lib/node_modules/.bin/vitest.cmd': '@node "%~dp0/../vitest/cli.js" %*\r\n',
+};
+
+test('fix cycles run only the related tests; the full suite runs once with --build and the final gate needs it', async () => {
+  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
+  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
+  process.env.FAKE_VITEST_LOG = log;
+  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
+  try {
+    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    const r1 = await run(dir, 't', { units: ['packages/lib'] });
+    assert.equal(r1.results[0].status, 'PASSED', r1.results[0].tail);
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests'], 'a fix cycle runs only the related tests');
+    assert.equal((await gate(dir, 't')).result, 'OPEN', 'which is enough for the browser');
+    const fin = await gate(dir, 't', { final: true });
+    assert.equal(fin.rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'MISSING', 'but not for the final gate');
+
+    const full = await run(dir, 't', { units: ['packages/lib'], build: true });
+    assert.deepEqual(full.results.map((x) => `${x.check}:${x.status}`), ['test:PASSED']);
+    assert.deepEqual(calls().slice(1), ['run'], '--build runs the full suite once');
+    assert.equal((await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'PASSED');
+
+    w(dir, 'packages/ui/src/index.js', 'export const a = 3;\n');
+    w(dir, 'apps/web/package.json', JSON.stringify({ name: 'web', dependencies: { '@acme/ui': '*', next: '15.1.0' }, scripts: { test: 'vitest run' } }));
+    const p = await plan(dir);
+    assert.equal(check(p, 'apps/web', 'test').affected, undefined, "a consumer of a changed package runs its full suite: its tests can't see the package's sources");
+  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
 });

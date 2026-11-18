@@ -11,6 +11,9 @@
 //       Run only the plan's checks that are not already passing for the current code (missing, stale, failed
 //       or blocked). Builds are DEFERRED (not run, not blocking the pre-browser gate) when type check or tests
 //       cover the unit and no consumer imports its output; --build runs them once, right before `final`.
+//       Tests: a unit with its own changed files whose test script is a plain vitest/jest call runs only the
+//       related tests (`--changed` / `--changedSince`) in fix cycles; --build runs the full suite once, and the
+//       final gate accepts only that. Consumers, root config changes and other runners always run in full.
 //       Up to --jobs checks run at once, longest first (by the task's recorded durations). A unit's package.json
 //       checks run side by side; other toolchains (Maven, Gradle, dotnet) keep type check → lint → tests; builds
 //       run last. Tests of units that share a database run one at a time; a shared package with prebuilt output
@@ -136,6 +139,19 @@ function ownerOf(units, file) {
   return best;
 }
 
+/**
+ * The command that runs only the tests related to the changed files, for a test script that is a plain vitest
+ * or jest call (anything chained, piped or wrapped, like `turbo test`, always runs in full). Fix cycles use it;
+ * the full suite runs once with `run --build`, and the final gate accepts only that.
+ */
+export function affectedCommand(c, base = null) {
+  const m = (c.body || '').trim().match(/^(vitest|jest)((?:\s+[^\s&|;<>`$()]+)*)$/);
+  if (!m || /\s(watch|dev|bench|--ui)\b/.test(m[2])) return null;
+  const exec = c.command.startsWith('pnpm ') ? 'pnpm exec' : 'npx --no-install';
+  const since = m[1] === 'vitest' ? (base ? `--changed ${base}` : '--changed') : (base ? `--changedSince=${base}` : '--onlyChanged');
+  return `${exec} ${m[1]}${m[2]} ${since} --passWithNoTests`;
+}
+
 function scriptBody(abs, c) {
   const m = c.source.match(/^(package|composer)\.json#scripts\.(.+)$/);
   if (!m) return c.command;
@@ -236,10 +252,15 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
   const wanted = only ? new Set(only.map((p) => (p === 'root' ? '.' : p.replace(/\\/g, '/').replace(/\/$/, '')))) : null;
 
   const entries = [];
+  const gitBase = base;
   for (const a of affected.values()) {
     if (wanted && !wanted.has(a.unit.path)) continue;
     const u = a.unit; const checks = [];
     const testOnly = a.own.length > 0 && a.own.every((f) => TEST_RE.test(f)) && !broad.length && !a.reasons.includes('requested');
+    // Only a unit's own changes can be traced to its tests: a consumer may import a changed package's built
+    // output, which the runner's module graph never links to the changed sources.
+    const ownChangesOnly = a.own.length > 0 && !broad.length && a.reasons.every((r) => r === 'changed files' || r === 'requested')
+      && ![...upstreamClosure(U, u)].some((d) => affected.has(d));
     for (const name of ORDER) {
       const cmds = pickCommands(u, name);
       if (!cmds.length) {
@@ -255,6 +276,7 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
         else if (DEPLOY_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', required: false, reason: 'script deploys or publishes; needs user authorization' });
         else if (MUTATE_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'script modifies files (--fix/--write); run a check-only equivalent and record it with mark' });
         else if (WATCH_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'watch-mode script; run a one-shot equivalent and record it with mark' });
+        else if (name === 'test' && ownChangesOnly && git) { const cmd = affectedCommand(c, gitBase); if (cmd) base.affected = cmd; }
         checks.push(base);
       });
     }
@@ -351,6 +373,11 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
         const stale = p.git && last.fingerprint && last.fingerprint !== fps[e.unit];
         const state = (last.status === 'PASSED' || last.status === 'PRE-EXISTING') && stale ? 'STALE' : last.status;
         Object.assign(row, { state, cycle: last.cycle, reason: state === 'STALE' ? `files in scope changed since cycle ${last.cycle}` : last.reason, log: last.log });
+        // A pass of only the related tests opens the pre-browser gate; the final gate needs the full suite.
+        if (last.scope === 'affected' && state === 'PASSED') {
+          if (final) Object.assign(row, { state: 'MISSING', reason: 'only the tests related to the change ran', hint: 'run `run --task <slug> --build` for the full suite' });
+          else row.affected = true;
+        }
         if (state === 'FAILED' && all.some((r) => r.cycle === 'baseline' && r.unit === e.unit && r.check === c.key && r.status === 'FAILED')) row.hint = 'also failed on the baseline: if it is the same failure, mark it PRE-EXISTING';
         else if (state === 'FAILED') {
           // A second failing cycle means the first diagnosis and fix did not hold: the policy trigger for Opus.
@@ -513,15 +540,17 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const runCheck = (e, c) => {
     const timed = () => slot(async () => {
       const pre = c.column === 'build' ? nonCodeState(root) : null;
-      const r = await execCheck(root, task, e.unit, c, cycle, timeout);
-      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner' };
+      // Fix cycles run only the tests related to the change; `--build` (before final) runs the full suite once.
+      const affectedRun = !!c.affected && !withBuilds && !baseline;
+      const r = await execCheck(root, task, e.unit, affectedRun ? { ...c, command: c.affected, source: '' } : c, cycle, timeout);
+      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner', ...(affectedRun && { scope: 'affected' }) };
       if (pre) {
         const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
         if (Object.keys(wrote).length) rec.wrote = wrote;
       }
       append(root, task, rec);
       results.push({ ...rec, tail: r.tail });
-      onProgress?.(`  ${r.status === 'PASSED' ? '✓' : '✗'} ${e.unit}:${c.key}${r.status === 'PASSED' ? '' : ` ${r.status}`} ${(r.durationMs / 1000).toFixed(1)}s`);
+      onProgress?.(`  ${r.status === 'PASSED' ? '✓' : '✗'} ${e.unit}:${c.key}${affectedRun ? ' (affected)' : ''}${r.status === 'PASSED' ? '' : ` ${r.status}`} ${(r.durationMs / 1000).toFixed(1)}s`);
     }, prio(e.unit, c));
     // Tests that share a database wait for it before taking a slot, so no slot sits idle.
     return c.column === 'test' && p.serializeTests.includes(e.unit) ? dbLock(timed) : timed();
@@ -543,9 +572,15 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const modified = Object.keys(fps).filter((u) => fps[u] !== after[u] && p.entries.some((e) => e.unit === u));
   const g = baseline ? null : await gate(root, task, { ctx, final: withBuilds });
   const skipped = p.entries.flatMap((e) => e.checks.filter((c) => c.status === 'PENDING' && !c.manual && fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
-  const deferred = withBuilds ? [] : p.entries.flatMap((e) => e.checks.filter((c) => c.deferrable && !fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
+  const deferred = withBuilds ? [] : [
+    ...p.entries.flatMap((e) => e.checks.filter((c) => c.deferrable && !fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`)),
+    ...(g?.rows ?? []).filter((r) => r.affected).map((r) => `${r.unit}:${r.check} (full suite)`),
+  ];
   const sideEffects = results.flatMap((x) => Object.keys(x.wrote || {}).map((f) => ({ check: `${x.unit}:${x.check}`, file: f })));
-  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, sideEffects, gate: g };
+  // New-comment errors surface here, where the author still owns the file. Found only by `final`, a fix
+  // landed after the gate and browser QA, so it made checks and screenshots stale.
+  const commentErrors = baseline ? [] : checkComments(root).findings.filter((c) => c.level === 'error' && (!units || units.some((u) => u === '.' || c.file.startsWith(u.replace(/\/$/, '') + '/'))));
+  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, sideEffects, commentErrors, gate: g };
 }
 
 export async function mark(root, task, { unit, check, status, reason, ctx = null }) {
@@ -811,6 +846,7 @@ async function main() {
       L.push('', `Build side effect: ${r.sideEffects.map((x) => `${x.check} rewrote ${x.file}`).join(', ')}. Not a code change, so no check went stale. If it should not ship: git checkout -- ${files}`);
     }
     if (r.modifiedDuringRun.length) L.push('', `WARNING: files in ${r.modifiedDuringRun.join(', ')} changed while the checks ran. Review them (G14). ${o.baseline ? 'This baseline is unreliable: record it before any edit starts.' : 'If an implementer was still editing, these results are already stale: run checks only after every editor has returned.'}`);
+    if (r.commentErrors.length) L.push('', ...r.commentErrors.map((c) => `✗ comment ${c.file}:${c.line} [${c.rule}] "${c.text}" → ${c.fix}`), 'Fix these comments now, before the work goes on: `final` fails on them, and a late fix makes checks and screenshots stale.');
     if (r.gate) L.push('', formatGate(r.gate, { final: r.final }));
     out({ ...r, plan: undefined }, L.join('\n'));
     // A full run exits with the gate verdict, so one call both validates and answers "may the browser start?".

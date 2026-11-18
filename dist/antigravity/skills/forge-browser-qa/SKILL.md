@@ -79,6 +79,10 @@ Browser passes were the most expensive part of measured FORGE runs: up to 71 tur
 - **Reuse the app URL from the work order.** Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
 - **Prefer `browser_snapshot` / `take_snapshot`** (a text accessibility tree) for assertions. Screenshots are for evidence only: the list above, usually 3–8 per pass, never one per assertion.
 - **Batch checks.** Use one `browser_evaluate` / `evaluate_script` that returns several facts at once (text, counts, focus target, overflow), instead of one call per fact. Read the console and network once per page, after the journey.
+- **Never wait on a timeout.** In measured passes, `browser_run_code` was 55–65% of the wall time. Almost every call lasted about 30 s, Playwright's default timeout, however little it did.
+  - Start every `browser_run_code` script with `page.setDefaultTimeout(5000);`. Then a missing element fails in 5 s, not 30 s.
+  - Never `click().catch(fallback)` on a locator that may not exist. Check `await loc.count()` or `isVisible()` first; they return at once.
+  - Wait for the real signal, not a fixed sleep: `page.waitForResponse(r => /\/api\/generate/.test(r.url()))`, `expect(locator).toBeVisible()` or `waitForURL`, with an explicit timeout sized to that one wait (a slow generation may take 60 s). A `waitForTimeout` over 500 ms is a bug in the script.
 - **Batching never replaces DevTools.** Console or network listeners inside a Playwright script (`browser_run_code`) are journey evidence, not DevTools evidence. When the Chrome DevTools MCP tools are in your list, open the page with them and call `list_console_messages` and `list_network_requests` at least once per pass. Without that call, the verdict is "implemented, not browser-verified".
 - **Cover viewports efficiently.** Run the full journey at one viewport, then only layout assertions at the others.
 - **On retest (work order says RETEST), re-run only the failed journeys** plus the one adjacent journey most likely to regress:

@@ -183,8 +183,8 @@ export function catalogs() {
     for (const m of order.filter((k) => byModel.has(k))) {
       const rows = byModel.get(m).sort((x, y) => (y.d.maxTurns ?? 0) - (x.d.maxTurns ?? 0) || x.a.localeCompare(y.a));
       B.push(m === 'inherit'
-        ? `### On your main model (${rows.length} agents): they write or verify code, where accuracy matters most`
-        : `### Always on ${modelName(m)} (${rows.length} agents): planning, documentation and review, the lighter work`, '',
+        ? `### On your main model (${rows.length} agents): design, security, data, payments and the final review, where a mistake is costly and hard to catch later`
+        : `### Always on ${modelName(m)} (${rows.length} agents): planning, documentation, UI, tests, config and browser checks, where tests, the browser or the reviewer catch mistakes`, '',
       '| Agent | What it does | Max turns |', '|---|---|---|');
       for (const { a, d } of rows) B.push(`| \`${a}\` | ${purpose(d)} | ${d.maxTurns ?? '—'} |`);
       B.push('');
@@ -192,8 +192,8 @@ export function catalogs() {
     B.push('### Which models a task uses', '',
       '| Task | Agents and models |', '|---|---|',
       '| Question about the code ("how does X work?") | No agents. The orchestrator answers directly on your main model, with `file:line` evidence |',
-      '| Bug fix (size S) | Browser QA and code reviewer on your main model |',
-      '| New feature (size M/L) | Engineers, browser QA and code reviewer on your main model. Product manager, QA lead or UX designer on Sonnet when the task needs them |',
+      '| Bug fix (size S) | Code reviewer on your main model. Browser QA on Sonnet |',
+      '| New feature (size M/L) | Backend, database, integration or AI engineers and the code reviewer on your main model. Frontend, mobile, test and DevOps engineers and browser QA on Sonnet, plus product manager, QA lead or UX designer on Sonnet when the task needs them |',
       '| Analysis or audit | Architect and security engineer on your main model. Project explorer or QA lead on Sonnet when the codebase needs them |', '',
       'Notes:',
       '- **Max turns** is a cap that stops a runaway agent. It is set well above what real runs need, and an agent that hits it is reported as partial, never as done.',

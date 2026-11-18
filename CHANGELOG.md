@@ -19,7 +19,9 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - **Retests continue the same verifier** (Claude Code `SendMessage`) instead of launching a new agent. That agent still holds its findings and the code in cached context.
 - **Q size (answer only).** Questions about the code are answered directly with `file:line` evidence, without agents, a task folder or the full report. New e2e scenario: `code-question`.
 - **Turn caps.** Every agent has a `maxTurns` cap (30–60, well above observed needs) as a runaway guard. Output marked partial is continued once or reported as unverified. The validator requires the cap.
-- **Model tiers.** The 13 lighter roles (`effort: medium`) run on `model: sonnet` instead of inheriting a possibly more expensive main model. Implementers, reviewer, architect, security, performance and browser QA still inherit the main model. Antigravity builds keep `inherit`.
+- **Model tiers.** The 13 lighter roles (`effort: medium`) run on `model: sonnet` instead of inheriting a possibly more expensive main model. Antigravity builds keep `inherit`.
+  - Browser QA (`effort: medium`) and the frontend, mobile, test automation and DevOps engineers (`effort: high`) also run on `model: sonnet`. They do the most token-heavy work, and tests, the browser and the code reviewer catch their mistakes.
+  - Only roles where a mistake is costly and hard to catch later inherit the main model: architect, security, code reviewer, database, integration, AI, backend and performance.
 - **Always-loaded context −41%.** Skill and agent descriptions were rewritten to be concise, cutting FORGE's footprint in every session from ~2,133 to ~1,251 tokens. The validator budget is now 120 characters per specialist skill and 110 per agent.
 - **Measured (single runs, sonnet).** `architecture-analysis`: $1.00 / 2.3 min → $0.47 / 1.3 min. `new-feature`: $2.34 / 11.5 min → $1.83 / 7.5 min. `bug-fix`: $0.56 → $0.50. `code-question`: $0.12 with no agents. All pass. See `docs/testing.md`.
 - Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.

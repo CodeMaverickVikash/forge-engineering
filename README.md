@@ -62,28 +62,28 @@ Phases scale with the task. A one-line bug fix skips the written spec and plan, 
 
 FORGE runs each specialist on the model that fits its job. **Your main model** is the model selected in your Claude Code session (`model: inherit`). The `/forge` orchestrator itself always runs on your main model.
 
-### On your main model (13 agents): they write or verify code, where accuracy matters most
+### On your main model (8 agents): design, security, data, payments and the final review, where a mistake is costly and hard to catch later
 
 | Agent | What it does | Max turns |
 |---|---|---|
 | `forge-ai-engineer` | Builds LLM features (prompts, RAG, tools, evals) safely and cost-aware. | 60 |
 | `forge-backend-engineer` | Services, endpoints, jobs and CLIs in any stack, with tests. | 60 |
 | `forge-database-engineer` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. | 60 |
-| `forge-devops-engineer` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. | 60 |
-| `forge-frontend-engineer` | Web UI in any framework, with states, a11y and XSS safety. | 60 |
 | `forge-integration-engineer` | REST, GraphQL and gRPC contracts, webhooks, OAuth/OIDC, payments. | 60 |
-| `forge-mobile-engineer` | React Native/Expo, Flutter, Android and iOS features, with tests. | 60 |
-| `forge-test-automation-engineer` | Deterministic unit, integration, E2E and regression tests; flake triage. | 60 |
-| `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. | 45 |
 | `forge-performance-engineer` | Finds the real bottleneck and proves fixes with before/after numbers. | 40 |
 | `forge-security-engineer` | Threat model and OWASP review of auth, input, secrets and dependencies. | 40 |
 | `forge-architect` | Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work. | 30 |
 | `forge-code-reviewer` | Independent review of the uncommitted diff against the spec, with a verdict. | 30 |
 
-### Always on Sonnet (13 agents): planning, documentation and review, the lighter work
+### Always on Sonnet (18 agents): planning, documentation, UI, tests, config and browser checks, where tests, the browser or the reviewer catch mistakes
 
 | Agent | What it does | Max turns |
 |---|---|---|
+| `forge-devops-engineer` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. | 60 |
+| `forge-frontend-engineer` | Web UI in any framework, with states, a11y and XSS safety. | 60 |
+| `forge-mobile-engineer` | React Native/Expo, Flutter, Android and iOS features, with tests. | 60 |
+| `forge-test-automation-engineer` | Deterministic unit, integration, E2E and regression tests; flake triage. | 60 |
+| `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. | 45 |
 | `forge-dx-engineer` | Removes setup and workflow friction (scripts, task runners, dev containers). | 40 |
 | `forge-manual-qa` | Runs the app, CLIs and endpoints locally to probe edge cases and reproduce bugs. | 40 |
 | `forge-product-researcher` | Competitor and market research with cited sources. | 40 |
@@ -103,8 +103,8 @@ FORGE runs each specialist on the model that fits its job. **Your main model** i
 | Task | Agents and models |
 |---|---|
 | Question about the code ("how does X work?") | No agents. The orchestrator answers directly on your main model, with `file:line` evidence |
-| Bug fix (size S) | Browser QA and code reviewer on your main model |
-| New feature (size M/L) | Engineers, browser QA and code reviewer on your main model. Product manager, QA lead or UX designer on Sonnet when the task needs them |
+| Bug fix (size S) | Code reviewer on your main model. Browser QA on Sonnet |
+| New feature (size M/L) | Backend, database, integration or AI engineers and the code reviewer on your main model. Frontend, mobile, test and DevOps engineers and browser QA on Sonnet, plus product manager, QA lead or UX designer on Sonnet when the task needs them |
 | Analysis or audit | Architect and security engineer on your main model. Project explorer or QA lead on Sonnet when the codebase needs them |
 
 Notes:

@@ -2,7 +2,8 @@
 name: forge-devops-engineer
 description: FORGE DevOps engineer. Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+effort: high
 maxTurns: 60
 color: yellow
 skills:

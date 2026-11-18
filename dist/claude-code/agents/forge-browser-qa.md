@@ -2,7 +2,8 @@
 name: forge-browser-qa
 description: FORGE browser QA. Verifies web changes in a real browser and native apps on emulators, after checks pass.
 disallowedTools: Agent
-model: inherit
+model: sonnet
+effort: medium
 maxTurns: 45
 color: cyan
 skills:

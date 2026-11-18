@@ -2,7 +2,8 @@
 name: forge-frontend-engineer
 description: FORGE frontend engineer. Web UI in any framework, with states, a11y and XSS safety.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+effort: high
 maxTurns: 60
 color: green
 skills:

@@ -5,6 +5,17 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 ## [Unreleased]
 
 ### Changed (performance)
+- **No repeated check suites.** In a measured TruArt run (web + mobile), the checks took about 32 minutes of run time: about 7.5 minutes of baseline and about 8 minutes of a gate cycle that was already stale went to waste, and the first browser pass hit its turn cap.
+  - `validation-gate.mjs run` now **defers builds** that type check or tests already cover (`DEFERRED`, not blocking the browser). `run --build` runs them once before `final`, which requires them. Builds still run every cycle when consumers import their output or when the build is the unit's only compile step.
+  - A **native shell nested in a JS app** (React Native `android/app` reaching `../../node_modules`) is no longer treated as that app's consumer, so a JS-only change no longer requires a Gradle test and build.
+  - The run warns when files changed during the checks: a stale result, or an unreliable baseline.
+  - New **check budget** rules (`core/delegation.md`):
+    - VERIFY WITH is always the runner, run once per implementer.
+    - No `V run` while an editor is still running.
+    - The review's and browser QA's findings merge into one fix wave.
+    - The validation wave runs without `--units`.
+    - The baseline finishes before implementation starts.
+  - **Browser QA scope:** at most 4 journeys per pass at one viewport. A `qa-session.md` stores the local test account and servers so retests reuse them, and the report is saved after each journey so a turn cap loses nothing.
 - **Orchestrator prompt −36%** (`skills/forge/SKILL.md`: 15.7k → 10.0k characters, about 1,400 fewer tokens on every orchestrator turn). Every rule is kept. Phase-specific procedures (delta retests, turn caps) moved to `core/delegation.md`, which is read when delegating, and the rationale is now one line per rule.
 - The orchestrator launches specialists in **waves**, with every agent in a wave sent in one message: discovery, implementation, verification (browser QA and code review together), then fix.
 - Read-only and lighter roles (13 agents) run at `effort: medium`.

@@ -85,6 +85,13 @@ Browser passes were the most expensive part of measured FORGE runs: up to 71 tur
   - Take no new screenshots except the "after" evidence for each fixed issue.
   - Aim for about 10 tool calls. Do not repeat journeys that passed and that the delta does not touch.
 - **Aim for about 30 tool calls per pass**, including evidence capture. If you need more, report what is still unverified instead of grinding.
+- **Too many journeys?** If the work order lists more than about 4 journeys, or more than one viewport for full journeys, run the highest-risk 4 at one viewport and report the rest as NOT RUN (scope). Don't try to fit them all in.
+- **Keep the session reusable.** Right after setup, write `.forge/tasks/<slug>/evidence/qa-session.md` (the folder is git-ignored). Include:
+  - the app URL;
+  - the servers you started;
+  - the throwaway local test account (email and password; only ones you created on a local `.test`-style domain, never a real account).
+  A retest or continuation reads it first instead of registering a new user.
+- **Save as you go.** After each journey, append its verdict and evidence paths to `.forge/tasks/<slug>/reports/forge-browser-qa.md`. If you hit the turn cap, the work done so far is not lost.
 
 ## 6. Report
 

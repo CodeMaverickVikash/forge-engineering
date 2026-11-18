@@ -62,14 +62,24 @@ test('run executes each check once, the gate opens, and only checks whose files 
     w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
     const r1 = await run(dir, 't', { jobs: 2 });
     assert.deepEqual(r1.results.map((x) => `${x.unit}:${x.check}:${x.status}`).sort(),
-      ['apps/web:build:PASSED', 'apps/web:test:PASSED', 'packages/ui:build:PASSED', 'packages/ui:test:PASSED']);
+      ['apps/web:test:PASSED', 'packages/ui:build:PASSED', 'packages/ui:test:PASSED'],
+      "the app's build waits for the final check; the package's runs now because its consumer imports the output");
+    assert.deepEqual(r1.deferred, ['apps/web:build']);
     assert.ok(r1.results.every((x) => fs.existsSync(path.join(dir, x.log))), 'every check leaves its full log as evidence');
     assert.equal(r1.gate.result, 'OPEN');
+    const deferredRow = r1.gate.rows.find((x) => x.unit === 'apps/web' && x.check === 'build');
+    assert.equal(deferredRow.state, 'DEFERRED');
+    assert.equal(deferredRow.blocking, false, 'a deferred build never blocks the browser');
+    assert.equal((await gate(dir, 't', { final: true })).result, 'CLOSED', 'the final gate requires the build');
     assert.equal(cli(dir, 'gate', '--task', 't').status, 0);
 
     const r2 = await run(dir, 't');
     assert.equal(r2.results.length, 0, 'checks already passing for the current code are not re-run');
-    assert.equal(r2.skipped.length, 4);
+    assert.equal(r2.skipped.length, 3);
+
+    const rb = await run(dir, 't', { build: true });
+    assert.deepEqual(rb.results.map((x) => `${x.unit}:${x.check}`), ['apps/web:build'], '--build runs only what was deferred');
+    assert.equal(rb.gate.result, 'OPEN');
 
     w(dir, 'apps/web/page.js', 'export default 2;\n'); // only the web app changes
     const g = await gate(dir, 't');
@@ -81,9 +91,26 @@ test('run executes each check once, the gate opens, and only checks whose files 
     assert.equal(cli(dir, 'gate', '--task', 't').status, 1);
 
     const r3 = await run(dir, 't');
-    assert.deepEqual(r3.results.map((x) => `${x.unit}:${x.check}`).sort(), ['apps/web:build', 'apps/web:lint', 'apps/web:test']);
-    assert.equal(r3.cycle, 2, 'a run that executed nothing does not count as a cycle');
+    assert.deepEqual(r3.results.map((x) => `${x.unit}:${x.check}`).sort(), ['apps/web:lint', 'apps/web:test']);
+    assert.equal(r3.cycle, 3, 'a run that executed nothing does not count as a cycle');
     assert.equal(r3.gate.result, 'OPEN');
+  } finally { clean(dir); }
+});
+
+test('a native shell nested in a JS app is not that app\'s consumer, so a JS change never requires its native build', async () => {
+  const dir = monorepo({
+    'apps/mobile/android/settings.gradle': "rootProject.name = 'mobile'\ninclude ':app'\n",
+    'apps/mobile/android/build.gradle': 'buildscript {}\n',
+    'apps/mobile/android/gradlew': '#!/bin/sh\n',
+    'apps/mobile/android/app/build.gradle': 'apply plugin: "com.android.application"\napply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")\n',
+  });
+  try {
+    w(dir, 'apps/mobile/screen.js', 'export default 2;\n');
+    const p = await plan(dir);
+    const shell = p.units.find((u) => u.path === 'apps/mobile/android/app');
+    assert.ok(shell, 'the fixture is detected as a nested native unit');
+    assert.ok(!shell.deps.has('apps/mobile'));
+    assert.deepEqual(p.entries.map((e) => e.unit), ['apps/mobile']);
   } finally { clean(dir); }
 });
 
@@ -178,6 +205,14 @@ test('one run call validates and answers the gate; final checks everything phase
     assert.match(r.stdout, /^Scope: apps\/web \[web\] \(consumer of packages\/ui\); packages\/ui \[shared\] \(changed files\)\. After the gate: browser apps\/web\./m);
     assert.match(r.stdout, /Pre-browser gate: OPEN/);
     assert.doesNotMatch(r.stdout, /packages\/ui:test PASSED \(cycle/, 'passing rows are summarized, not listed');
+    assert.match(r.stdout, /DEFERRED until the final check: apps\/web:build\. Run `run --task t --build`/);
+
+    const pending = cli(dir, 'final', '--task', 't');
+    assert.match(pending.stdout, /✗ apps\/web:build MISSING .*run `run --task <slug> --build`/, 'the final check requires the deferred build');
+    const b = cli(dir, 'run', '--task', 't', '--build');
+    assert.equal(b.status, 0);
+    assert.match(b.stdout, /ran 1 check\(s\), 3 already passing/, '--build runs only the deferred build');
+    assert.match(b.stdout, /Final gate \(builds included\): OPEN/);
 
     const f = cli(dir, 'final', '--task', 't');
     assert.equal(f.status, 1, 'a comment error makes the final check fail');
@@ -189,7 +224,7 @@ test('one run call validates and answers the gate; final checks everything phase
     w(dir, 'packages/ui/src/index.js', '// Consumers import the built output, so keep this export stable.\nexport const a = 2;\n');
     const stale = cli(dir, 'final', '--task', 't');
     assert.match(stale.stdout, /FINAL: NOT READY: gate CLOSED/, 'an edit after the last run makes the checks stale');
-    cli(dir, 'run', '--task', 't');
+    cli(dir, 'run', '--task', 't', '--build');
     const ok = cli(dir, 'final', '--task', 't');
     assert.equal(ok.status, 0);
     assert.match(ok.stdout, /FINAL: READY to report\./);

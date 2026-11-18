@@ -4,10 +4,11 @@
 //   node validation-gate.mjs plan --task <slug> [--units a,b] [--json]
 //       Map the changed files to the project's units (apps and packages from the stack detector), add the
 //       consumers of changed shared packages, and list each unit's type check, lint, test and build command.
-//   node validation-gate.mjs run --task <slug> [--units a,b] [--checks lint,test] [--all] [--baseline]
+//   node validation-gate.mjs run --task <slug> [--units a,b] [--checks lint,test] [--all] [--baseline] [--build]
 //                                [--jobs N] [--timeout <min>] [--json]
 //       Run only the plan's checks that are not already passing for the current code (missing, stale, failed
-//       or blocked). Units run in parallel; checks within a unit run in order; tests of units that share a
+//       or blocked). Builds are DEFERRED (not run, not blocking the pre-browser gate) when type check or tests
+//       cover the unit and no consumer imports its output; --build runs them once, right before `final`. Units run in parallel; checks within a unit run in order; tests of units that share a
 //       database run one at a time; a shared package with prebuilt output is built before its consumers.
 //       Each result goes to .forge/tasks/<slug>/validation/ledger.jsonl, each full log to
 //       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs everything. --baseline records
@@ -118,7 +119,10 @@ export function describeUnits(root, ctx) {
         const target = posix(path.relative(root, path.resolve(u.abs, r[1])));
         if (target.startsWith('..')) continue;
         const d = ownerOf(units, target);
-        if (d && d !== u && d.path !== '.') u.deps.add(d.path);
+        // A native shell nested in a JS app (React Native's android/app reaching ../../node_modules) is not
+        // that app's consumer: the app's own build bundles the JS, so its native build need not re-run.
+        const nativeShell = d && d.pkg && !u.pkg && d.path !== '.' && u.path.startsWith(d.path + '/');
+        if (d && d !== u && d.path !== '.' && !nativeShell) u.deps.add(d.path);
       }
     }
   }
@@ -223,6 +227,14 @@ export async function plan(root, { units: only = null, ctx = null } = {}) {
   // Drop any ordering edge that closes a cycle, so the runner can never deadlock.
   const reaches = (from, to, seen = new Set()) => from === to || (!seen.has(from) && seen.add(from) && (entries.find((x) => x.unit === from)?.after || []).some((d) => reaches(d, to, seen)));
   for (const e of entries) e.after = e.after.filter((d) => !reaches(d, e.unit));
+  // Builds are the slowest checks and the browser runs on the dev server, so a build waits for the final
+  // check (`run --build`) when type check or tests already cover the unit before the browser. It still runs
+  // up front when consumers import its output, or when it is the unit's only compile step.
+  for (const e of entries) {
+    const covered = e.checks.some((c) => (c.column === 'typecheck' || c.column === 'test') && c.required);
+    const feedsConsumers = entries.some((x) => x.after.includes(e.unit));
+    for (const c of e.checks) if (c.column === 'build' && c.required && covered && !feedsConsumers) c.deferrable = true;
+  }
   const dbUnits = entries.filter((e) => e.database && e.checks.some((c) => c.column === 'test' && c.status === 'PENDING')).map((e) => e.unit);
   const next = { browser: [], device: [], api: [] };
   for (const e of entries) {
@@ -262,7 +274,7 @@ function append(root, task, rec) {
 }
 
 /** Gate rows for the current plan: each required check's latest result, checked against the current code. */
-export async function gate(root, task, { ctx = null, p = null } = {}) {
+export async function gate(root, task, { ctx = null, p = null, final = false } = {}) {
   p ??= await plan(root, { ctx });
   const all = readLedger(root, task);
   const ledger = all.filter((r) => r.cycle !== 'baseline');
@@ -280,7 +292,11 @@ export async function gate(root, task, { ctx = null, p = null } = {}) {
         Object.assign(row, { state, cycle: last.cycle, reason: state === 'STALE' ? `files in scope changed since cycle ${last.cycle}` : last.reason, log: last.log });
         if (state === 'FAILED' && all.some((r) => r.cycle === 'baseline' && r.unit === e.unit && r.check === c.key && r.status === 'FAILED')) row.hint = 'also failed on the baseline: if it is the same failure, mark it PRE-EXISTING';
       }
-      row.blocking = c.required && !OK.has(row.state);
+      if (c.deferrable && (row.state === 'MISSING' || row.state === 'STALE')) {
+        if (!final) Object.assign(row, { state: 'DEFERRED', reason: 'runs once before the final check: `run --build`' });
+        else row.hint = 'run `run --task <slug> --build`';
+      }
+      row.blocking = c.required && row.state !== 'DEFERRED' && !OK.has(row.state);
       rows.push(row);
     }
   }
@@ -336,14 +352,15 @@ function execCheck(root, task, unit, check, cycle, timeoutMin) {
 }
 
 /** Run the plan's checks that are not already passing for the current code, in a dependency-aware schedule. */
-export async function run(root, task, { units = null, checks = null, all = false, baseline = false, jobs = 0, timeout = 15, ctx = null } = {}) {
+export async function run(root, task, { units = null, checks = null, all = false, baseline = false, build = false, jobs = 0, timeout = 15, ctx = null } = {}) {
   const p = await plan(root, { units, ctx });
-  const before = baseline ? null : await gate(root, task, { p });
+  const withBuilds = build || all;
+  const before = baseline ? null : await gate(root, task, { p, final: withBuilds });
   const fresh = new Set((before?.rows || []).filter((r) => OK.has(r.state)).map((r) => `${r.unit}\0${r.check}`));
   const prior = readLedger(root, task);
   const cycle = baseline ? 'baseline' : 1 + Math.max(0, ...prior.map((r) => (typeof r.cycle === 'number' ? r.cycle : 0)));
   const fps = fingerprints(root, p);
-  const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
+  const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (withBuilds || !c.deferrable) && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
   const slot = limiter(jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2))));
   const dbLock = limiter(1);
   const results = [];
@@ -366,9 +383,10 @@ export async function run(root, task, { units = null, checks = null, all = false
   await Promise.all(work.map(runUnit));
   const after = fingerprints(root, p);
   const modified = Object.keys(fps).filter((u) => fps[u] !== after[u] && p.entries.some((e) => e.unit === u));
-  const g = baseline ? null : await gate(root, task, { ctx });
+  const g = baseline ? null : await gate(root, task, { ctx, final: withBuilds });
   const skipped = p.entries.flatMap((e) => e.checks.filter((c) => c.status === 'PENDING' && !c.manual && fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
-  return { cycle, plan: p, results, skipped, modifiedDuringRun: modified, gate: g };
+  const deferred = withBuilds ? [] : p.entries.flatMap((e) => e.checks.filter((c) => c.deferrable && !fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
+  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, gate: g };
 }
 
 export async function mark(root, task, { unit, check, status, reason, ctx = null }) {
@@ -400,7 +418,7 @@ export function evidence(root, task, { init = false } = {}) {
   return { dir: relRoot, absolute: dir, files, links: files.map(link), missing, unindexed };
 }
 
-const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
+const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`${c.deferrable ? ' (deferred to `run --build`)' : ''}` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
 
 export function formatPlan(p) {
   const L = [`FORGE validation plan: ${p.changed} changed file(s), ${p.entries.length} affected unit(s)`];
@@ -442,16 +460,16 @@ const VERDICT = {
 };
 
 /** Compact by default: only rows that need attention, plus counts. `verbose` prints every row. */
-export function formatGate(g, { verbose = false } = {}) {
+export function formatGate(g, { verbose = false, final = false } = {}) {
   const shown = verbose ? g.rows : g.rows.filter((r) => r.blocking || !['PASSED', 'N/A'].includes(r.state));
   const L = shown.map((r) => `${r.blocking ? '✗' : '-'} ${r.unit}:${r.check} ${r.state}${r.cycle != null ? ` (cycle ${r.cycle})` : ''}${[r.command && ` \`${r.command}\``, r.reason && ` ${r.reason}`, r.hint && ` → ${r.hint}`, r.blocking && r.log && ` log: ${r.log}`].filter(Boolean).join('')}`);
   const counts = {}; for (const r of g.rows) counts[r.state] = (counts[r.state] || 0) + 1;
   const summary = g.rows.length ? `Checks: ${Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ')}.` : g.docsOnly ? 'Only documentation changed.' : 'No changed code to validate.';
-  return [...L, summary, `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
+  return [...L, summary, final ? `Final gate (builds included): ${g.result}` : `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
 }
 
 const KIND = (kinds) => (kinds.includes('mobile') ? 'Mobile' : kinds.includes('web') ? 'Web' : kinds.includes('backend') ? 'Backend/API' : 'Shared');
-const RANK = ['FAILED', 'BLOCKED', 'STALE', 'MISSING', 'NOT RUN', 'PRE-EXISTING', 'UNAVAILABLE', 'PASSED', 'N/A'];
+const RANK = ['FAILED', 'BLOCKED', 'STALE', 'MISSING', 'DEFERRED', 'NOT RUN', 'PRE-EXISTING', 'UNAVAILABLE', 'PASSED', 'N/A'];
 
 /** The report's per-application table: the worst status per column for each unit. */
 export function appTable(g) {
@@ -465,7 +483,7 @@ export function appTable(g) {
 
 /** Everything phase 9 needs in one call: final gate, line endings, new comments and evidence links. */
 export async function finalCheck(root, task) {
-  const g = await gate(root, task);
+  const g = await gate(root, task, { final: true });
   const eol = eolCheck(root);
   const comments = checkComments(root);
   const ev = fs.existsSync(evidenceDir(root, task)) ? evidence(root, task) : null;
@@ -482,7 +500,7 @@ function parseArgs(argv) {
   const o = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--json', '--all', '--baseline', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
+    if (['--json', '--all', '--baseline', '--build', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
     else if (a.startsWith('--')) o[a.slice(2)] = argv[++i];
     else o._.push(a);
   }
@@ -504,7 +522,7 @@ async function main() {
   else if (cmd === 'gate') { const g = await gate(root, o.task); out(g, formatGate(g, { verbose: o.verbose })); process.exit(g.result === 'OPEN' ? 0 : g.result === 'BLOCKED' ? 2 : 1); }
   else if (cmd === 'final') {
     const f = await finalCheck(root, o.task);
-    const L = [appTable(f.gate), '', formatGate(f.gate, { verbose: o.verbose })];
+    const L = [appTable(f.gate), '', formatGate(f.gate, { verbose: o.verbose, final: true })];
     L.push(f.eol.flagged.length ? f.eol.flagged.map((x) => `✗ EOL ${x.path}: ${x.problem}`).join('\n') : `EOL: OK (${f.eol.checked} file(s)).`);
     for (const c of f.comments.findings) L.push(`${c.level === 'error' ? '✗' : '-'} comment ${c.file}:${c.line} [${c.rule}] "${c.text}" → ${c.fix}`);
     L.push(`Comments: ${f.comments.comments} new line(s), ${f.comments.errors} error(s), ${f.comments.warnings} warning(s).`);
@@ -526,14 +544,15 @@ async function main() {
     out(ev, text.join('\n'));
     process.exit(ev.missing.length ? 1 : 0);
   } else {
-    const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
+    const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
     // Compact on purpose: passing checks take one line in total; only failures get their output.
     const passed = r.results.filter((x) => x.status === 'PASSED');
     const L = [formatScope(r.plan), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
     if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
     for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
-    if (r.modifiedDuringRun.length) L.push('', `WARNING: running the checks changed files in ${r.modifiedDuringRun.join(', ')}. Review them (G14).`);
-    if (r.gate) L.push('', formatGate(r.gate));
+    if (r.deferred.length) L.push(`DEFERRED until the final check: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --build\` once, right before \`final\`.`);
+    if (r.modifiedDuringRun.length) L.push('', `WARNING: files in ${r.modifiedDuringRun.join(', ')} changed while the checks ran. Review them (G14). ${o.baseline ? 'This baseline is unreliable: record it before any edit starts.' : 'If an implementer was still editing, these results are already stale: run checks only after every editor has returned.'}`);
+    if (r.gate) L.push('', formatGate(r.gate, { final: r.final }));
     out({ ...r, plan: undefined }, L.join('\n'));
     // A full run exits with the gate verdict, so one call both validates and answers "may the browser start?".
     if (r.gate && !o.units) process.exit(r.gate.result === 'OPEN' ? 0 : r.gate.result === 'BLOCKED' ? 2 : 1);

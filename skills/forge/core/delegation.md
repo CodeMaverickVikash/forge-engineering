@@ -12,7 +12,7 @@ SCOPE: <what to do>  |  OUT OF SCOPE: <what not to touch>
 FILE OWNERSHIP: <exact files/globs you may edit>   (omit for read-only roles)
 DEPENDS ON: <contracts or decisions already fixed, e.g. API shape in plan.md §3>
 VERIFY WITH: node "<FORGE_HOME>/scripts/validation-gate.mjs" run --task <slug> --units <your units>
-             (+ any extra check from context.json; read-only roles: omit)
+             (once, when your edits are done; never raw suite commands; read-only roles: omit)
 GATE:        (browser QA and device verification only) pre-browser gate OPEN at cycle <n>;
              re-check: node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>
 EVIDENCE:    (browser QA only) .forge/tasks/<slug>/evidence/  (index.md + validation-gate.mjs evidence)
@@ -21,6 +21,23 @@ RETURN: Specialist Report (format below), max ~400 words
 
 Implementers validate through the runner because it records every result. When their checks already passed for the final code, the validation wave reuses them instead of running them again. Never send a browser QA or device work order while the gate is CLOSED or BLOCKED. The one exception is reproducing a bug before the fix exists.
 
+## Check budget (no repeated suites)
+
+A measured run spent about 32 minutes of check time on one change: a baseline that overlapped the edits, implementers running the suites by hand, a gate cycle that was already stale when it finished, and a mobile build in every cycle. Follow these rules so each suite runs about once per round:
+- **VERIFY WITH is always the runner** (`V run --task <slug> --units <own units>`), never raw `pnpm test` / `npm run typecheck` lines. Raw runs are not recorded, so the gate runs them all again. An implementer runs it **once, when its edits are done**. While iterating, it runs only the tests for the files it touched.
+- **Run checks only when no editor is running.** A `V run` started while any implementer is still editing is stale the moment that edit lands. Wait for every implementer of the wave to return, then run once.
+- **One fix wave per round.** Wait for the code review **and** browser QA of a wave, merge their findings, and send each owner a single fix list. Each separate fix trickle costs a full gate cycle.
+- **The validation wave runs `V run --task <slug>` without `--units`.** Then everything the working tree changed, staged work included, is covered in one cycle, not discovered as MISSING in a second one.
+- **Builds run once, at the end.** `V run` defers a build that type check or tests already cover (`DEFERRED`, not blocking the browser). Run `V run --task <slug> --build` once, after the last fix and right before `V final`.
+- **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. It skips deferred builds. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
+
+## Browser QA scope
+
+The first browser pass in the measured run hit its 45-turn cap. It had 6 journeys across 2 viewports, 3 model types and 4 modes, plus account setup. Size every browser work order to fit:
+- **At most 4 journeys per pass, at one viewport.** Add a second viewport only for layout assertions (one `evaluate` per page). Rank journeys by risk. Put the rest in a second pass, or list them as NOT RUN with the reason.
+- **Give it the session:** the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
+- **Same verifier for retests** (SendMessage), with only the delta. Never relaunch a full pass after a fix.
+
 ## Delta retests
 
 Re-verifying the whole change after every fix was the biggest cost in measured runs: three full browser passes and three full reviews for one feature. So a retest covers only what changed:
@@ -28,7 +45,7 @@ Re-verifying the whole change after every fix was the biggest cost in measured r
 - **Continue the same verifier** when the host can (Claude Code: `SendMessage` to its agent ID). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
 - **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
 - **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
-- **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. It must exit 0 (gate OPEN) **before** the browser retest.
+- **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. Start it only after every owner of the fix wave has returned. It must exit 0 (gate OPEN) **before** the browser retest.
 - **Minor findings and nits** never start a new round. Batch them into the fix wave and let the delta re-review confirm them.
 - **Full re-verification only** when the delta is large (more than about a third of the original change), touches files the earlier round never saw, or changes a contract.
 

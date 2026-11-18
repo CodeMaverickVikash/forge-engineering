@@ -19,6 +19,7 @@ Order, never skipped: **implement → static checks → tests → fix → pre-br
 One call does the whole cycle:
 - **Plans** from the detector's units and their real commands (package scripts, Makefile, Composer, toolchain defaults). Scope is the units with changed code plus the **consumers** of a changed shared package; a root config change puts every unit in scope; documentation-only changes need no checks. API contracts (G6) and migrations (G12) add manual checks.
 - **Runs** each affected app's type check → lint → tests → build. Apps run in parallel; tests that share a database run one at a time, and a prebuilt package builds before its consumers.
+- **Defers builds** when type check or tests already cover the unit and no consumer imports its output. The row shows `DEFERRED` and does not block the browser, since the browser runs on the dev server. `V run --task <slug> --build` runs them once, right before `V final`, which requires them. A build that is the unit's only compile step, or that feeds a consumer, still runs every cycle.
 - **Runs each check once.** It skips checks that already passed for the current code, so a fix re-runs only what it made stale or what failed.
 - **Never runs** scripts that deploy or publish (`NOT RUN`, needs authorization), or that rewrite files (`--fix`, `--write`) or watch. Run a check-only or one-shot equivalent and record it with `V mark --task <slug> --unit <u> --check <c> --status PASSED --reason "<command → key output>"`.
 - **Records** every result in `.forge/tasks/<slug>/validation/ledger.jsonl`, with logs under `evidence/reports/validation/`.
@@ -26,7 +27,8 @@ One call does the whole cycle:
 
 More options:
 - `--units a,b`: an implementer validates only its own apps.
-- `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there.
+- `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there. Let it finish before any implementer starts; it skips deferred builds.
+- `--build`: the deferred builds, once, after the last fix.
 - `--all`: when project policy or a broad change requires a full re-run.
 - `V mark … --status PRE-EXISTING|BLOCKED|NOT RUN`: also records the manual G6 and G12 checks. Confirm a `PRE-EXISTING` (the gate flags failures that also failed on the baseline) before marking it.
 - `V gate --task <slug>`: re-checks without running anything; `--verbose` lists every row.
@@ -72,7 +74,7 @@ If either is missing, the verdict is **"implemented, not browser-verified"**, pl
 - **Backend-only changes** get API-level verification (integration tests plus real requests to the local server) instead.
 - **Native mobile** is verified on an emulator, simulator or device (`forge-browser-qa` device reference). Browser tools never verify a native screen.
 
-After a fix found in this phase: `V run` (it reopens the gate), then a delta retest ([delegation.md](delegation.md#delta-retests)).
+After a fix found in this phase: `V run` once all owners have returned (it reopens the gate), then a delta retest ([delegation.md](delegation.md#delta-retests)).
 
 ## Evidence
 

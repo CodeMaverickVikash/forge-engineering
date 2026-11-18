@@ -3,6 +3,7 @@ name: forge-product-researcher
 description: FORGE Product Researcher. Researches competitors and market with cited sources and ranks recommendations. Use for what to build next.
 tools: Read, Grep, Glob, Bash, Skill, WebSearch, WebFetch
 model: inherit
+effort: medium
 color: pink
 skills:
   - forge-product-management

@@ -1,56 +1,100 @@
-### FORGE Execution Report
+# FORGE Engineering Report
 
-**Task:** Let users edit the title of an existing task.
+**Task**
+Let users edit the title of an existing task. Size: S/M (one feature across server, UI and tests; low risk, no auth, data or schema changes). It is implemented, tested, and browser-verified.
 
-**Enhanced specification:** Added `PATCH /api/tasks/:id` (`{title}`; trims; 400 on blank/invalid, 404 on unknown id, validation first) and inline editing in the board: an Edit button per row opens a prefilled input with Save/Cancel, Enter saves, Escape cancels, blank and server errors show inline and stay in edit mode. All titles rendered into HTML are now escaped, since editable titles make stored XSS reachable. Spec and plan: `.forge/tasks/edit-task-title/`.
+**Enhanced specification**
+- **API:** `PATCH /api/tasks/:id` with `{title}`.
+  - The title is trimmed.
+  - A missing, non-string, empty or whitespace title, or malformed JSON, returns `400`.
+  - An unknown id returns `404`.
+  - Success returns `200` with the updated task. `done` and `id` are unchanged.
+- **UI:** each row has an **Edit** button that swaps the title for an input with Save and Cancel.
+  - Enter or Save commits. Esc or Cancel discards.
+  - An empty title shows an inline error and stays in edit mode.
+- **Safety:** task titles are now HTML-escaped when rendered.
+- No written `spec.md` or `plan.md`, per the S-size path.
 
-**Project understanding:** Tiny zero-dependency Node app. `server.mjs` has an in-memory store plus a plain `http` router, and `public/` is vanilla JS with event delegation and innerHTML rendering. Tests use `node --test`. No lint, typecheck, build or CI exist.
+**Project understanding**
+- Zero-dependency Node app: `server.mjs` (in-memory store plus a `node:http` router), vanilla JS in `public/`, tests on `node:test`.
+- The stack detector ran (`.forge/context.json`).
+- Test command is `npm test`. There is no CI, no linter and no build step.
 
-**Specialists involved:** Mode A, native subagents: forge-backend-engineer, forge-frontend-engineer, forge-browser-qa (twice: full pass, then retest after a fix), forge-code-reviewer. Skills loaded by me: project exploration (detector run). Not used: architect, security, tech-writer and other roles, because the change is small and the XSS point was handled in the spec and review.
+**Specialists involved**
+- `forge-code-reviewer`, two rounds, independent.
+- `forge-browser-qa`, two rounds, with Playwright MCP and Chrome DevTools MCP.
+- I implemented it myself under the S-size rule. The other core-team specialists were not used, because the change was small and had no data, auth or infra risk.
 
-**Implementation:**
-- `store.rename`, the PATCH route and 6 new API tests.
-- Inline edit UI, `escapeHtml`, and edit styles.
-- Files changed (`git diff --stat`): `server.mjs` +8, `test/api.test.mjs` +42, `public/app.js` +143/-2, `public/styles.css` +6.
-- Architecture decisions: PATCH rather than PUT, for a partial update. Trim on edit only, leaving POST behaviour untouched. Editing state is a single module-level `editing` object, so only one row can be edited at a time.
+**Skills & capabilities**
+- Used `forge-project-exploration` and the stack detector.
+- Skill discovery against the web was not run, because there was no capability gap. Nothing was installed.
 
-**QA and verification:**
-| Gate | Command / method | Status | Evidence |
-|------|------------------|--------|----------|
-| Tests | `npm test` (re-run by me after the final edits) | PASSED | tests 9, pass 9, fail 0 |
-| Syntax | `node --check public/app.js` | PASSED | no output |
-| Lint / typecheck / build | none configured | N/A | no such scripts |
-| Browser QA (G10) | Playwright + DevTools MCP | PASSED | see below |
-| Independent review (G13) | forge-code-reviewer | APPROVE-WITH-FIXES | no blockers; 1 applied, others listed below |
-| Regression test for the bug found in QA | none | NOT ADDED | BUG-1 is front-end only and the project has no DOM test harness; it was covered by a browser retest instead |
+**Implementation**
+- `server.mjs`: added `store.rename()` and a `PATCH` branch in the router.
+- `public/app.js`: added edit state (`editingId`, `draft`).
+  - Added `startEdit`, `stopEdit` and `saveEdit`, with try/catch around the fetch.
+  - Focus returns to the row's Edit button after Save, Cancel or Esc.
+  - Added `escapeHtml`, applied to the title text, the input value and the aria-label.
+- `public/styles.css`: styles for the edit row and error.
+- `test/api.test.mjs`: 3 new tests.
+- `README.md`: documents the new endpoint and the UI behaviour.
+- Fixes made after review and QA:
+  - Clicking inside the edit input, or toggling, adding or deleting another row, wiped the draft. The draft is now preserved.
+  - A network failure on save threw an uncaught error. It now shows an inline message.
+  - Esc did not work from the Save and Cancel buttons.
+  - IME Enter saved too early.
+  - A stale-session race in `saveEdit`, and a `draft` state leak in `load()`.
+  - The edit input had no `name`.
 
-**Browser QA:**
-- Playwright: all of these passed:
-  - Edit+Save, persisting after reload, Cancel, Enter and Escape.
-  - Blank and whitespace titles, an unchanged title, and the server-error path (404 shown inline).
-  - XSS title `<img src=x onerror=...>` inert in the span, input and aria-labels, including after editing.
-  - Quotes round-trip, and toggle, add and delete during an edit with the draft preserved.
-  - Layout at 390 and 1440 px with no overflow (first pass only).
-- Chrome DevTools MCP: no console errors. The only failed requests were `/favicon.ico` 404 (pre-existing) and the intentional PATCH 404 in the error-path test.
-- Verdict: browser-verified. The retest after the fix used desktop width only. 390 and 1440 were verified before it, and the fix did not touch layout.
+**QA and verification**
 
-**Issues:**
-- Identified: BUG-1 (found by browser QA). Switching from editing row A to row B carried A's unsaved draft into B's input, and Save would overwrite B's title.
-- Fixed: BUG-1, with an id guard on the draft capture in `render()` (`public/app.js:49`), retested forward and reverse. Also fixed the reviewer's finding that a click on the edit form's own gap triggered a needless refetch and focus loss, and retested.
-- Unresolved / limitations (all minor, not applied):
-  - After a successful save, a failed reload of the list gives no feedback. This matches how existing `load()` behaves.
-  - Re-render triggered by another row's toggle, add or delete keeps the draft but loses input focus and caret.
-  - Escape during IME composition cancels the edit.
-  - `li span { overflow-wrap: anywhere; }` is a small unrequested CSS addition, for long titles.
-  - No automated test covers the UI or escaping, because there is no DOM harness.
+| Gate | Result | Evidence |
+|---|---|---|
+| Unit/API tests | PASS | `npm test`: 6/6 (3 new: rename and trim, rejects bad titles, 404). Re-run by me after the last edit. |
+| Syntax check | PASS | `node --check public/app.js` |
+| Typecheck, lint, build | N/A | None configured in the project. |
+| Regression test for the feature | PASS | The 3 new API tests. The UI has no test harness. |
+| Browser QA (G10) | PASS | Two rounds, details below. |
+| Independent review (G13) | PASS with caveat | Round 2: approve-with-fixes, no blockers. |
+| Scope check | PASS | `git diff --stat`: 5 files, +127/−4, all related to the feature. |
 
-**Assumptions:**
-- "Edit" means title only (`done` untouched).
-- Blank titles are rejected on edit. POST still accepts blank titles, unchanged.
-- No auth or concurrency concerns, since the store is in-memory and single-user.
+**Browser QA**
+- **Round 1:** all 9 journeys passed.
+  - Edit and persist, Enter, Esc and Cancel, and empty validation.
+  - XSS payload and quotes rendered literally, with no script executed.
+  - A done task kept its strike-through.
+  - A 300-character title at 1280px and 375px did not overflow.
+  - Keyboard focus, and the console and network.
+  - It found defects D1–D5, which I fixed.
+- **Round 2:** re-verified D1–D5 plus the regressions. All passed with no new console errors.
+  - Only the pre-existing `/favicon.ico` 404 and the deliberately injected failures appeared.
+- **Not re-browser-tested:** the last small edit. It added `name="edit-title"` and two state guards, and its checks were the syntax check and `npm test`.
 
-**Remaining work:** Pre-existing and out of scope, not touched: the "N tasks remaining" count is inverted (`public/app.js:12` counts `t.done`, so it should be `!t.done`). It is a one-line fix if you want it. Also pre-existing: POST accepts blank titles, the delete button's accessible name is just "x", and there is no favicon.
+**Issues**
+- **Pre-existing bug, not fixed (out of scope):** `public/app.js` counts *done* tasks as "N tasks remaining" (`filter((t) => t.done)`). It should count the open ones.
+- **Pre-existing:** `POST /api/tasks` does not trim or reject empty titles, so create and rename now differ.
+- **Reviewer nits not applied:**
+  - Focus and caret are lost if another row is toggled or deleted while editing; the draft is kept.
+  - Cancel during an in-flight save does not abort the save.
+  - Safari IME `keyCode 229`.
+  - The error message is not cleared when typing resumes.
+  - A save that hits a 404 exits edit mode silently.
+  - The `x` delete button has no accessible name (pre-existing).
+- There is no automated UI test, because the repo has no frontend test setup.
 
-**Git status:** Branch `master`; 4 files modified on top of the staged initial files, 0 added by this change, 0 deleted (uncommitted). `.claude/` is untracked and was there before. No commit, push, or pull request was created.
+**Assumptions**
+- Editing the title only; `done` is untouched.
+- An empty title after trimming is invalid.
+- No maximum title length was added; none exists for create either.
+- I escaped titles in `render()` even though that is outside the literal request. The edit input needed it, and the old code was an XSS risk.
 
-The full report is saved at `.forge/tasks/edit-task-title/report.md`.
+**Remaining work**
+- Fix the "remaining" counter bug.
+- Make create match rename (trim and reject empty titles).
+- Consider adding a frontend test harness.
+
+**Git status**
+- Modified: `server.mjs`, `public/app.js`, `public/styles.css`, `test/api.test.mjs`, `README.md`. All are uncommitted.
+- `.forge/` is ignored by its own `.gitignore`.
+
+No commit, push, or pull request was created.

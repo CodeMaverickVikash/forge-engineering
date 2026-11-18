@@ -31,6 +31,14 @@ Full autonomy policy: [core/safety.md](core/safety.md).
 
 - **Mode A: native subagents.** Use this when you have a subagent delegation tool (Claude Code: `Agent`; Antigravity: `invoke_subagent`) and `forge-*` agents are available. Plugin installs may namespace them (for example `forge:forge-backend-engineer`), so use the exact names you see. Run independent specialists in parallel in a single turn.
 
+  **Launch in waves, not one by one.** Every agent in a wave goes out as several `Agent` calls in a **single message**, so they run concurrently. Measured runs that launched agents one per message took up to 4× longer for the same work. Use these default waves:
+  1. **Discovery:** all read-only analysts the task needs, together (PM, BA, architect, security, performance, accessibility, researcher, explorer).
+  2. **Implementation:** engineers with disjoint file ownership, together. Freeze the contract in `plan.md` first.
+  3. **Verification:** `forge-browser-qa` and `forge-code-reviewer` together (plus `forge-qa-lead` or `forge-test-automation-engineer` when needed). None of them edits production code, so they never conflict.
+  4. **Fix:** only the owners of failing items. Then re-verify **only** what failed.
+
+  Go sequential only when one agent needs another's output, for example an ADR before implementation.
+
   In Mode A, the routing matrix's **core team does the specialist work**, even when the task looks small enough to do yourself. Each specialist starts with its domain checklist preloaded and looks at the code with fresh eyes, and that independence is what the user is paying for. You plan, brief, verify and integrate. The only work you do yourself is an S-size implementation, and even then review and browser QA stay with their specialists.
 - **Mode B: sequential role emulation.** Use this on any host or surface without custom subagents. Perform each specialist role yourself, one at a time: read `roles/<agent-name>.md` and the skills it lists, do that role's job, write its specialist report into the task folder, then move to the next role. In the final report, say the specialists were emulated sequentially.
 
@@ -43,6 +51,8 @@ Size the task first, then run only the phases it needs. See [core/lifecycle.md](
 | **S** | one obvious defect, 1 to 3 files, low risk | Understand → targeted explore → fix (yourself or one engineer) → verify → independent review → report. No written spec or plan |
 | **M** | a feature or change across a few modules | All 10 phases, written spec and plan, 3 to 6 specialists |
 | **L** | cross-cutting, new subsystem, security or data risk, "production-ready" | All 10 phases, architecture decision record, parallel specialists, full quality gates |
+
+Pick exactly one size; "S/M" is not a size, and when in doubt pick the larger. **S is only for defects and small tweaks to existing behavior.** Any new feature, new endpoint, new screen or new public contract is at least **M**, which means the specialists implement it.
 
 **Size up one step** when a task touches auth, payments, PII, **migrations or schema**, a public API contract, more than about 8 files, or more than one deployable unit. These are where small-looking changes cause outages, so they get a spec and the domain specialist. More detail is in `core/lifecycle.md`.
 
@@ -73,7 +83,7 @@ Size reduces paperwork, not assurance. Small fixes are where shortcuts feel safe
 
   In Mode B, load the `forge-browser-qa` skill and follow it. If Playwright or Chrome DevTools MCP is unavailable, write the verdict as *"implemented, not browser-verified"* plus the reason, so the user knows exactly what still needs eyes.
 - **Get an independent review (G13)** of every code change from `forge-code-reviewer` (Mode A) or a deliberate fresh-eyes pass (Mode B). An author reviewing their own diff sees what they meant to write, not what they wrote.
-- **Use the report template exactly.** Read it, then copy its bold section labels verbatim, in order, and fill each one: Task, Enhanced specification, Project understanding, Specialists involved, Skills & capabilities, Implementation, QA and verification (the gate table), Browser QA, Issues, Assumptions, Remaining work, Git status. Users compare reports across tasks and tools parse them, so a free-form summary, however good, breaks both. Write "N/A" in a section that doesn't apply rather than dropping it. End with the git line "No commit, push, or pull request was created."
+- **Use the report template exactly.** The first line is exactly `### FORGE Execution Report`; don't rename or re-level that heading. Then copy the template's bold section labels verbatim, in order, and fill each one: Task, Enhanced specification, Project understanding, Specialists involved, Skills & capabilities, Implementation, QA and verification (the gate table), Browser QA, Issues, Assumptions, Remaining work, Git status. Users compare reports across tasks and tools parse them, so a free-form summary, however good, breaks both. Write "N/A" in a section that doesn't apply rather than dropping it. End with the git line "No commit, push, or pull request was created."
 
 ## Workspace
 

@@ -51,6 +51,16 @@ For each affected page, after exercising it:
 
 When an issue is caused by the change, hand it back with evidence: steps, expected vs actual, console or network excerpt, `file:line` hypothesis. After the fix, **re-run the same journeys and DevTools checks**.
 
+## Efficiency budget
+
+Browser passes were the most expensive part of measured FORGE runs: up to 71 turns. Every call re-reads the whole context, so fewer, denser calls are faster and cheaper:
+- **Reuse the app URL from the work order.** Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
+- **Prefer `browser_snapshot` / `take_snapshot`** (a text accessibility tree) for assertions. Take screenshots only as evidence: at most about 3 per pass (before, after, one failure).
+- **Batch checks.** Use one `browser_evaluate` / `evaluate_script` that returns several facts at once (text, counts, focus target, overflow), instead of one call per fact. Read the console and network once per page, after the journey.
+- **Cover viewports efficiently.** Run the full journey at one viewport, then only layout assertions at the others.
+- **On retest, re-run only the failed journeys** plus the one adjacent journey most likely to regress.
+- **Aim for about 25 tool calls per pass.** If you need more, report what is still unverified instead of grinding.
+
 ## 6. Report
 
 ```

@@ -27,6 +27,8 @@ function sandbox(name, fixture) {
   execFileSync('git', ['init', '-q'], { cwd: dir });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: dir }); // avoid CRLF noise in change detection
   execFileSync('git', ['add', '-A'], { cwd: dir }); // baseline staged (never committed): `git diff` shows FORGE's changes
+  // --use-installed: test the user-scope install in ~/.claude exactly as a user would run it.
+  if (args.includes('--use-installed')) return dir;
   const r = spawnSync('bash', [path.join(ROOT, 'scripts', 'install.sh'), '--target', 'claude', '--scope', 'project', '--project', dir], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`install failed: ${r.stderr}`);
   return dir;

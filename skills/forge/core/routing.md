@@ -71,4 +71,6 @@ Use the detected stack (`.forge/context.json`) and the affected paths:
 
 - **Parallel-safe:** read-only specialists (explorer, PM, BA, researcher, architect, security, performance, accessibility, QA lead) together, and implementers with **disjoint file ownership**.
 - **Sequential:** anything that shares files, depends on a contract another agent is defining (define the contract first), or depends on test results.
-- **Typical waves:** discovery (parallel) → architecture → implementation (parallel by owner) → verification (parallel) → review.
+- **Typical waves:** discovery (parallel) → architecture (if L) → implementation (parallel by owner) → verification (`forge-browser-qa` + `forge-code-reviewer` in parallel) → targeted fixes → re-verify only what failed.
+- **Analysis / audit:** a single parallel wave of every analyst (for example architect + security + performance + DX), then synthesize. There is never a reason to run read-only analysts one after another.
+- **Shared app server:** for browser verification, start the app once (in the background, on a free port) and pass its URL in the work orders. Browser QA and the retest reuse it instead of each booting the app.

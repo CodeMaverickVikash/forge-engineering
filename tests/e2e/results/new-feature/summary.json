@@ -3,38 +3,36 @@
   "prompt": "/forge Let users edit the title of an existing task.",
   "fixture": "web-tasks",
   "model": "sonnet",
-  "date": "2026-11-17",
+  "date": "2026-11-18",
   "pass": false,
   "failures": [
-    "none of [forge-test-automation-engineer,forge-qa-lead] invoked"
+    "none of [forge-backend-engineer,forge-frontend-engineer] invoked",
+    "final FORGE Execution Report missing"
   ],
   "exitCode": 0,
-  "durationMin": 6.5,
-  "costUsd": 1.4079030000000006,
+  "durationMin": 6.8,
+  "costUsd": 1.5405147999999995,
   "turns": 3,
   "skillsInvoked": [],
   "agentsInvoked": [
-    "forge-backend-engineer",
-    "forge-frontend-engineer",
     "forge-browser-qa",
     "forge-code-reviewer",
-    "forge-browser-qa"
+    "forge-browser-qa",
+    "forge-code-reviewer"
   ],
   "mcpToolCalls": {
-    "playwright": 12,
-    "chrome-devtools": 15
+    "playwright": 14,
+    "chrome-devtools": 20
   },
-  "toolUses": 78,
+  "toolUses": 80,
   "permissionDenials": [],
   "filesChanged": [
     "README.md",
-    "package.json",
     "public/app.js",
-    "public/index.html",
     "public/styles.css",
     "server.mjs",
     "test/api.test.mjs"
   ],
-  "diffStat": "public/app.js     | 143 +++++++++++++++++++++++++++++++++++++++++++++++++++++-\n public/styles.css |   6 +++\n server.mjs        |   8 +++\n test/api.test.mjs |  42 ++++++++++++++++\n 4 files changed, 197 insertions(+), 2 deletions(-)",
+  "diffStat": "README.md         |  7 +++++\n public/app.js     | 86 ++++++++++++++++++++++++++++++++++++++++++++++++++++---\n public/styles.css |  6 ++++\n server.mjs        |  8 ++++++\n test/api.test.mjs | 24 ++++++++++++++++\n 5 files changed, 127 insertions(+), 4 deletions(-)",
   "projectTestsAfter": "PASSED"
 }

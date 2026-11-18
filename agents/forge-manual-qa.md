@@ -3,6 +3,7 @@ name: forge-manual-qa
 description: FORGE Manual QA Engineer. Runs the app, CLIs and HTTP endpoints locally to probe edge cases and errors. Use for non-browser checks and bug repro.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
+effort: medium
 color: blue
 skills:
   - forge-qa-strategy

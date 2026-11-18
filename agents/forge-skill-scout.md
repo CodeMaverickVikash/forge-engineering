@@ -3,6 +3,7 @@ name: forge-skill-scout
 description: FORGE Skill Scout. Finds and license-verifies free open-source skills for a project's capability gaps and returns an installation proposal. Never installs anything.
 tools: Read, Grep, Glob, Bash, Skill, WebSearch, WebFetch
 model: inherit
+effort: medium
 color: blue
 skills:
   - forge-skill-discovery

@@ -3,6 +3,7 @@ name: forge-business-analyst
 description: FORGE Business Analyst. Extracts business rules, workflows and edge cases from code into a spec. Use for features, M/L bugs and stateful flows.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
+effort: medium
 color: purple
 skills:
   - forge-business-analysis

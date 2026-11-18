@@ -22,7 +22,8 @@ const CLAUDE_TOOLS = new Set(['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', '
 const COLORS = new Set(['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']);
 const MODELS = new Set(['inherit', 'sonnet', 'opus', 'haiku', 'fable']);
 const SKILL_KEYS = new Set(['name', 'description', 'user-invocable', 'argument-hint', 'disable-model-invocation', 'allowed-tools', 'when_to_use', 'license', 'metadata', 'compatibility']);
-const AGENT_KEYS = new Set(['name', 'description', 'tools', 'disallowedTools', 'model', 'color', 'skills']);
+const AGENT_KEYS = new Set(['name', 'description', 'tools', 'disallowedTools', 'model', 'effort', 'color', 'skills']);
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 function checkYamlSafety(where, fm) {
   for (const line of fm.raw.split('\n')) {
@@ -109,6 +110,7 @@ for (const a of agents) {
   if (fm.data.tools === undefined && !String(fm.data.disallowedTools || '').includes('Agent')) err(where, 'agents inheriting all tools must disallow Agent');
   if (fm.data.model && !MODELS.has(fm.data.model)) err(where, `invalid model "${fm.data.model}"`);
   if (fm.data.color && !COLORS.has(fm.data.color)) err(where, `invalid color "${fm.data.color}"`);
+  if (fm.data.effort && !EFFORTS.has(fm.data.effort)) err(where, `invalid effort "${fm.data.effort}"`);
   const sk = fm.data.skills;
   if (!Array.isArray(sk) || !sk.length) err(where, 'must preload at least one skill via skills:');
   else for (const s of sk) if (!skillSet.has(s)) err(where, `preloads unknown skill "${s}"`);

@@ -3,6 +3,7 @@ name: forge-project-explorer
 description: FORGE Project Explorer. Maps an unfamiliar codebase from evidence into a compact context map. Use for read-only exploration on M/L tasks or audits.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
+effort: medium
 color: blue
 skills:
   - forge-project-exploration

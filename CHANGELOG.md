@@ -25,6 +25,13 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.
 
 ### Added
+- **Code comment standard (`forge-code-comments`).** Comments must explain why or what is not obvious, in one short natural sentence and in the file's existing style. They never restate code, narrate, use banners, emoji, fake or empty TODOs or commented-out code, or mention AI, Claude or FORGE. Rationale comments are allowed only when verified, and existing meaningful comments are left alone.
+  - The skill is preloaded by the 10 code-writing agents and the code reviewer. The shared operating rules carry a one-line version for every agent, and `forge-documentation` points to it.
+  - New `skills/forge/scripts/comment-check.mjs` (zero dependencies, read-only) extracts only the comments a change adds. It covers added diff lines against `--base`, untracked files, or `--files`, for C-like, hash, SQL, markup and Python docstring syntax, and skips lint and compiler directives.
+    - **Errors (exit 1):** restated code, narration, AI or generator mentions, banners, emoji, obvious comments, commented-out code, empty TODOs.
+    - **Warnings:** long blocks, promotional or conversational wording, every new TODO.
+  - It runs in phase 9 next to the line-ending check and in the reviewer's new **Comments** checklist: a stale or wrong comment is major, pattern issues are minor. G13 now includes it.
+  - Tests: `tests/unit/comment-check.test.mjs`, built from the standard's own good and bad examples, with diff-only scoping and `--files`. Running it on the validation-gate change caught a decorative banner, now removed.
 - **Mandatory validation order with an enforced pre-browser gate.** Verification now always runs: implement → static checks → automated tests → fix → pre-browser gate → browser/device verification → fix and re-verify → final gate → evidence and report.
   - New `skills/forge/scripts/validation-gate.mjs` (zero dependencies; it reuses the detector and `verify-delta.mjs` and writes only inside `.forge/`), with five subcommands:
     - `plan` maps the changed files to the project's units (web, backend/API, mobile, shared) and adds the consumers of changed shared packages (workspace names or relative-path references). It puts every unit in scope for a root config change, needs nothing for documentation-only changes, and flags API contracts (manual G6 check plus their web/mobile consumers) and migrations (manual G12 check).

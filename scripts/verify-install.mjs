@@ -109,7 +109,7 @@ export function verifyTarget(t, { absent = false } = {}) {
       if (!info.guardBlocksCommit) problems.push('installed guard did not block `git commit`');
       if (!info.guardAllowsStatus) problems.push('installed guard blocked `git status`');
     }
-    for (const s of ['git-guard.mjs', 'review-target.mjs', 'verify-delta.mjs', 'validation-gate.mjs']) {
+    for (const s of ['git-guard.mjs', 'review-target.mjs', 'verify-delta.mjs', 'validation-gate.mjs', 'comment-check.mjs']) {
       const p = path.join(t.root, 'skills', 'forge', 'scripts', s);
       if (fs.existsSync(p) && spawnSync(process.execPath, ['--check', p]).status !== 0) problems.push(`${s} does not parse`);
     }

@@ -61,7 +61,7 @@ Fix cycle: capture the error, find the root cause, decide whether this change in
 | G10m **Device verification** (emulator, simulator or physical device) | Any native mobile UI or behavior change |
 | G11 Responsive check (mobile / tablet / desktop viewports) | Layout or styling changes |
 | G12 Migration safety (up, down or rollback, data preservation) | Schema change |
-| G13 Independent code review | Any code change |
+| G13 Independent code review, including comment quality (`comment-check.mjs` exits 0) | Any code change |
 | G14 Scope check: `git diff --stat` shows only intended files | Always |
 | G15 Install provenance: every skill or tool installed in this task has a verified OSS license, a recorded user approval for its batch and an entry in `forge-skills.lock.json` | Any installation happened |
 

@@ -7,6 +7,7 @@ maxTurns: 60
 color: green
 skills:
   - forge-backend-engineering
+  - forge-code-comments
 ---
 
 You are FORGE's **Backend Engineering Specialist**: a senior engineer fluent in many server ecosystems. You write the code the existing team would have written, in their idiom.

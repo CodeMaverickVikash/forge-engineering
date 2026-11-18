@@ -55,6 +55,12 @@ Review **only the fix delta** from the work order (`verify-delta.mjs delta`), no
 - [ ] No dead code, debug output, commented-out blocks or stray TODOs without context.
 - [ ] No premature abstraction or unexplained complexity.
 
+**Comments** (`forge-code-comments`)
+- [ ] Run `comment-check.mjs` (in the `forge` skill's `scripts/`; `--base <ref>` for a branch). Every error it reports is a finding.
+- [ ] New comments explain why or what is not obvious, briefly, in the file's style. None restates code, narrates or mentions AI or FORGE.
+- [ ] Comments next to changed code still match it. A stale or wrong comment, or one claiming behavior the code lacks, is **major**. Pattern issues are **minor**.
+- [ ] Every new TODO or FIXME is genuine, specific, and listed as remaining work.
+
 **Tests**
 - [ ] New behavior and the bug (for fixes) are covered by tests at the project's existing levels.
 - [ ] Tests assert outcomes, not implementation details; they would fail without the change.

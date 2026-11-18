@@ -14,7 +14,7 @@ It runs on **Claude Code** and **Google Antigravity** from one shared core.
 |---|---|
 | **Entry point** | `/forge <request>` (the only user-facing command) |
 | **Specialists** | 26 subagents in 5 divisions: product, architecture & engineering, quality, delivery, intelligence ([docs/agents.md](docs/agents.md)) |
-| **Skills** | 27 reusable, technology-independent skills with per-stack references ([docs/skills.md](docs/skills.md)) |
+| **Skills** | 28 reusable, technology-independent skills with per-stack references ([docs/skills.md](docs/skills.md)) |
 | **Stacks** | Any stack, discovered from evidence. The registry ships 116 technology signatures plus references for Node, Python, Java/Spring, Go, PHP/Laravel, .NET, Ruby/Rails, Rust, React/Next, Vue, Angular, Svelte, React Native/Expo, Flutter, Android and iOS |
 | **Skill discovery** | Free & open-source only, license-verified per skill, with the Vercel Skills CLI as the primary engine. **Nothing is installed without your explicit approval** ([docs/skill-discovery.md](docs/skill-discovery.md)) |
 | **Validation** | Type check, lint, tests and build for every affected app (web, API, mobile, shared packages and their consumers) in one parallel batch. Each check runs once, and only checks whose code changed re-run. A pre-browser gate blocks browser work until they pass |
@@ -124,7 +124,7 @@ Notes:
 ## Repository layout
 
 ```
-skills/            shared core: forge (orchestrator + core/ + templates/) and 26 specialist skills
+skills/            shared core: forge (orchestrator + core/ + templates/) and 27 specialist skills
 agents/            26 specialist definitions (canonical source) + _shared/operating-rules.md
 scripts/           build.mjs (adapters), validate.mjs, install/uninstall (.sh + .ps1), validate.sh
 dist/              generated adapters: claude-code/ (Claude plugin) and antigravity/ (Antigravity plugin)

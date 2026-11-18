@@ -394,7 +394,6 @@ export function evidence(root, task, { init = false } = {}) {
   return { dir: relRoot, absolute: dir, files, links: files.map(link), missing, unindexed };
 }
 
-// ---------------- CLI ----------------
 const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
 
 export function formatPlan(p) {

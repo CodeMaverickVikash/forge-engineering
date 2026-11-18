@@ -38,7 +38,7 @@ If nothing user-visible or operational changed, say so and write nothing.
 
 **CHANGELOG:** if the project uses Keep a Changelog, add entries under `## [Unreleased]` in the right group (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`). Write for users, not committers: the effect, not the implementation. Mark breaking changes clearly with migration steps. Don't invent version numbers or dates; release versioning belongs to the release process. If the changelog is generated from commits or changesets, follow that mechanism instead (e.g. add a changeset file only if the project uses them).
 
-**Code comments:** explain *why* (intent, constraints, trade-offs, links to issues or specs, non-obvious invariants, workarounds with their removal condition), not *what* the code already says. Update or delete comments made stale by the change. Follow the project's docstring format for public APIs. No commented-out code, no change-log comments ("added by…").
+**Code comments:** explain *why* (intent, constraints, trade-offs, links to issues or specs, non-obvious invariants, workarounds with their removal condition), not *what* the code already says. Update or delete comments made stale by the change. Follow the project's docstring format for public APIs. No commented-out code, no change-log comments ("added by…"). The full standard and its check script are in `forge-code-comments`.
 
 **Runbooks:** trigger or alert, impact, diagnosis steps (commands, dashboards, log queries), mitigation, rollback, escalation, verification that the system has recovered. Steps must be executable by someone woken at 3 a.m.: exact commands, no assumed knowledge. Mark destructive steps clearly.
 

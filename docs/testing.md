@@ -62,6 +62,21 @@ Options: `--model` (default `sonnet`), `--budget` (USD cap per scenario, default
 
 The recorded results of the runs made during development are in [`tests/e2e/results/`](../tests/e2e/results/). Each `summary.json` records the agents actually invoked, the MCP calls, cost, duration, files changed and the post-run test status.
 
+
+## Recorded results (2026-11-17, model: sonnet)
+
+| Scenario | Result | Agents invoked | MCP calls | Duration | Cost |
+|---|---|---|---|---|---|
+| `bug-fix` | **PASS** | forge-browser-qa, forge-code-reviewer | playwright 7, chrome-devtools 7 | 1.7 min | $0.56 |
+| `security-review` | **PASS** | forge-security-engineer | none | 2.3 min | $0.44 |
+| `ui-improvement` | **PASS** | forge-frontend-engineer, forge-test-automation-engineer, forge-accessibility-specialist, forge-browser-qa, forge-code-reviewer | playwright 23, chrome-devtools 10 | 12.4 min | $2.35 |
+| `new-feature` | FAIL: none of [forge-test-automation-engineer,forge-qa-lead] invoked | forge-backend-engineer, forge-frontend-engineer, forge-browser-qa, forge-code-reviewer | playwright 12, chrome-devtools 15 | 6.5 min | $1.41 |
+| `database-change` | **PASS** | forge-architect, forge-backend-engineer, forge-qa-lead, forge-database-engineer, forge-code-reviewer | none | 8.5 min | $1.55 |
+| `architecture-analysis` | **PASS** | forge-architect, forge-security-engineer, forge-performance-engineer, forge-dx-engineer | none | 2.3 min | $1.00 |
+| `skill-discovery` | **PASS** | forge-skill-scout | none | 3.8 min | $0.73 |
+
+`new-feature` was recorded before its check was corrected. The old check required a dedicated test-owner agent, and that run is the one shown above. The feature itself shipped with 6 new API tests (9/9 passing), a browser-QA-found bug fixed and retested, and an independent review. A rerun against the corrected check was stopped before it finished, so it is **not** claimed as passing. Rerun with `node tests/e2e/run-scenario.mjs new-feature`.
+
 ## Antigravity manual verification
 
 Antigravity could not be exercised in the development environment. Verify it with this procedure:

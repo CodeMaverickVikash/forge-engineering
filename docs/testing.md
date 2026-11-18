@@ -44,6 +44,7 @@ Defined in `tests/e2e/scenarios.mjs`:
 | Scenario | Fixture | Checks |
 |---|---|---|
 | `bug-fix` | `web-tasks` | code reviewer and browser QA invoked (the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
+| `branch-review` | `web-tasks` + scenario-built history (`main`, `feature/edit-title` with seeded defects, one uncommitted edit) | 13-section Engineering Review Report; base `main` detected; seeded unknown-id crash found (BR-001); local change reported; status CHANGES REQUIRED; **the working tree, HEAD, index and stash are byte-for-byte unchanged**; review lock removed |
 | `code-question` | `web-tasks` | Q size: answered directly with `app.js` evidence; **no** agents, **no** changes, no full execution report |
 | `security-review` | `web-tasks` | security engineer invoked; **no** source changes; report names the XSS sink |
 | `ui-improvement` | `web-tasks` | frontend, UX or accessibility, and browser QA; source changes; tests pass |
@@ -90,10 +91,15 @@ All runs used `sonnet` against the user-scope install (`--use-installed`). The o
 
 | Scenario | Baseline | Round 1 (waves, effort tiers, budgets) | Round 2 (delta retests, model tiers, turn caps, Q size, lean descriptions) |
 |---|---|---|---|
-| `code-question` | n/a (new) | n/a | **PASS**, 0 agents, 0.2 min, **$0.12** |
+| `code-question` | n/a (new) | n/a | **PASS**, 0 agents, 0.2 min, **$0.12** (0.4 min, $0.12 after the prompt trim) |
+| `branch-review` | n/a (new) | n/a | **PASS**, code reviewer + security, 3.9 min, **$0.85**. Base `main` found; BR-001 crash and BR-002 validation bugs found; local change reported; CHANGES REQUIRED; tree byte-for-byte unchanged |
 | `bug-fix` | PASS, 1.7 min, $0.56 | n/a | **PASS**, browser QA + reviewer, 1.5 min, **$0.50** |
 | `architecture-analysis` | PASS, 4 agents, 2.3 min, $1.00 | PASS, 3 agents in one wave, 1.8 min, $0.68 | **PASS**, 2 agents in one wave, 1.3 min, **$0.47** (−53% vs baseline) |
 | `new-feature` | FAIL, 6.5 min, $1.41 | PASS, 3 verification rounds, 11.5 min, $2.34 | **PASS**, 2 rounds with a delta retest, 7.5 min, **$1.83** (−22% cost, −35% time vs round 1) |
+
+After the orchestrator prompt was trimmed 36% (15.7k → 10.0k characters), `bug-fix` ($0.53), `architecture-analysis` ($0.44), `code-question` and `branch-review` were re-run, and all passed.
+
+The first `branch-review` run failed for one reason: a reviewer finished after the report was printed, and the final message became a short recap. SKILL.md and review.md now require reporting only after every launched agent has returned, and re-printing the full report, heading first, if a result arrives late.
 
 FORGE's always-loaded context (skill and agent descriptions present in every session) went from ~2,133 to ~1,251 tokens (−41%).
 

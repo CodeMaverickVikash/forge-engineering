@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // FORGE git guard: a Claude Code PreToolUse hook that enforces "FORGE never commits, pushes or
 // rewrites history". It reads the hook event JSON on stdin and exits 2 (block, reason on stderr)
-// when a Bash/PowerShell command would commit, push, merge, rebase, discard work or open a PR.
+// when a Bash/PowerShell command would commit, push, merge, rebase, discard work, open a PR or post
+// reviews/comments/issues to the hosting platform. During a read-only FORGE review (.forge/review.lock,
+// created by review-target.mjs --lock) it also blocks Edit/Write/MultiEdit/NotebookEdit outside .forge/.
 //
 //   node git-guard.mjs --scope agent    in FORGE agent frontmatter: always enforce (the hook only
 //                                       runs while that FORGE agent is active)
@@ -93,9 +95,24 @@ function gitVerdict(args) {
 
 function ghVerdict(args) {
   const [a, b] = args.filter((x) => !x.startsWith('-'));
-  if (a === 'pr' && ['create', 'merge'].includes(b)) return `gh pr ${b}`;
+  // Anything that writes to the hosting platform: PRs, reviews/approvals, comments, issues, releases.
+  if (a === 'pr' && ['create', 'merge', 'review', 'comment', 'edit', 'close', 'reopen', 'ready', 'lock', 'unlock'].includes(b)) return `gh pr ${b}`;
+  if (a === 'issue' && ['create', 'comment', 'edit', 'close', 'reopen', 'delete', 'transfer', 'lock', 'unlock', 'pin', 'unpin'].includes(b)) return `gh issue ${b}`;
   if (a === 'release' && ['create', 'upload', 'delete', 'edit'].includes(b)) return `gh release ${b}`;
-  if (a === 'repo' && ['delete', 'archive'].includes(b)) return `gh repo ${b}`;
+  if (a === 'repo' && ['delete', 'archive', 'edit', 'rename'].includes(b)) return `gh repo ${b}`;
+  if (a === 'api') {
+    const m = args.findIndex((x) => x === '-X' || x === '--method');
+    const method = m >= 0 ? String(args[m + 1] || '').toUpperCase() : args.find((x) => /^--method=/.test(x))?.split('=')[1]?.toUpperCase();
+    const hasBody = args.some((x) => /^(-f|-F|--field|--raw-field|--input)$/.test(x) || /^--(raw-)?field=/.test(x));
+    if ((method && method !== 'GET') || (!method && hasBody)) return 'gh api (write request)';
+  }
+  return null;
+}
+
+function glabVerdict(args) {
+  const [a, b] = args.filter((x) => !x.startsWith('-'));
+  if (a === 'mr' && ['create', 'merge', 'approve', 'revoke', 'note', 'update', 'close', 'reopen'].includes(b)) return `glab mr ${b}`;
+  if (a === 'issue' && ['create', 'note', 'update', 'close', 'reopen', 'delete'].includes(b)) return `glab issue ${b}`;
   return null;
 }
 
@@ -109,6 +126,7 @@ export function forbiddenOperation(command, depth = 0) {
     const head = base(t[0]);
     if (head === 'git') { const v = gitVerdict(t.slice(1)); if (v) return v; continue; }
     if (head === 'gh') { const v = ghVerdict(t.slice(1)); if (v) return v; continue; }
+    if (head === 'glab') { const v = glabVerdict(t.slice(1)); if (v) return v; continue; }
     if (head === '&' && t[1]) { const v = forbiddenOperation(t.slice(1).join(' '), depth + 1); if (v) return v; continue; }
     if (SHELLS.has(head) || head === 'eval') {
       const k = t.findIndex((x, n) => n > 0 && /^(-c|-command|\/c|\/k|-encodedcommand)$/i.test(x));
@@ -173,14 +191,53 @@ export function shouldEnforce(scope, event, skill = 'forge') {
   return scope === 'skill'; // skill hooks exist only after /forge ran: fail closed. Plugin hooks are global: fail open.
 }
 
+// ---------- read-only review mode ----------
+
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const REVIEW_LOCK_MAX_AGE_MS = 3 * 3600 * 1000; // keep in sync with review-target.mjs
+
+/** Finds an active .forge/review.lock at or above dir; returns the project root that holds it, or null. */
+export function activeReviewRoot(dir, now = Date.now()) {
+  let d = path.resolve(dir || '.');
+  for (let i = 0; i < 25; i++) {
+    const lock = path.join(d, '.forge', 'review.lock');
+    try {
+      const j = JSON.parse(fs.readFileSync(lock, 'utf8'));
+      return now - Date.parse(j.createdAt) < REVIEW_LOCK_MAX_AGE_MS ? d : null;
+    } catch { /* keep walking */ }
+    const up = path.dirname(d); if (up === d) break; d = up;
+  }
+  return null;
+}
+
+function reviewEditVerdict(event) {
+  const root = activeReviewRoot(event.cwd);
+  if (!root) return null;
+  const target = event.tool_input?.file_path || event.tool_input?.notebook_path;
+  if (!target) return null;
+  const abs = path.resolve(event.cwd || root, target);
+  const inside = path.relative(path.join(root, '.forge'), abs);
+  if (inside && !inside.startsWith('..') && !path.isAbsolute(inside)) return null; // FORGE's own workspace is fine
+  return `${event.tool_name} ${path.relative(root, abs) || abs}`;
+}
+
 export function decide(event, scope, skill = 'forge') {
+  if (event && EDIT_TOOLS.has(event.tool_name)) {
+    const op = reviewEditVerdict(event);
+    if (!op || !shouldEnforce(scope, event, skill)) return { block: false, op };
+    return {
+      block: true, op,
+      reason: `FORGE review mode is read-only: blocked \`${op}\`. A review never modifies the reviewed code. Put the finding and its recommended fix in the review report. ` +
+        'If the user asks for fixes, end review mode first (review-target.mjs --unlock) and switch to the normal FORGE lifecycle.'
+    };
+  }
   if (!event || !['Bash', 'PowerShell'].includes(event.tool_name)) return { block: false };
   const op = forbiddenOperation(event.tool_input?.command);
   if (!op) return { block: false };
   if (!shouldEnforce(scope, event, skill)) return { block: false, op };
   return {
     block: true, op,
-    reason: `FORGE git guard blocked \`${op}\`. FORGE never commits, pushes, merges, rewrites history, discards the user's work or opens PRs. ` +
+    reason: `FORGE git guard blocked \`${op}\`. FORGE never commits, pushes, merges, rewrites history, discards the user's work, opens PRs, or posts reviews, comments or issues to the hosting platform. ` +
       'Leave all changes uncommitted and list them in the report; the user commits. (To run git yourself, use your own terminal.)'
   };
 }
@@ -196,8 +253,8 @@ if (isMain) {
   process.stdin.on('data', (d) => { raw += d; });
   process.stdin.on('end', () => {
     let event; try { event = JSON.parse(raw); } catch { process.exit(0); }
-    // Fast path: nothing git- or gh-like in the command means nothing to check.
-    if (!/\b(git|gh)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
+    // Fast path: a shell command with nothing git-, gh- or glab-like in it needs no further checks.
+    if (!EDIT_TOOLS.has(event?.tool_name) && !/\b(git|gh|glab)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
     const d = decide(event, scope, skill);
     if (d.block) { process.stderr.write(d.reason + '\n'); process.exit(2); }
     process.exit(0);

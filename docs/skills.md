@@ -6,7 +6,7 @@ FORGE ships 27 skills. Only `forge` is user-invocable; the specialists are loade
 
 | Skill | Supporting files | Description |
 |---|---|---|
-| `forge` | 11 | FORGE, a one-command software engineering team. Use when the user invokes /forge or asks FORGE to build, fix, improve, review or analyze software. It explores, specs, delegates to specialists, verifies with tests and browser QA, and reports. It never commits or pushes. |
+| `forge` | 14 | FORGE, a one-command software engineering team. Use when the user invokes /forge or asks FORGE to build, fix, improve, review or analyze software. It explores, specs, delegates to specialists, verifies with tests and browser QA, and reports. It never commits or pushes. |
 | `forge-accessibility-engineering` | 0 | WCAG 2.2 AA review of web and mobile UI (semantics, keyboard, focus, contrast, forms, ARIA). |
 | `forge-ai-ml-engineering` | 0 | LLM and ML features (prompts, structured output, RAG, agents, evals, injection safety, cost). |
 | `forge-api-integration` | 0 | API contracts and integrations (REST, GraphQL, gRPC, webhooks, OAuth/OIDC, payments). |

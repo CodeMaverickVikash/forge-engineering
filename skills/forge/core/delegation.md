@@ -15,6 +15,21 @@ VERIFY WITH: <commands or checks you must run, from context.json>
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
+## Delta retests
+
+Re-verifying the whole change after every fix was the biggest cost in measured runs: three full browser passes and three full reviews for one feature. So a retest covers only what changed:
+- **Snapshot before every verification wave:** `node "<FORGE_HOME>/scripts/verify-delta.mjs" snapshot --task <slug>`. After the fix, `verify-delta.mjs delta --task <slug>` prints the fix delta.
+- **Continue the same verifier** when the host can (Claude Code: `SendMessage` to its agent ID). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
+- **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
+- **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
+- **Automated tests:** re-run in full; they are cheap.
+- **Minor findings and nits** never start a new round. Batch them into the fix wave and let the delta re-review confirm them.
+- **Full re-verification only** when the delta is large (more than about a third of the original change), touches files the earlier round never saw, or changes a contract.
+
+## Turn caps
+
+Every agent has a `maxTurns` cap, set well above real needs, to stop runaway loops. Output marked **partial** means the agent hit its cap. Continue it once with a narrower scope, or report the remainder as unverified. Never count partial work as done.
+
 ## Retest work order (after a fix)
 
 Verifiers return after a fix to confirm it, not to start over. Send them only the fix delta:

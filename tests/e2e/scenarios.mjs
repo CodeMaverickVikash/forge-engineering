@@ -21,6 +21,38 @@ export const SCENARIOS = {
       return fixed && !stillBuggy ? [] : ['remaining counter still counts completed tasks'];
     }
   },
+  'branch-review': {
+    fixture: 'web-tasks',
+    // History built in the throwaway sandbox: main = the app; feature/edit-title = one commit adding a rename
+    // endpoint with seeded defects; plus an uncommitted local edit that the review must report but never touch.
+    // Seeded defects: an unknown id throws (unhandled rejection crashes the server), invalid JSON (body = null)
+    // throws, and the title is not validated (blank or non-string accepted).
+    setup: ({ git, read, write }) => {
+      git('checkout', '-q', '-b', 'main');
+      git('add', '-A'); git('commit', '-qm', 'Task board');
+      git('checkout', '-q', '-b', 'feature/edit-title');
+      write('server.mjs', read('server.mjs')
+        .replace("    remove(id) {", "    rename(id, title) { const t = tasks.find((x) => x.id === id); t.title = title; return t; },\n    remove(id) {")
+        .replace("    if (m && req.method === 'DELETE')", "    if (m && req.method === 'PATCH' && !m[2]) { const body = await readBody(req); return json(res, 200, store.rename(Number(m[1]), body.title)); }\n    if (m && req.method === 'DELETE')"));
+      git('add', '-A'); git('commit', '-qm', 'Add PATCH /api/tasks/:id to rename a task');
+      write('public/app.js', read('public/app.js') + "\nconsole.log('debug: tasks rendered');\n");
+    },
+    prompt: '/forge Review my current branch',
+    expect: {
+      reportHeading: /^#\s*FORGE\s*[—–-]+\s*Engineering Review Report/m,
+      unchanged: true,
+      agentsAll: ['forge-code-reviewer'],
+      reportMentions: [
+        ...['Review Information', 'Executive Summary', 'Critical Findings', 'Bug Findings', 'Security Review', 'Architecture & Code Quality', 'UI/UX & Browser QA', 'Testing & Verification', 'Required Fixes', 'Suggested Bug-Fix Tickets', 'Suggested Feature & Improvement Tickets', 'Recommended Next Actions', 'Final Verdict']
+          .map((h, i) => new RegExp(`###\\s*${i + 1}\\.\\s*${h.replace('&', '(&|and)')}`)),
+        /feature\/edit-title/, /\bmain\b/, /PATCH/, /BR-001/,
+        /unknown id|not found|404|undefined|TypeError|crash/i,  // the unhandled unknown-id path
+        /app\.js/,                                              // the uncommitted local change is reported
+        /CHANGES REQUIRED/,
+      ],
+    },
+    check: ({ dir }) => (fs.existsSync(path.join(dir, '.forge', 'review.lock')) ? ['review lock left behind (review-target.mjs --unlock not run)'] : []),
+  },
   'code-question': {
     fixture: 'web-tasks',
     prompt: '/forge How is the "tasks remaining" number on the board calculated?',

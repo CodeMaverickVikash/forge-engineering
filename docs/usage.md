@@ -30,6 +30,40 @@ Type `/forge` followed by what you want, in plain words. You don't have to pick 
 
 A task that touches auth, payments, PII, migrations or schema, a public API contract, more than about 8 files or more than one deployable unit is sized up one step. Size reduces paperwork, not assurance: at every size FORGE runs the detector, adds a regression test for every bug fix, sends every browser-visible change to `forge-browser-qa`, and has `forge-code-reviewer` review every code change. With native subagents, the specialists do the work; FORGE implements directly only S-size fixes.
 
+## Reviewing a PR or branch
+
+```
+/forge Review my current branch
+/forge Review this PR: https://github.com/organization/repository/pull/123
+/forge Review the current branch and identify bugs, security issues and improvements.
+```
+
+FORGE works out the target itself. A PR or MR URL means a PR review; otherwise it reviews the current branch. You never pick a mode.
+
+**Current branch review:**
+- **Finding the base branch.** It is never assumed to be `main`. FORGE uses, in order: the open PR's base, the `gh-merge-base` config, the remote default branch, then the nearest fork point among `main`, `master`, `develop` and similar. Its confidence and evidence go in the report, and an uncertain base is reported, not guessed.
+- **What is reviewed.** Committed branch changes are kept separate from staged, unstaged and untracked local work, and local work is always reported.
+- **On `main` itself:** FORGE reviews unpushed commits plus local changes.
+
+**PR review:**
+- **GitHub:** FORGE reads the PR metadata, description and full diff through the authenticated `gh` CLI (read-only).
+- **Other providers or no access:** GitLab needs an authenticated `glab`. Bitbucket and Azure DevOps, or a GitHub PR without access, make the review **BLOCKED**, with the reason stated. FORGE never pretends a PR was read.
+- **Branch checkout:** FORGE does not check out the PR branch. Local tests and browser checks run only when the PR branch is already your current checkout.
+
+**The review itself:**
+- **Team.** One parallel wave of reviewers, chosen from the changed areas and the diff size:
+  - every review: senior developer (`forge-code-reviewer`), plus security and QA;
+  - when the change needs them: architect, database, performance, and UI/UX with browser QA.
+  - A small diff gets two or three reviewers, not seven.
+- **Findings.** Every finding has a file and line, the problem, its impact, evidence and a fix. Each has a severity (CRITICAL / HIGH / MEDIUM / LOW / INFO) and a confidence. FORGE re-checks high-severity findings against the code, and speculation is never reported as a confirmed bug.
+- **Output.** The final message is the **13-section Engineering Review Report**:
+  - review information, executive summary and status;
+  - critical findings, bugs (BR-001…), security, architecture, UI/UX and browser QA, and testing;
+  - required fixes, ticket drafts, next actions and a final verdict.
+  The status is APPROVED, APPROVED WITH SUGGESTIONS, CHANGES REQUIRED or BLOCKED. It is advisory and never submitted to GitHub.
+
+**Read-only, enforced in Claude Code.** A review never edits, stages, commits or pushes. It never approves, comments on or creates PRs or issues, and it never creates Jira tickets unless you ask. During the review the git guard blocks file edits outside `.forge/`, and it always blocks hosting-platform writes. To fix the findings afterwards, ask: *"/forge Fix BR-001 and BR-002"*. That runs the normal lifecycle, with the review report as input.
+
 ## Tips
 
 - **Name constraints you care about:** *"/forge Add CSV export. Don't add new dependencies."* Constraints go straight into the spec.

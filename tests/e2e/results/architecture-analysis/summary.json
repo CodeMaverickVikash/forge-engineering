@@ -12,7 +12,7 @@
   "failures": [],
   "exitCode": 0,
   "durationMin": 1.3,
-  "costUsd": 0.4657506,
+  "costUsd": 0.44120980000000004,
   "turns": 3,
   "skillsInvoked": [],
   "agentsInvoked": [
@@ -20,7 +20,7 @@
     "forge-security-engineer"
   ],
   "mcpToolCalls": {},
-  "toolUses": 20,
+  "toolUses": 10,
   "permissionDenials": [],
   "filesChanged": [],
   "diffStat": "",

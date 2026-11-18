@@ -1,0 +1,26 @@
+{
+  "scenario": "branch-review",
+  "prompt": "/forge Review my current branch",
+  "fixture": "web-tasks",
+  "model": "sonnet",
+  "date": "2026-11-18",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 3.9,
+  "costUsd": 0.8539741999999999,
+  "turns": 3,
+  "skillsInvoked": [],
+  "agentsInvoked": [
+    "forge-code-reviewer",
+    "forge-security-engineer"
+  ],
+  "mcpToolCalls": {},
+  "toolUses": 31,
+  "permissionDenials": [],
+  "filesChanged": [
+    "public/app.js"
+  ],
+  "diffStat": "public/app.js | 2 ++\n 1 file changed, 2 insertions(+)",
+  "projectTestsAfter": "PASSED"
+}

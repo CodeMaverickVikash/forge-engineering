@@ -4,6 +4,7 @@
 // Requires: the `claude` CLI (or CLAUDE_BIN), bash (installer), git. Costs real API usage — run deliberately.
 // Safety: sandbox in the OS temp dir; FORGE installed at *project* scope (your ~/.claude is untouched);
 // git mutations are denied via --disallowedTools; only the Playwright + Chrome DevTools MCP servers are loaded.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,7 +19,7 @@ const CLAUDE = process.env.CLAUDE_BIN || 'claude';
 const GIT_DENY = ['Bash(git commit:*)', 'Bash(git push:*)', 'Bash(git merge:*)', 'Bash(git rebase:*)', 'Bash(git reset:*)', 'Bash(git stash push:*)', 'Bash(git stash pop:*)', 'Bash(git stash drop:*)', 'Bash(git clean:*)', 'Bash(gh pr create:*)'];
 const ALLOW = ['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', 'Skill', 'Agent', 'TodoWrite', 'WebSearch', 'WebFetch', 'mcp__playwright', 'mcp__chrome-devtools'];
 
-function sandbox(name, fixture) {
+function sandbox(name, fixture, setup) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `forge-e2e-${name}-`));
   for (const spec of [].concat(fixture)) {
     const [fx, sub = ''] = spec.split(':');
@@ -26,7 +27,15 @@ function sandbox(name, fixture) {
   }
   execFileSync('git', ['init', '-q'], { cwd: dir });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: dir }); // avoid CRLF noise in change detection
-  execFileSync('git', ['add', '-A'], { cwd: dir }); // baseline staged (never committed): `git diff` shows FORGE's changes
+  // FORGE's own folders never count as user changes (local exclude, not a tracked .gitignore).
+  fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '\n.claude/\n.forge/\n.playwright-mcp/\n');
+  if (setup) {
+    // Scenario-built history inside this throwaway sandbox (test scaffolding; the sandbox is deleted after the run).
+    const git = (...a) => execFileSync('git', ['-c', 'user.name=FORGE e2e', '-c', 'user.email=e2e@example.invalid', ...a], { cwd: dir, encoding: 'utf8' });
+    const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
+    const write = (f, s) => fs.writeFileSync(path.join(dir, f), s);
+    setup({ dir, git, read, write });
+  } else execFileSync('git', ['add', '-A'], { cwd: dir }); // baseline staged (never committed): `git diff` shows FORGE's changes
   // --use-installed: test the user-scope install in ~/.claude exactly as a user would run it.
   if (args.includes('--use-installed')) return dir;
   const r = spawnSync('bash', [path.join(ROOT, 'scripts', 'install.sh'), '--target', 'claude', '--scope', 'project', '--project', dir], { encoding: 'utf8' });
@@ -52,7 +61,20 @@ function analyzeStream(lines) {
   return ev;
 }
 
-function evaluate(name, sc, dir, ev) {
+// Exact working-tree + git state, for read-only scenarios: any byte changed outside FORGE's folders is a failure.
+const IGNORED = /^(\.git|\.forge|\.claude|\.playwright-mcp|node_modules|test-results|playwright-report)(\/|$)|\.png$/;
+function treeState(dir) {
+  const files = {};
+  for (const f of fs.readdirSync(dir, { recursive: true }).map((p) => String(p).replace(/\\/g, '/'))) {
+    if (IGNORED.test(f) || f.split('/').some((seg) => IGNORED.test(seg))) continue;
+    const abs = path.join(dir, f);
+    if (fs.statSync(abs).isFile()) files[f] = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+  }
+  const g = (...a) => { try { return execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim(); } catch { return ''; } };
+  return { files, head: g('rev-parse', 'HEAD'), index: g('ls-files', '-s'), stash: g('stash', 'list'), branch: g('branch', '--show-current') };
+}
+
+function evaluate(name, sc, dir, ev, before) {
   const fails = []; const e = sc.expect || {};
   const used = new Set(ev.agents);
   for (const a of e.agentsAll || []) if (!used.has(a)) fails.push(`agent not invoked: ${a}`);
@@ -62,6 +84,8 @@ function evaluate(name, sc, dir, ev) {
     // Q size: a direct answer with evidence, no specialists and no full report.
     if (ev.agents.length) fails.push(`answer-only question launched agents: ${ev.agents.join(', ')}`);
     if (/### FORGE Execution Report/.test(report)) fails.push('answer-only question produced a full execution report');
+  } else if (e.reportHeading) {
+    if (!e.reportHeading.test(report)) fails.push(`final report heading ${e.reportHeading} missing`);
   } else {
     if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
     if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
@@ -80,6 +104,13 @@ function evaluate(name, sc, dir, ev) {
     const both = ev.mcp.playwright && ev.mcp['chrome-devtools'];
     if (!both && !/not browser-verified/i.test(report)) fails.push('browser change neither verified with both MCPs nor reported as not browser-verified');
   }
+  if (e.unchanged && before) {
+    const after = treeState(dir);
+    for (const k of ['head', 'index', 'stash', 'branch']) if (before[k] !== after[k]) fails.push(`read-only run changed git ${k}`);
+    for (const f of new Set([...Object.keys(before.files), ...Object.keys(after.files)])) {
+      if (before.files[f] !== after.files[f]) fails.push(`read-only run ${!after.files[f] ? 'deleted' : !before.files[f] ? 'created' : 'modified'} ${f}`);
+    }
+  }
   if (sc.check) fails.push(...sc.check({ dir }));
   let testsAfter = 'N/A';
   if (fs.existsSync(path.join(dir, 'package.json')) && /"test"/.test(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))) {
@@ -92,7 +123,8 @@ function evaluate(name, sc, dir, ev) {
 
 function run(name) {
   const sc = SCENARIOS[name]; if (!sc) throw new Error(`unknown scenario ${name}`);
-  const dir = sandbox(name, sc.fixture);
+  const dir = sandbox(name, sc.fixture, sc.setup);
+  const before = sc.expect?.unchanged ? treeState(dir) : null;
   const mcpCfg = path.join(os.tmpdir(), `forge-e2e-mcp-${process.pid}.json`);
   const npx = process.platform === 'win32' ? { command: 'cmd', pre: ['/c', 'npx'] } : { command: 'npx', pre: [] };
   fs.writeFileSync(mcpCfg, JSON.stringify({ mcpServers: {
@@ -113,7 +145,7 @@ function run(name) {
   console.log(`  claude finished: exit=${r.status} signal=${r.signal} error=${r.error?.code || 'none'} after ${((Date.now() - t0) / 60000).toFixed(1)}min, ${(r.stdout || '').length} bytes`);
   const lines = (r.stdout || '').split('\n');
   const ev = analyzeStream(lines);
-  const res = evaluate(name, sc, dir, ev);
+  const res = evaluate(name, sc, dir, ev, before);
   const outDir = path.join(ROOT, 'tests', 'e2e', 'results', name);
   fs.mkdirSync(outDir, { recursive: true });
   const diff = execFileSync('git', ['diff', '--stat'], { cwd: dir, encoding: 'utf8' });

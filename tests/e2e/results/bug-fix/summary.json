@@ -8,18 +8,18 @@
   "failures": [],
   "exitCode": 0,
   "durationMin": 1.5,
-  "costUsd": 0.4982966,
-  "turns": 3,
+  "costUsd": 0.5250425999999999,
+  "turns": 2,
   "skillsInvoked": [],
   "agentsInvoked": [
-    "forge-browser-qa",
-    "forge-code-reviewer"
+    "forge-code-reviewer",
+    "forge-browser-qa"
   ],
   "mcpToolCalls": {
-    "playwright": 1,
-    "chrome-devtools": 4
+    "playwright": 4,
+    "chrome-devtools": 5
   },
-  "toolUses": 29,
+  "toolUses": 32,
   "permissionDenials": [],
   "filesChanged": [
     "public/app.js",

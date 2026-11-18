@@ -23,7 +23,12 @@ FORGE is instructions plus a small amount of local tooling. It gains no privileg
 - `git reset --hard`; `git stash` (except `list` and `show`); `git clean` (except `-n`)
 - `git checkout -f` or `git checkout .`; `git restore .` or `--source`; `git switch --discard-changes`
 - branch delete, force or move; tag create or delete; history rewrites (`filter-branch`, `update-ref` and similar)
-- `gh pr create` and `gh pr merge`; `gh release` and `gh repo delete`
+- hosting-platform writes:
+  - `gh pr create|merge|review|comment|edit|close`, and `gh issue create|comment|edit|close`;
+  - `gh api` with a write method (`-X POST/PATCH/PUT/DELETE`) or a request body (`-f`/`-F`);
+  - `gh release` and `gh repo delete|edit`;
+  - `glab mr create|merge|approve|note`.
+- **during a review** (`.forge/review.lock`, see [usage](usage.md#reviewing-a-pr-or-branch)): `Edit`, `Write`, `MultiEdit` and `NotebookEdit` on any file outside `.forge/`. The lock is set when a review starts and removed when it ends; it expires after 3 hours.
 
 **Detected inside wrapped commands too:** `&&` and `;` chains, pipes, `$(...)` and backticks, `bash -c` / `pwsh -Command` / `cmd /c`, `git -C <dir>` and `-c` options, env-var prefixes, `sudo`, and full paths to `git.exe`.
 

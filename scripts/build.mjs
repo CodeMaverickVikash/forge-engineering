@@ -63,7 +63,7 @@ function roleFile(fm) {
 export const GUARD_HOME_TOKEN = '${CLAUDE_PLUGIN_ROOT}/skills/forge';
 const guardCommand = (scope) => `node "${GUARD_HOME_TOKEN}/scripts/git-guard.mjs" --scope ${scope}`;
 const guardHooksYaml = (scope) => [
-  'hooks:', '  PreToolUse:', '    - matcher: "Bash|PowerShell"', '      hooks:', '        - type: command',
+  'hooks:', '  PreToolUse:', '    - matcher: "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit"', '      hooks:', '        - type: command',
   `          command: '${guardCommand(scope)}'`, '          timeout: 10'].join('\n');
 const withGuard = (text, scope) => text.replace(/^(---\n[\s\S]*?\n)(---\n)/, (m, head, close) => `${head}${guardHooksYaml(scope)}\n${close}`);
 
@@ -72,7 +72,7 @@ function buildClaude(out, skills, agents) {
   for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), s === 'forge' ? (t) => withGuard(norm(t), 'skill') : undefined);
   write(path.join(dir, 'hooks', 'hooks.json'), JSON.stringify({
     description: 'FORGE git guard: blocks commit, push, merge, rebase, history rewrites and PR creation by FORGE agents and during /forge turns. Other sessions are unaffected.',
-    hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: guardCommand('plugin'), timeout: 10 }] }] }
+    hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: guardCommand('plugin'), timeout: 10 }] }] }
   }, null, 2) + '\n');
   for (const a of agents) {
     const fm = loadAgent(a);

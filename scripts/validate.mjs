@@ -198,7 +198,7 @@ try {
   if (!fs.existsSync(path.join(ROOT, 'skills', 'forge', 'scripts', 'git-guard.mjs'))) err('skills/forge/scripts/git-guard.mjs', 'missing');
   for (const f of fs.readdirSync(path.join(cc, 'agents'))) {
     const t = read(path.join(cc, 'agents', f));
-    if (!/--scope agent/.test(t.match(guardRe)?.[0] || '') || !/matcher: "Bash\|PowerShell"/.test(t)) err(`dist/claude-code/agents/${f}`, 'missing the git-guard PreToolUse hook (--scope agent)');
+    if (!/--scope agent/.test(t.match(guardRe)?.[0] || '') || !/matcher: "Bash\|PowerShell\|Edit\|Write\|MultiEdit\|NotebookEdit"/.test(t)) err(`dist/claude-code/agents/${f}`, 'missing the git-guard PreToolUse hook (--scope agent) on Bash, PowerShell and edit tools');
   }
   if (!/--scope skill/.test(read(path.join(cc, 'skills', 'forge', 'SKILL.md')).match(guardRe)?.[0] || '')) err('dist/claude-code/skills/forge/SKILL.md', 'missing the git-guard hook (--scope skill)');
   try {

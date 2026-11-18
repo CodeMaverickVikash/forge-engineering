@@ -5,6 +5,7 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 ## [Unreleased]
 
 ### Changed (performance)
+- **Orchestrator prompt −36%** (`skills/forge/SKILL.md`: 15.7k → 10.0k characters, about 1,400 fewer tokens on every orchestrator turn). Every rule is kept. Phase-specific procedures (delta retests, turn caps) moved to `core/delegation.md`, which is read when delegating, and the rationale is now one line per rule.
 - The orchestrator launches specialists in **waves**, with every agent in a wave sent in one message: discovery, implementation, verification (browser QA and code review together), then fix.
 - Read-only and lighter roles (13 agents) run at `effort: medium`.
 - Browser QA has an efficiency budget: reuse the app URL, use snapshots rather than screenshots, batch checks, retest only what failed, and aim for about 25 tool calls per pass.
@@ -24,6 +25,15 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.
 
 ### Added
+- **PR and branch review mode** through `/forge`. FORGE picks the mode itself: a PR or MR URL means a PR review; otherwise it reviews the current branch.
+  - `core/review.md` holds the playbook and `templates/review-report.md` the fixed 13-section Engineering Review Report.
+  - `scripts/review-target.mjs` handles target detection:
+    - base branch from evidence (open PR base, `gh-merge-base`, origin default, nearest fork point), with confidence; never an assumed `main`;
+    - committed, staged, unstaged and untracked changes kept separate;
+    - PR URLs from GitHub (read through `gh`), GitLab, Bitbucket and Azure; an unreadable PR is BLOCKED;
+    - area classification and a size-aware reviewer team.
+  - Read-only is enforced: `review-target.mjs --lock` makes the git guard block Edit and Write outside `.forge/` for the review's duration, and the guard now always blocks hosting-platform writes (`gh pr review|comment|edit`, `gh issue create`, `gh api` writes, `glab mr approve|note`).
+  - Tests: unit tests for URL parsing, base ranking, scopes, team sizing and the lock; a new e2e scenario, `branch-review`, with scenario-built history and a byte-for-byte unchanged check.
 - **Enforced git guard (Claude Code).** `skills/forge/scripts/git-guard.mjs` is a `PreToolUse` hook on Bash and PowerShell in every FORGE agent, in the `forge` skill and in the plugin `hooks/hooks.json`.
   - It blocks commit, push, pull, merge, rebase, `reset --hard`, stash, clean, history rewrites, branch and tag changes, and `gh pr create/merge`. It also catches these inside `&&` chains, `$(...)`, `bash -c` / `pwsh -Command` / `cmd /c`, `git -C`, env prefixes and full `git.exe` paths.
   - It enforces only for FORGE agents and during `/forge` turns. Your own requests later in the session are not blocked.

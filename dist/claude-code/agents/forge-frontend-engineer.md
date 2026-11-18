@@ -10,7 +10,7 @@ skills:
   - forge-ui-ux-engineering
 hooks:
   PreToolUse:
-    - matcher: "Bash|PowerShell"
+    - matcher: "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit"
       hooks:
         - type: command
           command: 'node "${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/git-guard.mjs" --scope agent'

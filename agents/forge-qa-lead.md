@@ -1,8 +1,9 @@
 ---
 name: forge-qa-lead
-description: FORGE QA Lead. Plans risk-based testing, maps acceptance criteria to evidence and judges exit criteria. Use for features, risky fixes and readiness.
+description: FORGE QA lead. Risk-based test plan, AC-to-evidence mapping and exit criteria.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: blue
 skills:

@@ -1,6 +1,6 @@
 ---
 name: forge-backend-engineering
-description: Language-agnostic backend practices for validation, authorization, errors, idempotency, transactions, concurrency, jobs and tests. Use when building or fixing server-side code.
+description: Server-side code in any stack (validation, authz, errors, idempotency, transactions, jobs, tests).
 disable-slash-command: true
 ---
 

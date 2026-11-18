@@ -1,8 +1,9 @@
 ---
 name: forge-backend-engineer
-description: FORGE Backend Engineer. Implements services, endpoints, jobs and CLIs in any server stack per conventions, with tests. Use for server-side work.
+description: FORGE backend engineer. Services, endpoints, jobs and CLIs in any stack, with tests.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: green
 skills:
   - forge-backend-engineering

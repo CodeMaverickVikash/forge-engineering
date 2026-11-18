@@ -1,6 +1,6 @@
 ---
 name: forge-security-engineering
-description: Application security review for any stack covering threat modelling, OWASP checks, authN/authZ, IDOR, injection, XSS/CSRF/SSRF, secrets and dependency audits.
+description: AppSec review for any stack (threat model, OWASP, authN/authZ, IDOR, injection, secrets, deps).
 user-invocable: false
 ---
 

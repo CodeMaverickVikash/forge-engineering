@@ -1,6 +1,6 @@
 ---
 name: forge-api-integration
-description: API contract design and third-party integration (REST, GraphQL, gRPC, WebSockets, webhooks, OAuth/OIDC, payments). Use when changing an API or integrating an external service.
+description: API contracts and integrations (REST, GraphQL, gRPC, webhooks, OAuth/OIDC, payments).
 disable-slash-command: true
 ---
 

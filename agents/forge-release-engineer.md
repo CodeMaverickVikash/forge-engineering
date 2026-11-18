@@ -1,8 +1,9 @@
 ---
 name: forge-release-engineer
-description: FORGE Release Engineer. Assesses release readiness and prepares notes, rollout and rollback plans; never deploys. Use before shipping or CI changes.
+description: FORGE release engineer. Release readiness, notes, rollout and rollback plans; never deploys.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: orange
 skills:

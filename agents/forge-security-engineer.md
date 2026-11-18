@@ -1,8 +1,9 @@
 ---
 name: forge-security-engineer
-description: FORGE Security Engineer. Threat-models changes; reviews auth, injection, secrets and dependencies against OWASP. Use for auth, input, PII or payments.
+description: FORGE security engineer. Threat model and OWASP review of auth, input, secrets and dependencies.
 tools: Read, Grep, Glob, Bash, Skill, WebSearch, WebFetch
 model: inherit
+maxTurns: 40
 color: red
 skills:
   - forge-security-engineering

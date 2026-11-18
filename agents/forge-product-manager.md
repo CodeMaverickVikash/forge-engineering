@@ -1,8 +1,9 @@
 ---
 name: forge-product-manager
-description: FORGE Product Manager. Defines value, user stories, testable acceptance criteria and scope cuts. Use for new features, UI/UX changes and scope calls.
+description: FORGE product manager. Value, user stories, testable acceptance criteria and scope cuts.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: purple
 skills:

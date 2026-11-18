@@ -1,6 +1,6 @@
 ---
 name: forge-performance-engineering
-description: Measure-first performance engineering for web, backend and data layers (Web Vitals, latency, N+1, caching, memory, load tests). Use for performance work.
+description: Measure-first performance work (Web Vitals, latency, N+1, caching, memory, load tests).
 user-invocable: false
 ---
 

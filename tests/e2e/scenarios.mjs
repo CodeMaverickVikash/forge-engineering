@@ -21,6 +21,12 @@ export const SCENARIOS = {
       return fixed && !stillBuggy ? [] : ['remaining counter still counts completed tasks'];
     }
   },
+  'code-question': {
+    fixture: 'web-tasks',
+    prompt: '/forge How is the "tasks remaining" number on the board calculated?',
+    // Q size: answer directly with file:line evidence, no agents, no edits, no full report.
+    expect: { answerOnly: true, sourceChanges: false, reportMentions: [/app\.js/, /filter|done/] }
+  },
   'security-review': {
     fixture: 'web-tasks',
     prompt: '/forge Do a security review of this app. Report findings only — do not change any code.',

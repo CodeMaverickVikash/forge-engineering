@@ -1,8 +1,9 @@
 ---
 name: forge-database-engineer
-description: FORGE Database Engineer. Designs schemas, safe migrations, indexes and queries in any SQL/NoSQL store. Use for schema, migration, query or ORM work.
+description: FORGE database engineer. Schemas, safe migrations, indexes and queries, SQL or NoSQL.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: yellow
 skills:
   - forge-database-engineering

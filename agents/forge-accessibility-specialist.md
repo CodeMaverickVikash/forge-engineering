@@ -1,8 +1,9 @@
 ---
 name: forge-accessibility-specialist
-description: FORGE Accessibility Specialist. Audits new or changed web and mobile UI against WCAG 2.2 AA. Use for forms, navigation and new components.
+description: FORGE accessibility specialist. WCAG 2.2 AA audit of new or changed web and mobile UI.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: pink
 skills:

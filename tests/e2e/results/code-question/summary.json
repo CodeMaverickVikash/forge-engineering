@@ -1,0 +1,21 @@
+{
+  "scenario": "code-question",
+  "prompt": "/forge How is the \"tasks remaining\" number on the board calculated?",
+  "fixture": "web-tasks",
+  "model": "sonnet",
+  "date": "2026-11-18",
+  "pass": true,
+  "failures": [],
+  "exitCode": 0,
+  "durationMin": 0.2,
+  "costUsd": 0.1237756,
+  "turns": 4,
+  "skillsInvoked": [],
+  "agentsInvoked": [],
+  "mcpToolCalls": {},
+  "toolUses": 3,
+  "permissionDenials": [],
+  "filesChanged": [],
+  "diffStat": "",
+  "projectTestsAfter": "PASSED"
+}

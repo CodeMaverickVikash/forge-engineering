@@ -1,8 +1,9 @@
 ---
 name: forge-tech-writer
-description: FORGE Technical Writer. Updates README, API docs, ADRs, changelog and runbooks to match the change, verifying commands. Use for visible changes.
+description: FORGE tech writer. Updates README, API docs, ADRs, changelog and runbooks to match a change.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 40
 effort: medium
 color: blue
 skills:

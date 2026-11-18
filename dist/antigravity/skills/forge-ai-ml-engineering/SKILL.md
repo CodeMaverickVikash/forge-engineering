@@ -1,6 +1,6 @@
 ---
 name: forge-ai-ml-engineering
-description: Provider-agnostic AI engineering for LLM integration, prompts, structured outputs, RAG, agents, evals, injection safety and cost. Use when building or changing AI or ML features.
+description: LLM and ML features (prompts, structured output, RAG, agents, evals, injection safety, cost).
 disable-slash-command: true
 ---
 

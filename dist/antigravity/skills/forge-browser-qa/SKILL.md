@@ -1,6 +1,6 @@
 ---
 name: forge-browser-qa
-description: Real-browser QA for web apps with Playwright and Chrome DevTools MCP, covering journeys, console, network and performance. Use to verify browser-visible changes.
+description: Real-browser QA with Playwright and Chrome DevTools MCP (journeys, console, network, performance).
 disable-slash-command: true
 ---
 
@@ -49,7 +49,7 @@ For each affected page, after exercising it:
 
 ## 5. Fix loop
 
-When an issue is caused by the change, hand it back with evidence: steps, expected vs actual, console or network excerpt, `file:line` hypothesis. After the fix, **re-run the same journeys and DevTools checks**.
+When an issue is caused by the change, hand it back with evidence: steps, expected vs actual, console or network excerpt, `file:line` hypothesis. After the fix, **re-run the failed journeys and their DevTools checks**. The retest scope is in the efficiency budget below.
 
 ## Efficiency budget
 
@@ -58,7 +58,11 @@ Browser passes were the most expensive part of measured FORGE runs: up to 71 tur
 - **Prefer `browser_snapshot` / `take_snapshot`** (a text accessibility tree) for assertions. Take screenshots only as evidence: at most about 3 per pass (before, after, one failure).
 - **Batch checks.** Use one `browser_evaluate` / `evaluate_script` that returns several facts at once (text, counts, focus target, overflow), instead of one call per fact. Read the console and network once per page, after the journey.
 - **Cover viewports efficiently.** Run the full journey at one viewport, then only layout assertions at the others.
-- **On retest, re-run only the failed journeys** plus the one adjacent journey most likely to regress.
+- **On retest (work order says RETEST), re-run only the failed journeys** plus the one adjacent journey most likely to regress:
+  - Use one viewport, unless the fix delta touches layout or CSS.
+  - Read the console and network once.
+  - Take no new screenshots except the "after" evidence for each fixed issue.
+  - Aim for about 10 tool calls. Do not repeat journeys that passed and that the delta does not touch.
 - **Aim for about 25 tool calls per pass.** If you need more, report what is still unverified instead of grinding.
 
 ## 6. Report

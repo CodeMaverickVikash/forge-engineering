@@ -1,89 +1,96 @@
 ### FORGE Execution Report
 
-**Task:** Analyze the project and suggest improvements.
+**Task**
+Analyze the project and suggest improvements. This was analysis only, so I made no code changes. Size: the codebase is about 70 lines, so I ran a single wave of two specialists.
 
-**Enhanced specification:** This was an analysis-only audit of the monorepo, covering architecture, security, performance/build and developer experience. I changed no code. Findings are ranked by impact with file:line evidence, and unfinished scaffolding is kept separate from real defects.
+**Enhanced specification**
+N/A. For an analysis request the deliverable is findings ranked by impact, each with file evidence and a minimal fix.
 
-**Project understanding:** It is a polyglot monorepo of about 27 tiny, mostly stub files in three units. There are no commits yet (branch `master`) and everything is staged.
-- `apps/web`: Next 15.1, React 19, Prisma 6, Auth.js 5 beta, Stripe, Tailwind 3, Vitest, Playwright, pnpm.
-- `services/orders`: FastAPI, SQLAlchemy, Alembic, psycopg, uv.
-- `services/inventory`: Go 1.23 with chi and pgx.
+**Project understanding**
+The repo is a monorepo of three independent units with no shared layer. It has no commits yet and 27 staged files. Nearly everything is a placeholder.
+- `apps/web`: Next.js 15.1 / React 19, Prisma, Auth.js 5 beta, Stripe, Vitest and Playwright (pnpm).
+- `services/orders`: FastAPI, SQLAlchemy, Alembic, pytest and Ruff (uv).
+- `services/inventory`: Go 1.23, chi, pgx and golangci-lint.
 
-**Specialists involved:** Native subagents (Mode A): forge-architect, forge-security-engineer, forge-performance-engineer and forge-dx-engineer. I ran the forge-project-exploration detector myself.
+There is no `.gitignore`, no root manifest or README, and no docs or ADRs.
 
-I did not run the project explorer, browser QA, the accessibility specialist or the code reviewer. The detector plus reading all 27 small files was enough for exploration, and there is no code diff or running UI to review.
+**Specialists involved**
+- `forge-architect` ran and returned a report.
+- `forge-security-engineer` ran and returned a report.
+- Browser QA, the code reviewer and the engineers were not needed, because nothing changed.
 
-**Implementation:**
-- None, since this was analysis-only.
-- Files changed: none in the project. The reports and cache went only into the git-ignored `.forge/` folder.
-- Architecture decisions: none made. I recommend two ADRs (see Remaining work).
+**Skills & capabilities**
+- I ran the stack detector (`.forge/context.json`).
+- I did not run skill discovery, because there was no capability gap.
+- Tools:
+  - `pnpm audit` failed on the empty lockfile.
+  - `govulncheck`, `pip-audit` and `gitleaks` are not installed, so no dependency audit or secret scan ran.
 
-**QA and verification:**
-| Gate | Command / method | Status | Evidence |
-|------|------------------|--------|----------|
-| Stack detection | `detect-stack.mjs --root . --write` | PASSED | 3 units detected |
-| Findings spot-check | `wc -c`, `git ls-files --stage`, `git check-ignore` | PASSED | The three lockfiles and `alembic.ini` are 0 bytes. `.env.local` is staged and not ignored (exit 1). |
-| Tests, lint, build, typecheck | n/a | NOT RUN | Analysis-only. The tests are stubs, the lockfiles are empty, and go, uv and golangci-lint are not installed locally. |
-| Dependency audit | `pnpm audit`, `pip-audit`, `govulncheck` | UNAVAILABLE | Lockfiles are empty and the tools are not installed. |
+**Implementation**
+N/A. Nothing was implemented. The only file I wrote is the stub `.forge/tasks/analyze-project/report.md`, and `.forge/` is git-ignored.
 
-**Issues:**
-- **Identified**, ranked by impact. I confirmed items 1–3 and 8 myself.
-  1. **`apps/web/.env.local` is staged and there is no `.gitignore` anywhere (Medium).**
-     - Committing would put it in history permanently.
-     - The security specialist checked only its shape, not the value. It has one key, `STRIPE_SECRET_KEY`, 19 characters with an `sk_test_` prefix, so it is probably a placeholder.
-     - Fix: run `git rm --cached apps/web/.env.local`, add a root `.gitignore` (`.env*`, `!.env.example`, `node_modules`, `.next`, `.venv`, `__pycache__`), and rotate the key if it was ever real.
-  2. **CI never runs.**
-     - The workflow is at `apps/web/.github/workflows/ci.yml:1-6`, and GitHub only reads the repo-root `.github/workflows`.
-     - It also only does checkout, covers one of three units, has no `permissions:` block and uses a floating `actions/checkout@v4`.
-     - Fix: move it to the root with one job per unit, `paths:` filters, `permissions: contents: read` and pinned actions.
-  3. **All three lockfiles are empty.**
-     - The files are `apps/web/pnpm-lock.yaml`, `services/orders/uv.lock` and `services/inventory/go.sum`.
-     - Installs aren't reproducible, a frozen install would fail, and no dependency audit is possible.
-     - Python dependencies float with `>=` (`pyproject.toml:5`).
-     - Fix: run `pnpm install`, `uv lock` and `go mod tidy`, then commit the results.
-  4. **Data ownership is undecided.** Prisma (`schema.prisma:1-5`), SQLAlchemy/Alembic (`pyproject.toml:5`) and pgx (`go.mod:7`) all target Postgres. If they share a schema, two migration tools would fight over it. I recommend one database per service, with web's Prisma owning only auth and user tables.
-  5. **There are no cross-service contracts or identity design.**
-     - Orders and inventory have no routes (`main.py:1-2`, `main.go:3`).
-     - `.env.example` has no service URLs, so the orders-to-inventory call is undefined, and services can't verify a user.
-     - Decide service-to-service auth before adding routes. I recommend contract-first OpenAPI under `contracts/`, with a generated TypeScript client and a contract test.
-  6. **`apps/web` tooling is incomplete.**
-     - There is no `app/layout.tsx`, which Next requires, and no ESLint config.
-     - `eslint-config-next`, `@types/react` and `@types/node` are missing from devDependencies (`package.json:7`).
-     - `next lint` with no config may prompt interactively and hang in CI. That comes from the DX audit and was not run.
-     - There is no postcss/autoprefixer, no Vitest config, and `tsconfig.json` has no `include` or Next plugin.
-     - `playwright.config.ts:2` is empty and there are no e2e tests.
-     - The Prisma `User` model has only `id` (`schema.prisma:5`), so Auth.js needs more models.
-     - `next-auth@5.0.0-beta.25` is a pre-release (`package.json:6`).
-  7. **`services/orders` is not runnable.**
-     - `alembic.ini` is empty and there is no `env.py`. `0001_init.py` has no revision id.
-     - `Dockerfile:1` is a single `FROM python:3.12-slim` with no dependencies, no CMD, no non-root user and no `.dockerignore`.
-     - The Python target is inconsistent: `>=3.11` in `pyproject.toml:4`, 3.12 in the Dockerfile.
-     - Dev tools sit under optional-dependencies (`pyproject.toml:7-8`), so a plain `uv run pytest` lacks pytest.
-  8. **The tests assert nothing.** `test_health.py:2` asserts `True` and there is no `/health` route. `items_test.go:5` is an empty function. `card.test.ts:2` asserts `1==1` and never imports `Card`. A green CI would mean nothing.
-  9. **The Tailwind globs miss `components/`.** `tailwind.config.ts:1` covers only `./app/**/*.tsx`, so classes added to `components/Card.tsx` would be purged in production. It is latent today because `Card.tsx` uses no classes.
-  10. **There are no docs or root task runner.** There is no README, root Makefile or justfile, Node version file or docker-compose for Postgres. `services/inventory/Makefile` lacks `.PHONY` and a build target, and `golangci-lint` is not declared anywhere.
-- **Fixed:** none, since this was analysis-only.
-- **Unresolved / limitations:**
-  - There are no performance numbers, because the code is stubs. The performance guidance is design-in advice only: sync vs async for orders, `pgxpool` limits, Docker layer caching, CI caching, Prisma pooling.
-  - No dependency vulnerability scan was possible.
-  - The run-time behaviours in item 6 come from specialists reading config, not from execution.
+**QA and verification**
 
-**Assumptions:**
-- The repo is an early scaffold, so unimplemented features (routes, auth, Stripe handlers) are reported as design-in risks, not vulnerabilities.
-- I skipped browser QA and accessibility because `dashboard/page.tsx` is a one-line stub.
-- "Suggest improvements" meant recommendations only, with no edits.
+| Gate | Result |
+|---|---|
+| Findings spot-checked by me | Confirmed. `.env.local` is staged and there is no `.gitignore`. All three lockfiles are 0 bytes. There is no ESLint config and no `app/layout.tsx`. `alembic.ini` is empty. |
+| Tests, typecheck, lint, build | Not run. Every test is a placeholder and no unit has a working toolchain, so a run would prove nothing. |
+| Dependency and secret scan | Unavailable (see Skills & capabilities). |
+| Diff review | N/A, since there is no diff. |
 
-**Remaining work:** Nothing in the analysis is incomplete. Suggested next steps, in order:
-1. Untrack `.env.local` and add a root `.gitignore`.
-2. Generate real lockfiles.
-3. Move CI to the repo root with real per-unit jobs.
-4. Write two ADRs: one database per service accessed via API, and contract-first OpenAPI.
-5. Add a root README and Makefile or justfile, plus a docker-compose with Postgres.
-6. Finish the three scaffolds and replace the empty tests with real behaviour tests.
-7. Re-run the security and performance passes once real routes and queries exist.
+**Browser QA**
+N/A. There is no browser-visible change, and the dashboard is a stub.
 
-I can implement 1–3 or 5 on request.
+**Issues**
+Ranked by impact. Items 1 to 4 should go in one PR.
 
-**Git status:** Branch `master` (no commits). This task modified 0 files, added 0 and deleted 0. The 27 staged files were already staged before I started, and `.claude/` is untracked. No commit, push, or pull request was created.
+1. **High: a secret file is staged.**
+   - `apps/web/.env.local` is in the index and nothing ignores it. It holds `STRIPE_SECRET_KEY`.
+   - The security agent says the value looks like a real Stripe secret key. I told it not to read values, and it reported only a prefix.
+   - Fix: run `git rm --cached apps/web/.env.local`. Add a root `.gitignore` with `.env*` (except `.env.example`), `node_modules`, `.next`, `.venv` and `__pycache__`. Rotate the key if it is live. There are no commits yet, so history is clean.
+2. **High: CI will never run.**
+   - `apps/web/.github/workflows/ci.yml` sits in a subfolder, and GitHub only reads the root `.github/workflows`.
+   - The job only checks out code. It has no install, lint, test or build steps, no `permissions:` block, and an unpinned `checkout@v4`.
+   - Fix: move it to the repo root and add path-filtered jobs for the three units. Set `permissions: contents: read`, trigger on `push` to main plus `pull_request`, and use frozen-lockfile installs.
+3. **High: all three lockfiles are empty.**
+   - `pnpm-lock.yaml`, `uv.lock` and `go.sum` are all 0 bytes. Builds are unpinned and the dependency audit can't run.
+   - `pyproject.toml:4-8` also uses floating `>=` ranges.
+   - Fix: regenerate with `pnpm install`, `uv lock` and `go mod tidy`, then bound the Python ranges.
+4. **High: tests prove nothing.**
+   - `card.test.ts:2` asserts `1===1`, `test_health.py:2` asserts `True`, `items_test.go:5` has an empty body, and the Playwright config is `defineConfig({})`.
+   - Fix: add real `/health` endpoints and test them. Hold off on E2E specs until a page does something.
+5. **Medium: the web app can't build or lint.**
+   - `app/layout.tsx` is missing and there is no ESLint config. `package.json` has no `@types/*`, `postcss` or `autoprefixer`, and `tsconfig.json` is minimal.
+   - `tailwind.config.ts` doesn't scan `components/`, so classes in `Card.tsx` would be purged.
+6. **Medium: no database ownership rule.**
+   - Prisma and Alembic both migrate the same Postgres, and `alembic.ini` is empty with no `env.py`.
+   - Fix: write a short ADR giving each service its own schema or database, with no cross-service queries. Add per-service `DATABASE_URL` entries.
+7. **Medium: auth libraries and versions.**
+   - `next-auth@5.0.0-beta.25` is a pre-release auth library.
+   - `.env.example` uses `NEXTAUTH_SECRET`. Check the variable name against the Auth.js v5 docs.
+   - Next 15.1.0 is old. The security agent recalled advisories in that line but did not verify them. Check and move to the latest patched 15.x.
+8. **Medium-low: no cross-service contract.** Commit the FastAPI-generated OpenAPI spec and a short inventory spec. Skip code generation for now.
+9. **Low: Docker and Go/Python config.**
+   - The orders `Dockerfile` is one `FROM` line. It needs a digest pin, a non-root `USER`, install/run steps and a `.dockerignore`.
+   - `go.mod` requires chi and pgx, but nothing imports them yet. `.golangci.yml` enables only `govet`.
+   - Ruff has no `select` rules.
+10. **Low: docs.** Add a root README with one build/test/lint command per unit.
 
-The full report is saved at `.forge/tasks/project-analysis/report.md`, with the specialist reports in the same folder.
+**Design guidance for later** (these are not present vulnerabilities, since no handlers exist):
+- Decide how the web session reaches the two services, with a deny-by-default router and owner-scoped lookups.
+- Add security headers and CORS/rate-limit/body-size scaffolding.
+- Stripe webhook: read the raw body, call `constructEvent`, store `event.id` for idempotency, and add `STRIPE_WEBHOOK_SECRET` to `.env.example`.
+
+Not recommended yet: Nx or Turborepo, a shared-types package, queues, Kubernetes. They are premature at this size.
+
+**Assumptions**
+- The project is an early skeleton, so I treated missing code as guidance rather than defects.
+- The Stripe key may be live or test; this is unknown.
+
+**Remaining work**
+- Confirm whether the Stripe key is live, and rotate it if so.
+- Verify the Next.js advisories once a working lockfile exists.
+- On approval, I can implement items 1 to 5 as a single change. That would be sized M and would run engineers, browser QA and a review.
+
+**Git status**
+27 files are staged (`A`) from before this session, and I added no tracked changes. `.forge/` is git-ignored. No commit, push, or pull request was created.

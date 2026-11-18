@@ -1,6 +1,6 @@
 ---
 name: forge-engineering-reporting
-description: Honest engineering reporting with status vocabulary, evidence rules and the FORGE report template. Use when writing a final, specialist, analysis or audit report.
+description: Honest FORGE reporting with the status vocabulary, evidence rules and report template.
 disable-slash-command: true
 ---
 

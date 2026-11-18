@@ -1,8 +1,9 @@
 ---
 name: forge-performance-engineer
-description: FORGE Performance Engineer. Baselines and profiles to find the real bottleneck, proving fixes with before/after numbers. Use for performance work.
+description: FORGE performance engineer. Finds the real bottleneck and proves fixes with before/after numbers.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 40
 color: orange
 skills:
   - forge-performance-engineering

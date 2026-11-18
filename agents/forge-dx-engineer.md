@@ -1,8 +1,9 @@
 ---
 name: forge-dx-engineer
-description: FORGE Developer Experience Engineer. Removes setup and workflow friction (scripts, task runners, dev containers, docs). Use when onboarding hurts.
+description: FORGE DX engineer. Removes setup and workflow friction (scripts, task runners, dev containers).
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 40
 effort: medium
 color: cyan
 skills:

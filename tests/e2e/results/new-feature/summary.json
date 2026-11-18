@@ -4,27 +4,29 @@
   "fixture": "web-tasks",
   "model": "sonnet",
   "date": "2026-11-18",
-  "pass": false,
-  "failures": [
-    "none of [forge-backend-engineer,forge-frontend-engineer] invoked",
-    "final FORGE Execution Report missing"
-  ],
+  "pass": true,
+  "failures": [],
   "exitCode": 0,
-  "durationMin": 6.8,
-  "costUsd": 1.5405147999999995,
+  "durationMin": 11.5,
+  "costUsd": 2.342275200000001,
   "turns": 3,
   "skillsInvoked": [],
   "agentsInvoked": [
+    "forge-backend-engineer",
+    "forge-frontend-engineer",
+    "forge-browser-qa",
+    "forge-code-reviewer",
+    "forge-frontend-engineer",
     "forge-browser-qa",
     "forge-code-reviewer",
     "forge-browser-qa",
     "forge-code-reviewer"
   ],
   "mcpToolCalls": {
-    "playwright": 14,
-    "chrome-devtools": 20
+    "playwright": 19,
+    "chrome-devtools": 21
   },
-  "toolUses": 80,
+  "toolUses": 120,
   "permissionDenials": [],
   "filesChanged": [
     "README.md",
@@ -33,6 +35,6 @@
     "server.mjs",
     "test/api.test.mjs"
   ],
-  "diffStat": "README.md         |  7 +++++\n public/app.js     | 86 ++++++++++++++++++++++++++++++++++++++++++++++++++++---\n public/styles.css |  6 ++++\n server.mjs        |  8 ++++++\n test/api.test.mjs | 24 ++++++++++++++++\n 5 files changed, 127 insertions(+), 4 deletions(-)",
+  "diffStat": "README.md         |   1 +\n public/app.js     | 139 +++++++++++++++++++++++++++++++++++++++++++++++++++---\n public/styles.css |   8 ++++\n server.mjs        |   7 +++\n test/api.test.mjs |  26 ++++++++++\n 5 files changed, 175 insertions(+), 6 deletions(-)",
   "projectTestsAfter": "PASSED"
 }

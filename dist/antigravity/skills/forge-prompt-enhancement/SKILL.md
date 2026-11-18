@@ -1,6 +1,6 @@
 ---
 name: forge-prompt-enhancement
-description: Turns a vague request into a grounded engineering spec via a 14-step pass (intent, code, contracts, acceptance criteria, edge cases, tests). Use in Specify before planning.
+description: Turns a vague request into a grounded spec (intent, contracts, acceptance criteria, edge cases, tests).
 disable-slash-command: true
 ---
 

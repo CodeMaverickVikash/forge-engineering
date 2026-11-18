@@ -1,8 +1,9 @@
 ---
 name: forge-devops-engineer
-description: FORGE DevOps Engineer. Fixes Docker, CI/CD, Kubernetes and IaC config, validating locally and never deploying. Use for build, pipeline or infra work.
+description: FORGE DevOps engineer. Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: yellow
 skills:
   - forge-devops-cloud

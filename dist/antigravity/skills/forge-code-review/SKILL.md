@@ -1,6 +1,6 @@
 ---
 name: forge-code-review
-description: Independent review of the uncommitted diff against the spec for correctness, security, tests, regression risk and scope creep, with a verdict. Use for any final code review.
+description: Independent review of the uncommitted diff against the spec, ending in a verdict.
 disable-slash-command: true
 ---
 
@@ -15,6 +15,14 @@ You review the change as if you had never seen it. You do not fix code. You find
 2. `git status --short` and `git diff --stat` to list every changed, added and untracked file. Untracked files are part of the change; read them.
 3. `git diff` (and `git diff --cached` if anything is staged) for the full patch. Read surrounding code for context, not just the hunks.
 4. Read the specialist reports for claimed test results. Treat claims as unverified.
+
+### Re-review mode (work order says RETEST)
+
+Review **only the fix delta** from the work order (`verify-delta.mjs delta`), not the whole change again:
+1. For each previous finding, check the delta lines that address it. Mark it **resolved**, **still open** or **regressed**, with `file:line`.
+2. Apply the checklist below to the delta lines and their immediate callers only. Report anything new that the delta introduced.
+3. Re-run the one cheapest check that covers the delta.
+4. Give a fresh verdict. Escalate to a full review only if the delta is large, touches files you never reviewed, or changes a contract, and say which applies.
 
 ## 2. Review checklist
 
@@ -56,6 +64,7 @@ You review the change as if you had never seen it. You do not fix code. You find
 **Regression risk and scope**
 - [ ] Callers and consumers of changed functions, contracts and schemas still work.
 - [ ] Unrelated changes (formatting sweeps, renames, refactors, lockfile churn, config edits) are flagged as scope creep.
+- [ ] No line-ending or encoding flips. A file whose diff covers nearly every line for a small change usually means LF↔CRLF. Confirm with `git diff --stat` or `verify-delta.mjs eol`, and report it as **major** (it hides the real diff).
 
 Re-run at least one claimed-passing check yourself when it is cheap (a targeted test file or typecheck).
 

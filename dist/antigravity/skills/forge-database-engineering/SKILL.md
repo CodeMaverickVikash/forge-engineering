@@ -1,6 +1,6 @@
 ---
 name: forge-database-engineering
-description: Schema design, safe migrations, indexing, query plans, N+1 and transactions across SQL and NoSQL stores. Use for any schema, migration or query change.
+description: Schemas, safe migrations, indexes, query plans and N+1 fixes for SQL and NoSQL stores.
 disable-slash-command: true
 ---
 

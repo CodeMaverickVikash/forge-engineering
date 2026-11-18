@@ -1,8 +1,9 @@
 ---
 name: forge-frontend-engineer
-description: FORGE Frontend Engineer. Implements web UI in any framework, reusing components, covering states, a11y and XSS safety. Use for browser-facing work.
+description: FORGE frontend engineer. Web UI in any framework, with states, a11y and XSS safety.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: green
 skills:
   - forge-frontend-engineering

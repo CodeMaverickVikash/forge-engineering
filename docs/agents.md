@@ -6,29 +6,29 @@ FORGE ships 26 specialist agents. The orchestrator (`/forge`) selects the smalle
 
 | Division | Agent | Access | Preloaded skills | Purpose |
 |---|---|---|---|---|
-| Quality | `forge-accessibility-specialist` | read-only | `forge-accessibility-engineering` | Audits new or changed web and mobile UI against WCAG 2.2 AA. Use for forms, navigation and new components. |
-| Engineering | `forge-ai-engineer` | implementer | `forge-ai-ml-engineering` | Builds LLM features (prompts, structured outputs, tools, RAG, agents, evals) safely and cost-aware. Use for AI, LLM or ML work. |
-| Engineering | `forge-architect` | read-only | `forge-system-architecture` | Chooses approaches with trade-offs, freezes contracts and writes ADRs. Use for M/L tasks, refactors, schema or API changes. |
-| Engineering | `forge-backend-engineer` | implementer | `forge-backend-engineering` | Implements services, endpoints, jobs and CLIs in any server stack per conventions, with tests. Use for server-side work. |
-| Quality | `forge-browser-qa` | inherits all (minus Agent) | `forge-browser-qa` | Verifies web changes in a real browser via Playwright and Chrome DevTools MCP. Use for any browser-visible change. |
-| Product | `forge-business-analyst` | read-only | `forge-business-analysis`, `forge-requirements-engineering` | Extracts business rules, workflows and edge cases from code into a spec. Use for features, M/L bugs and stateful flows. |
-| Quality | `forge-code-reviewer` | read-only | `forge-code-review` | Independent final review of the uncommitted diff against the spec; gives a verdict. Use for any code change. |
-| Engineering | `forge-database-engineer` | implementer | `forge-database-engineering` | Designs schemas, safe migrations, indexes and queries in any SQL/NoSQL store. Use for schema, migration, query or ORM work. |
-| Engineering | `forge-devops-engineer` | implementer | `forge-devops-cloud` | Fixes Docker, CI/CD, Kubernetes and IaC config, validating locally and never deploying. Use for build, pipeline or infra work. |
-| Delivery | `forge-dx-engineer` | implementer | `forge-documentation`, `forge-devops-cloud` | Removes setup and workflow friction (scripts, task runners, dev containers, docs). Use when onboarding hurts. |
-| Engineering | `forge-frontend-engineer` | implementer | `forge-frontend-engineering`, `forge-ui-ux-engineering` | Implements web UI in any framework, reusing components, covering states, a11y and XSS safety. Use for browser-facing work. |
-| Engineering | `forge-integration-engineer` | implementer | `forge-api-integration` | Handles REST, GraphQL, gRPC and WebSocket contracts, webhooks, OAuth/OIDC and payments. Use for APIs and integrations. |
-| Quality | `forge-manual-qa` | read-only | `forge-qa-strategy` | Runs the app, CLIs and HTTP endpoints locally to probe edge cases and errors. Use for non-browser checks and bug repro. |
-| Engineering | `forge-mobile-engineer` | implementer | `forge-mobile-engineering` | Implements React Native/Expo, Flutter, Android and iOS screens, navigation and offline, with tests. Use for mobile app work. |
-| Quality | `forge-performance-engineer` | read-only | `forge-performance-engineering` | Baselines and profiles to find the real bottleneck, proving fixes with before/after numbers. Use for performance work. |
-| Product | `forge-product-manager` | read-only | `forge-product-management`, `forge-requirements-engineering` | Defines value, user stories, testable acceptance criteria and scope cuts. Use for new features, UI/UX changes and scope calls. |
-| Product | `forge-product-researcher` | read-only | `forge-product-management` | Researches competitors and market with cited sources and ranks recommendations. Use for what to build next. |
-| Intelligence | `forge-project-explorer` | read-only | `forge-project-exploration` | Maps an unfamiliar codebase from evidence into a compact context map. Use for read-only exploration on M/L tasks or audits. |
-| Quality | `forge-qa-lead` | read-only | `forge-qa-strategy` | Plans risk-based testing, maps acceptance criteria to evidence and judges exit criteria. Use for features, risky fixes and readiness. |
-| Delivery | `forge-release-engineer` | read-only | `forge-deployment-readiness`, `forge-devops-cloud` | Assesses release readiness and prepares notes, rollout and rollback plans; never deploys. Use before shipping or CI changes. |
-| Quality | `forge-security-engineer` | read-only | `forge-security-engineering` | Threat-models changes; reviews auth, injection, secrets and dependencies against OWASP. Use for auth, input, PII or payments. |
-| Intelligence | `forge-skill-scout` | read-only | `forge-skill-discovery` | Finds and license-verifies free open-source skills for a project's capability gaps and returns an installation proposal. Never installs anything. |
-| Delivery | `forge-sre` | read-only | `forge-deployment-readiness` | Reviews observability, SLOs, resilience and runbooks into a readiness scorecard. Use for production changes. |
-| Delivery | `forge-tech-writer` | implementer | `forge-documentation` | Updates README, API docs, ADRs, changelog and runbooks to match the change, verifying commands. Use for visible changes. |
-| Quality | `forge-test-automation-engineer` | implementer | `forge-test-automation` | Writes deterministic unit, integration, E2E and regression tests; triages flakes. Use for features, fixes, refactors. |
-| Product | `forge-ux-designer` | read-only | `forge-ui-ux-engineering` | Specifies journeys, layout, states, microcopy and a11y hooks as a buildable UX spec; writes no code. Use for new or improved UI. |
+| Quality | `forge-accessibility-specialist` | read-only | `forge-accessibility-engineering` | WCAG 2.2 AA audit of new or changed web and mobile UI. |
+| Engineering | `forge-ai-engineer` | implementer | `forge-ai-ml-engineering` | Builds LLM features (prompts, RAG, tools, evals) safely and cost-aware. |
+| Engineering | `forge-architect` | read-only | `forge-system-architecture` | Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work. |
+| Engineering | `forge-backend-engineer` | implementer | `forge-backend-engineering` | Services, endpoints, jobs and CLIs in any stack, with tests. |
+| Quality | `forge-browser-qa` | inherits all (minus Agent) | `forge-browser-qa` | Verifies web changes in a real browser via Playwright and Chrome DevTools MCP. |
+| Product | `forge-business-analyst` | read-only | `forge-business-analysis`, `forge-requirements-engineering` | Business rules, workflows and edge cases from code into a spec. |
+| Quality | `forge-code-reviewer` | read-only | `forge-code-review` | Independent review of the uncommitted diff against the spec, with a verdict. |
+| Engineering | `forge-database-engineer` | implementer | `forge-database-engineering` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. |
+| Engineering | `forge-devops-engineer` | implementer | `forge-devops-cloud` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. |
+| Delivery | `forge-dx-engineer` | implementer | `forge-documentation`, `forge-devops-cloud` | Removes setup and workflow friction (scripts, task runners, dev containers). |
+| Engineering | `forge-frontend-engineer` | implementer | `forge-frontend-engineering`, `forge-ui-ux-engineering` | Web UI in any framework, with states, a11y and XSS safety. |
+| Engineering | `forge-integration-engineer` | implementer | `forge-api-integration` | REST, GraphQL and gRPC contracts, webhooks, OAuth/OIDC, payments. |
+| Quality | `forge-manual-qa` | read-only | `forge-qa-strategy` | Runs the app, CLIs and endpoints locally to probe edge cases and reproduce bugs. |
+| Engineering | `forge-mobile-engineer` | implementer | `forge-mobile-engineering` | React Native/Expo, Flutter, Android and iOS features, with tests. |
+| Quality | `forge-performance-engineer` | read-only | `forge-performance-engineering` | Finds the real bottleneck and proves fixes with before/after numbers. |
+| Product | `forge-product-manager` | read-only | `forge-product-management`, `forge-requirements-engineering` | Value, user stories, testable acceptance criteria and scope cuts. |
+| Product | `forge-product-researcher` | read-only | `forge-product-management` | Competitor and market research with cited sources. |
+| Intelligence | `forge-project-explorer` | read-only | `forge-project-exploration` | Read-only, evidence-based map of an unfamiliar codebase. |
+| Quality | `forge-qa-lead` | read-only | `forge-qa-strategy` | Risk-based test plan, AC-to-evidence mapping and exit criteria. |
+| Delivery | `forge-release-engineer` | read-only | `forge-deployment-readiness`, `forge-devops-cloud` | Release readiness, notes, rollout and rollback plans; never deploys. |
+| Quality | `forge-security-engineer` | read-only | `forge-security-engineering` | Threat model and OWASP review of auth, input, secrets and dependencies. |
+| Intelligence | `forge-skill-scout` | read-only | `forge-skill-discovery` | Finds license-verified free open-source skills for capability gaps; never installs. |
+| Delivery | `forge-sre` | read-only | `forge-deployment-readiness` | Reviews observability, SLOs, resilience and runbooks into a readiness scorecard. |
+| Delivery | `forge-tech-writer` | implementer | `forge-documentation` | Updates README, API docs, ADRs, changelog and runbooks to match a change. |
+| Quality | `forge-test-automation-engineer` | implementer | `forge-test-automation` | Deterministic unit, integration, E2E and regression tests; flake triage. |
+| Product | `forge-ux-designer` | read-only | `forge-ui-ux-engineering` | Buildable UX spec (journeys, layout, states, microcopy); writes no code. |

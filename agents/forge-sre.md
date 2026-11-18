@@ -1,8 +1,9 @@
 ---
 name: forge-sre
-description: FORGE Site Reliability Engineer. Reviews observability, SLOs, resilience and runbooks into a readiness scorecard. Use for production changes.
+description: FORGE SRE. Reviews observability, SLOs, resilience and runbooks into a readiness scorecard.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: orange
 skills:

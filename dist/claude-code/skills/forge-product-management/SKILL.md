@@ -1,6 +1,6 @@
 ---
 name: forge-product-management
-description: Product management for engineering tasks covering value, user stories, RICE and MoSCoW, MVP slicing and cited competitive research. Use when deciding what to build.
+description: Product decisions for engineering work (value, user stories, RICE/MoSCoW, MVP slicing).
 user-invocable: false
 ---
 

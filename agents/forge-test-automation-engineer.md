@@ -1,8 +1,9 @@
 ---
 name: forge-test-automation-engineer
-description: FORGE Test Automation Engineer. Writes deterministic unit, integration, E2E and regression tests; triages flakes. Use for features, fixes, refactors.
+description: FORGE test engineer. Deterministic unit, integration, E2E and regression tests; flake triage.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: cyan
 skills:
   - forge-test-automation

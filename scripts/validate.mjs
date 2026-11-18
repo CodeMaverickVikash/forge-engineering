@@ -22,7 +22,7 @@ const CLAUDE_TOOLS = new Set(['Read', 'Edit', 'Write', 'Grep', 'Glob', 'Bash', '
 const COLORS = new Set(['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']);
 const MODELS = new Set(['inherit', 'sonnet', 'opus', 'haiku', 'fable']);
 const SKILL_KEYS = new Set(['name', 'description', 'user-invocable', 'argument-hint', 'disable-model-invocation', 'allowed-tools', 'when_to_use', 'license', 'metadata', 'compatibility']);
-const AGENT_KEYS = new Set(['name', 'description', 'tools', 'disallowedTools', 'model', 'effort', 'color', 'skills']);
+const AGENT_KEYS = new Set(['name', 'description', 'tools', 'disallowedTools', 'model', 'effort', 'maxTurns', 'color', 'skills']);
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 function checkYamlSafety(where, fm) {
@@ -61,7 +61,7 @@ for (const s of skills) {
   else {
     if (d.length > 1024) err(where, `description ${d.length} chars > 1024 (Agent Skills spec)`);
     if (/[<>]/.test(d)) err(where, 'description must not contain < or >');
-    if (s !== 'forge' && d.length > 200) warn(where, `description ${d.length} chars; keep specialist descriptions <= 200 (always-loaded context)`);
+    if (s !== 'forge' && d.length > 120) warn(where, `description ${d.length} chars; keep specialist descriptions <= 120 (always-loaded context)`);
     descChars += d.length;
   }
   if (s === 'forge') { if (fm.data['user-invocable'] === false) err(where, 'forge must be user-invocable'); }
@@ -100,7 +100,7 @@ for (const a of agents) {
   if (!a.startsWith('forge-') || !NAME_RE.test(a)) err(where, 'agent names must be forge-prefixed lowercase-hyphenated');
   const d = fm.data.description;
   if (typeof d !== 'string' || d.length < 40) err(where, 'description missing or too short');
-  else { if (d.length > 170) warn(where, `description ${d.length} chars; keep agent descriptions <= 170 (always-loaded context)`); agentDescChars += d.length; if (/[<>]/.test(d)) err(where, 'description must not contain < or >'); }
+  else { if (d.length > 110) warn(where, `description ${d.length} chars; keep agent descriptions <= 110 (always-loaded context)`); agentDescChars += d.length; if (/[<>]/.test(d)) err(where, 'description must not contain < or >'); }
   for (const key of ['tools', 'disallowedTools']) {
     if (fm.data[key] === undefined) continue;
     const list = Array.isArray(fm.data[key]) ? fm.data[key] : String(fm.data[key]).split(',').map((t) => t.trim());
@@ -111,6 +111,8 @@ for (const a of agents) {
   if (fm.data.model && !MODELS.has(fm.data.model)) err(where, `invalid model "${fm.data.model}"`);
   if (fm.data.color && !COLORS.has(fm.data.color)) err(where, `invalid color "${fm.data.color}"`);
   if (fm.data.effort && !EFFORTS.has(fm.data.effort)) err(where, `invalid effort "${fm.data.effort}"`);
+  if (fm.data.maxTurns === undefined) warn(where, 'no maxTurns; set a runaway cap');
+  else if (!/^\d+$/.test(String(fm.data.maxTurns)) || +fm.data.maxTurns < 10 || +fm.data.maxTurns > 200) err(where, `maxTurns must be an integer 10-200 (got ${fm.data.maxTurns})`);
   const sk = fm.data.skills;
   if (!Array.isArray(sk) || !sk.length) err(where, 'must preload at least one skill via skills:');
   else for (const s of sk) if (!skillSet.has(s)) err(where, `preloads unknown skill "${s}"`);

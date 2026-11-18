@@ -1,8 +1,9 @@
 ---
 name: forge-integration-engineer
-description: FORGE Integration Engineer. Handles REST, GraphQL, gRPC and WebSocket contracts, webhooks, OAuth/OIDC and payments. Use for APIs and integrations.
+description: FORGE integration engineer. REST, GraphQL and gRPC contracts, webhooks, OAuth/OIDC, payments.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: yellow
 skills:
   - forge-api-integration

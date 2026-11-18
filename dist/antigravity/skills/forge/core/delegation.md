@@ -15,6 +15,23 @@ VERIFY WITH: <commands or checks you must run, from context.json>
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
+## Retest work order (after a fix)
+
+Verifiers return after a fix to confirm it, not to start over. Send them only the fix delta:
+
+```
+ROLE TASK: RETEST round <n> of <slug>. Confirm the fixes; do not redo the full pass.
+TASK FOLDER: .forge/tasks/<slug>/   (your previous report: reports/<your-name>.md)
+PREVIOUS FINDINGS: <id — severity — one line each, as the owner reported them fixed>
+FIX DELTA: run `node "<FORGE_HOME>/scripts/verify-delta.mjs" delta --task <slug>` (changes since your last round)
+SCOPE: reviewer: each previous finding is resolved, plus problems introduced in the delta lines only.
+       browser QA: the failed journeys + the one adjacent journey at most risk, one viewport (more only if the delta touches layout/CSS).
+APP URL: <url of the already-running server>
+RETURN: Specialist Report; list each previous finding as resolved | still open | regressed
+```
+
+Before you send it, take a new snapshot (`verify-delta.mjs snapshot --task <slug>`), so the next round's delta starts from what this round saw. Where the host supports it, send the retest to the **same** verifier (Claude Code: `SendMessage` to its agent ID). It already holds the context, so it needs only the delta.
+
 ## Specialist report (what they return)
 
 ```

@@ -1,6 +1,6 @@
 ---
 name: forge-project-exploration
-description: Evidence-based codebase exploration for any stack, mapping frameworks, commands, architecture, contracts, tests and CI into a context map. Use before changing unfamiliar code.
+description: Evidence-based codebase mapping for any stack (stack detector, commands, architecture, tests, CI).
 user-invocable: false
 ---
 

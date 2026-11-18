@@ -1,8 +1,9 @@
 ---
 name: forge-mobile-engineer
-description: FORGE Mobile Engineer. Implements React Native/Expo, Flutter, Android and iOS screens, navigation and offline, with tests. Use for mobile app work.
+description: FORGE mobile engineer. React Native/Expo, Flutter, Android and iOS features, with tests.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: inherit
+maxTurns: 60
 color: green
 skills:
   - forge-mobile-engineering

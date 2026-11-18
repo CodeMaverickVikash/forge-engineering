@@ -1,6 +1,6 @@
 ---
 name: forge-mobile-engineering
-description: Mobile engineering for React Native/Expo, Flutter, Android and iOS covering navigation, offline, permissions, secure storage, push and deep links. Use for any mobile app change.
+description: React Native/Expo, Flutter, Android and iOS (navigation, offline, permissions, push, deep links).
 disable-slash-command: true
 ---
 

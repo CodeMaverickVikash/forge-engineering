@@ -1,6 +1,6 @@
 ---
 name: forge-system-architecture
-description: System architecture for existing codebases covering assessment, pattern choice, trade-offs, short ADRs and contract-first cross-module planning. Use on M and L tasks.
+description: Architecture for existing code (assessment, trade-offs, short ADRs, contract-first plans).
 disable-slash-command: true
 ---
 

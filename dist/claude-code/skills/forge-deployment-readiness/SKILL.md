@@ -1,6 +1,6 @@
 ---
 name: forge-deployment-readiness
-description: Production-readiness review of config, health checks, observability, resilience, rollback, SLOs and runbooks, ending in a readiness scorecard. Use before a release.
+description: Production-readiness review (health checks, observability, rollback, SLOs, runbooks).
 user-invocable: false
 ---
 

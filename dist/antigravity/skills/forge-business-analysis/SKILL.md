@@ -1,6 +1,6 @@
 ---
 name: forge-business-analysis
-description: Business analysis grounded in code. Extracts business rules, workflows, state machines and edge cases (money, time, concurrency). Use for features, stateful flows and M/L bugs.
+description: Business rules, workflows, state machines and edge cases (money, time, concurrency) from code.
 disable-slash-command: true
 ---
 

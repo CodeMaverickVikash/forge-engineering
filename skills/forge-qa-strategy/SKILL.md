@@ -1,6 +1,6 @@
 ---
 name: forge-qa-strategy
-description: Risk-based test strategy and verification covering test plans, regression scope, AC-to-evidence mapping, exploratory charters, bug reports and exit criteria.
+description: Risk-based test strategy (test plans, regression scope, AC-to-evidence mapping, exit criteria).
 user-invocable: false
 ---
 

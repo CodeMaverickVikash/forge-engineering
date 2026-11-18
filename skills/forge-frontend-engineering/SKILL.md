@@ -1,6 +1,6 @@
 ---
 name: forge-frontend-engineering
-description: Framework-agnostic web frontend engineering covering component reuse, data fetching, UI states, forms, routing, a11y and XSS safety. Use when implementing or fixing web UI.
+description: Web UI in any framework (component reuse, data fetching, states, forms, a11y, XSS safety).
 user-invocable: false
 ---
 

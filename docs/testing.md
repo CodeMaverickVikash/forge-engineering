@@ -44,6 +44,7 @@ Defined in `tests/e2e/scenarios.mjs`:
 | Scenario | Fixture | Checks |
 |---|---|---|
 | `bug-fix` | `web-tasks` | code reviewer and browser QA invoked (the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
+| `code-question` | `web-tasks` | Q size: answered directly with `app.js` evidence; **no** agents, **no** changes, no full execution report |
 | `security-review` | `web-tasks` | security engineer invoked; **no** source changes; report names the XSS sink |
 | `ui-improvement` | `web-tasks` | frontend, UX or accessibility, and browser QA; source changes; tests pass |
 | `new-feature` | `web-tasks` | engineers, browser QA and the reviewer; update endpoint added **with an automated test**; tests pass |
@@ -70,12 +71,32 @@ The recorded results of the runs made during development are in [`tests/e2e/resu
 | `bug-fix` | **PASS** | forge-browser-qa, forge-code-reviewer | playwright 7, chrome-devtools 7 | 1.7 min | $0.56 |
 | `security-review` | **PASS** | forge-security-engineer | none | 2.3 min | $0.44 |
 | `ui-improvement` | **PASS** | forge-frontend-engineer, forge-test-automation-engineer, forge-accessibility-specialist, forge-browser-qa, forge-code-reviewer | playwright 23, chrome-devtools 10 | 12.4 min | $2.35 |
-| `new-feature` | FAIL: none of [forge-test-automation-engineer,forge-qa-lead] invoked | forge-backend-engineer, forge-frontend-engineer, forge-browser-qa, forge-code-reviewer | playwright 12, chrome-devtools 15 | 6.5 min | $1.41 |
+| `new-feature` | **PASS** (2026-11-18, optimized install) | forge-backend-engineer, forge-frontend-engineer, forge-browser-qa ×3, forge-code-reviewer ×3 | playwright 19, chrome-devtools 21 | 11.5 min | $2.34 |
 | `database-change` | **PASS** | forge-architect, forge-backend-engineer, forge-qa-lead, forge-database-engineer, forge-code-reviewer | none | 8.5 min | $1.55 |
 | `architecture-analysis` | **PASS** | forge-architect, forge-security-engineer, forge-performance-engineer, forge-dx-engineer | none | 2.3 min | $1.00 |
 | `skill-discovery` | **PASS** | forge-skill-scout | none | 3.8 min | $0.73 |
 
-`new-feature` was recorded before its check was corrected. The old check required a dedicated test-owner agent, and that run is the one shown above. The feature itself shipped with 6 new API tests (9/9 passing), a browser-QA-found bug fixed and retested, and an independent review. A rerun against the corrected check was stopped before it finished, so it is **not** claimed as passing. Rerun with `node tests/e2e/run-scenario.mjs new-feature`.
+`new-feature` was re-run on 2026-11-18 against the optimized user-scope install (`--use-installed`) and passed.
+- Backend and frontend were implemented in one parallel wave.
+- Browser QA and code review ran together in two verification waves.
+- Three verification rounds each found real defects, all fixed and retested: a save-in-flight race, a keyboard focus regression, an IME Enter issue, and CRLF line endings written by an agent.
+- Results: 6/6 API tests passed, the change is browser-verified at 3 viewports, and the reviewer's final verdict was approve.
+- Those extra rounds are why it cost more than the earlier failed run ($1.41, 6.5 min), which stopped after one round.
+- An earlier run (6.5 min, $1.41) failed only because of an over-strict check that required a dedicated test-owner agent.
+
+## Performance
+
+The optimizations are listed in CHANGELOG `[Unreleased]`: parallel waves, `effort: medium` on 13 lighter roles, a browser-QA call budget, a scout search budget, and efficient batching.
+
+| Scenario | Before | After | Change |
+|---|---|---|---|
+| `architecture-analysis` | 4 agents, 2.3 min, $1.00 | 3 agents in one parallel wave, 1.8 min, $0.68 | −32% cost, −22% time, still PASS |
+| `new-feature` | 6.5 min, $1.41, FAIL (1 verification round) | 11.5 min, $2.34, PASS (3 rounds, 4 real defects fixed) | more assurance, higher cost |
+
+How to read these numbers:
+- Each figure is a single run on `sonnet`, and model nondeterminism changes the team and the number of fix rounds, so treat them as indicative.
+- The `architecture-analysis` gain comes from a leaner team plus the efficiency rules. It is not from parallelism alone.
+- Agents launch asynchronously, so measure concurrency by grouping `Agent` launches on the same assistant `message.id`, not by counting stream events.
 
 ## Antigravity manual verification
 

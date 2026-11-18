@@ -1,6 +1,6 @@
 ---
 name: forge-accessibility-engineering
-description: WCAG 2.2 AA accessibility review for web and mobile UI covering semantics, names, keyboard and focus, contrast, motion, forms and ARIA. Use for UI accessibility checks.
+description: WCAG 2.2 AA review of web and mobile UI (semantics, keyboard, focus, contrast, forms, ARIA).
 user-invocable: false
 ---
 

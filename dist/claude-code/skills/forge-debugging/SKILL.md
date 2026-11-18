@@ -1,6 +1,6 @@
 ---
 name: forge-debugging
-description: Systematic root-cause debugging for any stack. Reproduce, hypothesize, instrument, bisect, fix and add a regression test. Use for any defect or failing check.
+description: Root-cause debugging for any stack (reproduce, hypothesize, bisect, fix, regression test).
 user-invocable: false
 ---
 

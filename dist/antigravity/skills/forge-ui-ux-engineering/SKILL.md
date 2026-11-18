@@ -1,6 +1,6 @@
 ---
 name: forge-ui-ux-engineering
-description: UI and UX engineering for web and mobile covering journeys, IA, responsive layout, design-system consistency, states and microcopy, producing a buildable UX spec.
+description: UX specs for web and mobile (journeys, layout, responsive states, design-system fit, microcopy).
 disable-slash-command: true
 ---
 

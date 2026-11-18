@@ -6,30 +6,30 @@ FORGE ships 27 skills. Only `forge` is user-invocable; the specialists are loade
 
 | Skill | Supporting files | Description |
 |---|---|---|
-| `forge` | 9 | FORGE, an autonomous software engineering organization behind one command. Use when the user invokes /forge or explicitly asks FORGE to build, fix, improve, review, analyze or harden software. It explores the codebase, turns the request into a grounded spec, delegates to specialist agents, implements, verifies (tests, build, browser QA) and reports. It never commits, pushes or opens PRs. |
-| `forge-accessibility-engineering` | 0 | WCAG 2.2 AA accessibility review for web and mobile UI covering semantics, names, keyboard and focus, contrast, motion, forms and ARIA. Use for UI accessibility checks. |
-| `forge-ai-ml-engineering` | 0 | Provider-agnostic AI engineering for LLM integration, prompts, structured outputs, RAG, agents, evals, injection safety and cost. Use when building or changing AI or ML features. |
-| `forge-api-integration` | 0 | API contract design and third-party integration (REST, GraphQL, gRPC, WebSockets, webhooks, OAuth/OIDC, payments). Use when changing an API or integrating an external service. |
-| `forge-backend-engineering` | 8 | Language-agnostic backend practices for validation, authorization, errors, idempotency, transactions, concurrency, jobs and tests. Use when building or fixing server-side code. |
-| `forge-browser-qa` | 1 | Real-browser QA for web apps with Playwright and Chrome DevTools MCP, covering journeys, console, network and performance. Use to verify browser-visible changes. |
-| `forge-business-analysis` | 0 | Business analysis grounded in code. Extracts business rules, workflows, state machines and edge cases (money, time, concurrency). Use for features, stateful flows and M/L bugs. |
-| `forge-code-review` | 0 | Independent review of the uncommitted diff against the spec for correctness, security, tests, regression risk and scope creep, with a verdict. Use for any final code review. |
-| `forge-database-engineering` | 0 | Schema design, safe migrations, indexing, query plans, N+1 and transactions across SQL and NoSQL stores. Use for any schema, migration or query change. |
-| `forge-debugging` | 0 | Systematic root-cause debugging for any stack. Reproduce, hypothesize, instrument, bisect, fix and add a regression test. Use for any defect or failing check. |
-| `forge-deployment-readiness` | 0 | Production-readiness review of config, health checks, observability, resilience, rollback, SLOs and runbooks, ending in a readiness scorecard. Use before a release. |
-| `forge-devops-cloud` | 0 | Containers, CI/CD, Kubernetes, cloud and IaC for any stack, with Terraform plan-only review and deploy safety rules. Use for build, pipeline or infra config changes. |
-| `forge-documentation` | 0 | Docs that match the change in the project's structure and tone (README, API docs, ADRs, changelog, runbooks), commands verified. Use when a change needs doc updates. |
-| `forge-engineering-reporting` | 0 | Honest engineering reporting with status vocabulary, evidence rules and the FORGE report template. Use when writing a final, specialist, analysis or audit report. |
-| `forge-frontend-engineering` | 4 | Framework-agnostic web frontend engineering covering component reuse, data fetching, UI states, forms, routing, a11y and XSS safety. Use when implementing or fixing web UI. |
-| `forge-mobile-engineering` | 4 | Mobile engineering for React Native/Expo, Flutter, Android and iOS covering navigation, offline, permissions, secure storage, push and deep links. Use for any mobile app change. |
-| `forge-performance-engineering` | 0 | Measure-first performance engineering for web, backend and data layers (Web Vitals, latency, N+1, caching, memory, load tests). Use for performance work. |
-| `forge-product-management` | 0 | Product management for engineering tasks covering value, user stories, RICE and MoSCoW, MVP slicing and cited competitive research. Use when deciding what to build. |
-| `forge-project-exploration` | 2 | Evidence-based codebase exploration for any stack, mapping frameworks, commands, architecture, contracts, tests and CI into a context map. Use before changing unfamiliar code. |
-| `forge-prompt-enhancement` | 0 | Turns a vague request into a grounded engineering spec via a 14-step pass (intent, code, contracts, acceptance criteria, edge cases, tests). Use in Specify before planning. |
-| `forge-qa-strategy` | 0 | Risk-based test strategy and verification covering test plans, regression scope, AC-to-evidence mapping, exploratory charters, bug reports and exit criteria. |
-| `forge-requirements-engineering` | 0 | Requirements engineering covering testable acceptance criteria, measurable NFRs, AC-to-test traceability, scope control and INVEST stories. Use when writing requirements. |
-| `forge-security-engineering` | 0 | Application security review for any stack covering threat modelling, OWASP checks, authN/authZ, IDOR, injection, XSS/CSRF/SSRF, secrets and dependency audits. |
-| `forge-skill-discovery` | 7 | Inventories installed skills, finds and license-verifies free open-source skills for capability gaps, and installs only what the user approves. Use when skills are requested or on M/L tasks. |
-| `forge-system-architecture` | 0 | System architecture for existing codebases covering assessment, pattern choice, trade-offs, short ADRs and contract-first cross-module planning. Use on M and L tasks. |
-| `forge-test-automation` | 0 | Writing deterministic unit, integration and E2E tests in the project's existing frameworks, with mocking boundaries and flaky-test triage. Use when adding or fixing tests. |
-| `forge-ui-ux-engineering` | 0 | UI and UX engineering for web and mobile covering journeys, IA, responsive layout, design-system consistency, states and microcopy, producing a buildable UX spec. |
+| `forge` | 10 | FORGE, a one-command software engineering team. Use when the user invokes /forge or asks FORGE to build, fix, improve, review or analyze software. It explores, specs, delegates to specialists, verifies with tests and browser QA, and reports. It never commits or pushes. |
+| `forge-accessibility-engineering` | 0 | WCAG 2.2 AA review of web and mobile UI (semantics, keyboard, focus, contrast, forms, ARIA). |
+| `forge-ai-ml-engineering` | 0 | LLM and ML features (prompts, structured output, RAG, agents, evals, injection safety, cost). |
+| `forge-api-integration` | 0 | API contracts and integrations (REST, GraphQL, gRPC, webhooks, OAuth/OIDC, payments). |
+| `forge-backend-engineering` | 8 | Server-side code in any stack (validation, authz, errors, idempotency, transactions, jobs, tests). |
+| `forge-browser-qa` | 1 | Real-browser QA with Playwright and Chrome DevTools MCP (journeys, console, network, performance). |
+| `forge-business-analysis` | 0 | Business rules, workflows, state machines and edge cases (money, time, concurrency) from code. |
+| `forge-code-review` | 0 | Independent review of the uncommitted diff against the spec, ending in a verdict. |
+| `forge-database-engineering` | 0 | Schemas, safe migrations, indexes, query plans and N+1 fixes for SQL and NoSQL stores. |
+| `forge-debugging` | 0 | Root-cause debugging for any stack (reproduce, hypothesize, bisect, fix, regression test). |
+| `forge-deployment-readiness` | 0 | Production-readiness review (health checks, observability, rollback, SLOs, runbooks). |
+| `forge-devops-cloud` | 0 | Docker, CI/CD, Kubernetes, cloud and IaC config, validated locally and never deployed. |
+| `forge-documentation` | 0 | Docs that match a change (README, API docs, ADRs, changelog, runbooks) with verified commands. |
+| `forge-engineering-reporting` | 0 | Honest FORGE reporting with the status vocabulary, evidence rules and report template. |
+| `forge-frontend-engineering` | 4 | Web UI in any framework (component reuse, data fetching, states, forms, a11y, XSS safety). |
+| `forge-mobile-engineering` | 4 | React Native/Expo, Flutter, Android and iOS (navigation, offline, permissions, push, deep links). |
+| `forge-performance-engineering` | 0 | Measure-first performance work (Web Vitals, latency, N+1, caching, memory, load tests). |
+| `forge-product-management` | 0 | Product decisions for engineering work (value, user stories, RICE/MoSCoW, MVP slicing). |
+| `forge-project-exploration` | 2 | Evidence-based codebase mapping for any stack (stack detector, commands, architecture, tests, CI). |
+| `forge-prompt-enhancement` | 0 | Turns a vague request into a grounded spec (intent, contracts, acceptance criteria, edge cases, tests). |
+| `forge-qa-strategy` | 0 | Risk-based test strategy (test plans, regression scope, AC-to-evidence mapping, exit criteria). |
+| `forge-requirements-engineering` | 0 | Testable acceptance criteria, measurable NFRs, traceability and scope control. |
+| `forge-security-engineering` | 0 | AppSec review for any stack (threat model, OWASP, authN/authZ, IDOR, injection, secrets, deps). |
+| `forge-skill-discovery` | 7 | Inventories skills and proposes license-verified free open-source ones; installs only on explicit approval. |
+| `forge-system-architecture` | 0 | Architecture for existing code (assessment, trade-offs, short ADRs, contract-first plans). |
+| `forge-test-automation` | 0 | Deterministic unit, integration and E2E tests in the project's frameworks; flaky-test triage. |
+| `forge-ui-ux-engineering` | 0 | UX specs for web and mobile (journeys, layout, responsive states, design-system fit, microcopy). |

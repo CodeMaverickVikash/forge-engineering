@@ -58,8 +58,14 @@ function evaluate(name, sc, dir, ev) {
   for (const a of e.agentsAll || []) if (!used.has(a)) fails.push(`agent not invoked: ${a}`);
   for (const group of e.agentsAny || []) if (!group.some((a) => used.has(a))) fails.push(`none of [${group}] invoked`);
   const report = ev.result?.result || '';
-  if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
-  if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
+  if (e.answerOnly) {
+    // Q size: a direct answer with evidence, no specialists and no full report.
+    if (ev.agents.length) fails.push(`answer-only question launched agents: ${ev.agents.join(', ')}`);
+    if (/### FORGE Execution Report/.test(report)) fails.push('answer-only question produced a full execution report');
+  } else {
+    if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
+    if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
+  }
   for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
   const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
   // `git stash list` is read-only; anything else that mutates history or the working tree is forbidden.

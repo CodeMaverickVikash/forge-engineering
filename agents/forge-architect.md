@@ -1,8 +1,9 @@
 ---
 name: forge-architect
-description: FORGE Software Architect. Chooses approaches with trade-offs, freezes contracts and writes ADRs. Use for M/L tasks, refactors, schema or API changes.
+description: FORGE architect. Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work.
 tools: Read, Grep, Glob, Bash, Skill, WebSearch, WebFetch
 model: inherit
+maxTurns: 30
 color: orange
 skills:
   - forge-system-architecture

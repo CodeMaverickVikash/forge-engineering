@@ -1,6 +1,6 @@
 ---
 name: forge-test-automation
-description: Writing deterministic unit, integration and E2E tests in the project's existing frameworks, with mocking boundaries and flaky-test triage. Use when adding or fixing tests.
+description: Deterministic unit, integration and E2E tests in the project's frameworks; flaky-test triage.
 disable-slash-command: true
 ---
 

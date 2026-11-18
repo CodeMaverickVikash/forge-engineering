@@ -12,6 +12,8 @@ Upgrade the size by one step if **any** of these apply:
 
 Downgrade to S only when the defect and its fix are both obvious after targeted reading.
 
+Use **Q** (answer only) when the user asks how, where or why something works and wants no change, audit or review. A wrong answer is cheap to correct, but a team of agents for a lookup is pure cost. If answering turns out to need more than about 10 files, or the user then asks for a change, re-size the task.
+
 ## Phase exit criteria
 
 | # | Phase | Exit criterion |

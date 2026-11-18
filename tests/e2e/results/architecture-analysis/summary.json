@@ -7,22 +7,20 @@
     "go-service:services/inventory"
   ],
   "model": "sonnet",
-  "date": "2026-11-17",
+  "date": "2026-11-18",
   "pass": true,
   "failures": [],
   "exitCode": 0,
-  "durationMin": 2.3,
-  "costUsd": 0.9980658999999998,
-  "turns": 4,
+  "durationMin": 1.3,
+  "costUsd": 0.4657506,
+  "turns": 3,
   "skillsInvoked": [],
   "agentsInvoked": [
     "forge-architect",
-    "forge-security-engineer",
-    "forge-performance-engineer",
-    "forge-dx-engineer"
+    "forge-security-engineer"
   ],
   "mcpToolCalls": {},
-  "toolUses": 53,
+  "toolUses": 20,
   "permissionDenials": [],
   "filesChanged": [],
   "diffStat": "",

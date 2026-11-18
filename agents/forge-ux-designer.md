@@ -1,8 +1,9 @@
 ---
 name: forge-ux-designer
-description: FORGE UX Designer. Specifies journeys, layout, states, microcopy and a11y hooks as a buildable UX spec; writes no code. Use for new or improved UI.
+description: FORGE UX designer. Buildable UX spec (journeys, layout, states, microcopy); writes no code.
 tools: Read, Grep, Glob, Bash, Skill
-model: inherit
+model: sonnet
+maxTurns: 30
 effort: medium
 color: pink
 skills:

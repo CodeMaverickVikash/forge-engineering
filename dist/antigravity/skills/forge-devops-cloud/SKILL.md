@@ -1,6 +1,6 @@
 ---
 name: forge-devops-cloud
-description: Containers, CI/CD, Kubernetes, cloud and IaC for any stack, with Terraform plan-only review and deploy safety rules. Use for build, pipeline or infra config changes.
+description: Docker, CI/CD, Kubernetes, cloud and IaC config, validated locally and never deployed.
 disable-slash-command: true
 ---
 

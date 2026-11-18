@@ -1,6 +1,6 @@
 ---
 name: forge-requirements-engineering
-description: Requirements engineering covering testable acceptance criteria, measurable NFRs, AC-to-test traceability, scope control and INVEST stories. Use when writing requirements.
+description: Testable acceptance criteria, measurable NFRs, traceability and scope control.
 disable-slash-command: true
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: forge-documentation
-description: Docs that match the change in the project's structure and tone (README, API docs, ADRs, changelog, runbooks), commands verified. Use when a change needs doc updates.
+description: Docs that match a change (README, API docs, ADRs, changelog, runbooks) with verified commands.
 disable-slash-command: true
 ---
 

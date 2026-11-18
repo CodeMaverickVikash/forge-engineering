@@ -1,6 +1,6 @@
 ---
 name: forge-skill-discovery
-description: Inventories installed skills, finds and license-verifies free open-source skills for capability gaps, and installs only what the user approves. Use when skills are requested or on M/L tasks.
+description: Inventories skills and proposes license-verified free open-source ones; installs only on explicit approval.
 user-invocable: false
 ---
 

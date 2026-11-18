@@ -1,8 +1,9 @@
 ---
 name: forge-ai-engineer
-description: FORGE AI Engineer. Builds LLM features (prompts, structured outputs, tools, RAG, agents, evals) safely and cost-aware. Use for AI, LLM or ML work.
+description: FORGE AI engineer. Builds LLM features (prompts, RAG, tools, evals) safely and cost-aware.
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill, WebFetch
 model: inherit
+maxTurns: 60
 color: purple
 skills:
   - forge-ai-ml-engineering

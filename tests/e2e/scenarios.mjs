@@ -10,8 +10,9 @@ export const SCENARIOS = {
   'bug-fix': {
     fixture: 'web-tasks',
     prompt: '/forge The task board shows the wrong number of remaining tasks. Fix it.',
-    // S-size: the orchestrator may fix directly, but independent review and browser QA are mandatory.
-    expect: { agentsAll: ['forge-code-reviewer', 'forge-browser-qa'], browser: true, sourceChanges: true },
+    // S-size: the orchestrator may fix directly; browser QA is mandatory. A routine UI fix needs no code
+    // review (no auth, payment or schema files), so launching one is wasted cost.
+    expect: { agentsAll: ['forge-browser-qa'], agentsNone: ['forge-code-reviewer'], browser: true, sourceChanges: true },
     check: ({ dir }) => {
       // The fix may live in app.js or in an extracted helper module; check all front-end JS.
       const pub = path.join(dir, 'public');
@@ -73,7 +74,7 @@ export const SCENARIOS = {
     fixture: 'web-tasks',
     prompt: '/forge Let users edit the title of an existing task.',
     // What matters is that the feature ships with tests, not which role wrote them.
-    expect: { agentsAny: [['forge-backend-engineer', 'forge-frontend-engineer'], ['forge-browser-qa'], ['forge-code-reviewer']], browser: true, sourceChanges: true },
+    expect: { agentsAny: [['forge-backend-engineer', 'forge-frontend-engineer'], ['forge-browser-qa']], agentsNone: ['forge-code-reviewer'], browser: true, sourceChanges: true },
     check: ({ dir }) => {
       const fails = [];
       if (!/PATCH|PUT/.test(read(dir, 'server.mjs'))) fails.push('no update endpoint added to server.mjs');

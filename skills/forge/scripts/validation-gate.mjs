@@ -5,13 +5,17 @@
 //       Map the changed files to the project's units (apps and packages from the stack detector), add the
 //       consumers of changed shared packages, and list each unit's type check, lint, test and build command.
 //   node validation-gate.mjs run --task <slug> [--units a,b] [--checks lint,test] [--all] [--baseline] [--build]
-//                                [--jobs N] [--timeout <min>] [--json]
+//                                [--base <ref>] [--jobs N] [--timeout <min>] [--json]
+//       --base <ref> (branch work: "test this branch", "did it break anything"): the scope also covers what the
+//       branch committed since it forked from <ref>. Stored for the task, so later run/gate/final keep it.
 //       Run only the plan's checks that are not already passing for the current code (missing, stale, failed
 //       or blocked). Builds are DEFERRED (not run, not blocking the pre-browser gate) when type check or tests
 //       cover the unit and no consumer imports its output; --build runs them once, right before `final`. Units run in parallel; checks within a unit run in order; tests of units that share a
 //       database run one at a time; a shared package with prebuilt output is built before its consumers.
 //       Each result goes to .forge/tasks/<slug>/validation/ledger.jsonl, each full log to
-//       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs everything. --baseline records
+//       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs checks that still pass (never builds:
+//       only --build runs those). A build that rewrites a tracked non-code file (a sitemap's lastmod) is reported,
+//       and that file does not make other checks stale. --baseline records
 //       pre-change results (use --units, since nothing has changed yet); the gate ignores them.
 //       It prints the scope and ends with the gate verdict; without --units it exits like `gate`, so one
 //       call validates and answers whether browser verification may start.
@@ -37,9 +41,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { changedFiles, isGitRepo, eolCheck } from './verify-delta.mjs';
+import { changedFiles, isGitRepo, eolCheck, TOOL_OUTPUT_RE } from './verify-delta.mjs';
 import { check as checkComments } from './comment-check.mjs';
-import { escalation, formatEscalation } from './review-target.mjs';
+import { escalation } from './review-target.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DETECTOR = path.join(HERE, '..', '..', 'forge-project-exploration', 'scripts', 'detect-stack.mjs');
@@ -69,6 +73,34 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const readText = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const taskDir = (root, task) => path.join(root, '.forge', 'tasks', task);
+const baseFile = (root, task) => path.join(taskDir(root, task), 'validation', 'base');
+
+/**
+ * The branch base a task validates against. `--base <ref>` is stored on first use, so every later run, gate and
+ * final of the task keeps the same scope without repeating it.
+ */
+export function taskBase(root, task, base = null) {
+  if (base) {
+    if (base.startsWith('-') || /\s/.test(base)) throw new Error(`--base ${base}: not a git ref`);
+    fs.mkdirSync(path.dirname(baseFile(root, task)), { recursive: true });
+    fs.writeFileSync(baseFile(root, task), base + '\n');
+    return base;
+  }
+  try { return fs.readFileSync(baseFile(root, task), 'utf8').trim() || null; } catch { return null; }
+}
+
+/**
+ * Files in scope: the working tree's changes, plus, with a base, everything the branch committed since it
+ * forked from that base. Without the committed part, a branch's own API or package changes are never checked.
+ */
+export function scopeFiles(root, base = null) {
+  const files = changedFiles(root);
+  if (!base) return files;
+  const r = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--name-only', '-z', `${base}...HEAD`], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.status !== 0) throw new Error(`--base ${base}: git diff ${base}...HEAD failed (${(r.stderr || '').trim().split('\n')[0]})`);
+  const committed = r.stdout.split('\0').filter((f) => f && !f.startsWith('.forge/') && !TOOL_OUTPUT_RE.test(f));
+  return [...new Set([...files, ...committed])].sort();
+}
 const ledgerFile = (root, task) => path.join(taskDir(root, task), 'validation', 'ledger.jsonl');
 const evidenceDir = (root, task) => path.join(taskDir(root, task), 'evidence');
 const slugUnit = (u) => (u === '.' ? 'root' : u.replace(/[\\/]+/g, '_'));
@@ -150,12 +182,12 @@ function pickCommands(unit, name) {
 const prebuilt = (u) => !!u.pkg && /(^|[^\w-])(dist|build|lib|out)\//.test(JSON.stringify([u.pkg.main, u.pkg.module, u.pkg.types, u.pkg.exports]));
 
 /** The validation plan for the current working tree. `units` restricts it (and adds units with no changes). */
-export async function plan(root, { units: only = null, ctx = null } = {}) {
+export async function plan(root, { units: only = null, ctx = null, base = null } = {}) {
   ctx ??= await loadContext(root);
   const U = describeUnits(root, ctx);
   const monorepo = U.length > 1;
   const git = isGitRepo(root);
-  const changed = git ? changedFiles(root) : [];
+  const changed = git ? scopeFiles(root, base) : [];
   const relevant = changed.filter((f) => !DOC_RE.test(f));
   const affected = new Map();
   const touch = (u, reason, full) => {
@@ -243,13 +275,31 @@ export async function plan(root, { units: only = null, ctx = null } = {}) {
     if (e.kinds.includes('mobile')) next.device.push(e.unit);
     if (e.kinds.includes('backend') && !e.kinds.includes('web')) next.api.push(e.unit);
   }
-  return { git, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], escalation: escalation(relevant), entries, next, units: U };
+  return { git, base, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], escalation: escalation(relevant), entries, next, units: U };
 }
 
-function fingerprints(root, p) {
+const hashOf = (root, f) => { try { return sha(fs.readFileSync(path.join(root, f))); } catch { return 'deleted'; } };
+
+/** Non-code files a build of this task rewrote (path → hash it left), from the ledger. */
+function buildOutputs(root, task) {
+  const out = new Map();
+  for (const r of readLedger(root, task)) for (const [f, h] of Object.entries(r.wrote || {})) out.set(f, h);
+  return out;
+}
+
+/** Hashes of the working tree's changed non-code files, taken around a build to see what it rewrote. */
+function nonCodeState(root) {
+  return new Map(changedFiles(root).filter((f) => !CODE_RE.test(f)).map((f) => [f, hashOf(root, f)]));
+}
+
+function fingerprints(root, p, task = null) {
   if (!p.git) return {};
-  const files = changedFiles(root).filter((f) => !DOC_RE.test(f));
-  const hashes = new Map(files.map((f) => { try { return [f, sha(fs.readFileSync(path.join(root, f)))]; } catch { return [f, 'deleted']; } }));
+  // A file is ignored while it still holds exactly what a build wrote (a sitemap's lastmod, a version stamp).
+  // That is a side effect of checking, not an edit; any later edit changes the hash and counts again.
+  const outputs = task ? buildOutputs(root, task) : new Map();
+  const hashes = new Map(scopeFiles(root, p.base).filter((f) => !DOC_RE.test(f)).map((f) => [f, hashOf(root, f)]));
+  for (const [f, h] of outputs) if (hashes.get(f) === h) hashes.delete(f);
+  const files = [...hashes.keys()];
   const monorepo = p.units.length > 1; const out = {};
   for (const u of p.units) {
     const scope = new Set([u.path, ...upstreamClosure(p.units, u)]);
@@ -276,10 +326,10 @@ function append(root, task, rec) {
 
 /** Gate rows for the current plan: each required check's latest result, checked against the current code. */
 export async function gate(root, task, { ctx = null, p = null, final = false } = {}) {
-  p ??= await plan(root, { ctx });
+  p ??= await plan(root, { ctx, base: taskBase(root, task) });
   const all = readLedger(root, task);
   const ledger = all.filter((r) => r.cycle !== 'baseline');
-  const fps = fingerprints(root, p);
+  const fps = fingerprints(root, p, task);
   const rows = [];
   for (const e of p.entries) {
     for (const c of e.checks) {
@@ -376,14 +426,15 @@ function execCheck(root, task, unit, check, cycle, timeoutMin) {
 }
 
 /** Run the plan's checks that are not already passing for the current code, in a dependency-aware schedule. */
-export async function run(root, task, { units = null, checks = null, all = false, baseline = false, build = false, jobs = 0, timeout = 15, ctx = null } = {}) {
-  const p = await plan(root, { units, ctx });
-  const withBuilds = build || all;
+export async function run(root, task, { units = null, checks = null, all = false, baseline = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null } = {}) {
+  const p = await plan(root, { units, ctx, base: taskBase(root, task, base) });
+  // Builds run only on --build: --all re-runs checks, and a mobile build alone took ~3 minutes per cycle.
+  const withBuilds = build;
   const before = baseline ? null : await gate(root, task, { p, final: withBuilds });
   const fresh = new Set((before?.rows || []).filter((r) => OK.has(r.state)).map((r) => `${r.unit}\0${r.check}`));
   const prior = readLedger(root, task);
   const cycle = baseline ? 'baseline' : 1 + Math.max(0, ...prior.map((r) => (typeof r.cycle === 'number' ? r.cycle : 0)));
-  const fps = fingerprints(root, p);
+  const fps = fingerprints(root, p, task);
   const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (withBuilds || !c.deferrable) && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
   const slot = limiter(jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2))));
   const dbLock = limiter(1);
@@ -396,8 +447,13 @@ export async function run(root, task, { units = null, checks = null, all = false
       await slot(async () => {
         for (const c of todo) {
           const exec = () => execCheck(root, task, e.unit, c, cycle, timeout);
+          const pre = c.column === 'build' ? nonCodeState(root) : null;
           const r = c.column === 'test' && p.serializeTests.includes(e.unit) ? await dbLock(exec) : await exec();
           const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner' };
+          if (pre) {
+            const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
+            if (Object.keys(wrote).length) rec.wrote = wrote;
+          }
           append(root, task, rec);
           results.push({ ...rec, tail: r.tail });
         }
@@ -405,19 +461,20 @@ export async function run(root, task, { units = null, checks = null, all = false
     } finally { done.get(e.unit).resolve(); }
   };
   await Promise.all(work.map(runUnit));
-  const after = fingerprints(root, p);
+  const after = fingerprints(root, p, task);
   const modified = Object.keys(fps).filter((u) => fps[u] !== after[u] && p.entries.some((e) => e.unit === u));
   const g = baseline ? null : await gate(root, task, { ctx, final: withBuilds });
   const skipped = p.entries.flatMap((e) => e.checks.filter((c) => c.status === 'PENDING' && !c.manual && fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
   const deferred = withBuilds ? [] : p.entries.flatMap((e) => e.checks.filter((c) => c.deferrable && !fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
-  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, gate: g };
+  const sideEffects = results.flatMap((x) => Object.keys(x.wrote || {}).map((f) => ({ check: `${x.unit}:${x.check}`, file: f })));
+  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, sideEffects, gate: g };
 }
 
 export async function mark(root, task, { unit, check, status, reason, ctx = null }) {
   if (!STATUSES.includes(status)) throw new Error(`--status must be one of ${STATUSES.join(', ')}`);
   if (!unit || !check || !reason || !reason.trim()) throw new Error('mark needs --unit, --check, --status and a non-empty --reason');
   if (status === 'PASSED' && reason.trim().length < 12) throw new Error('PASSED needs evidence in --reason: the command you ran and its key output line');
-  const p = await plan(root, { ctx });
+  const p = await plan(root, { ctx, base: taskBase(root, task) });
   const u = unit === 'root' ? '.' : unit.replace(/\\/g, '/').replace(/\/$/, '');
   if (!p.units.some((x) => x.path === u)) throw new Error(`unknown unit "${unit}" (units: ${p.units.map((x) => x.path).join(', ')})`);
   const prior = readLedger(root, task);
@@ -460,13 +517,27 @@ export function formatPlan(p) {
   if (p.contractFiles.length) L.push(`API contract changed (${p.contractFiles.join(', ')}): G6 \`contract\` check, plus its web/mobile consumers.`);
   if (p.migrationFiles.length) L.push(`Migration or schema changed (${p.migrationFiles.join(', ')}): G12 \`migration\` check.`);
   if (p.unowned.length) L.push(`Changed outside any unit (nothing to run): ${p.unowned.slice(0, 8).join(', ')}${p.unowned.length > 8 ? ', …' : ''}`);
-  if (p.escalation) L.push(formatEscalation(p.escalation));
+  L.push(formatReviewDecision(p));
   const n = p.next; const parts = [];
   if (n.browser.length) parts.push(`browser verification (${n.browser.join(', ')})`);
   if (n.device.length) parts.push(`emulator/device verification (${n.device.join(', ')})`);
   if (n.api.length) parts.push(`API-level verification (${n.api.join(', ')})`);
   L.push(`After the gate opens: ${parts.join('; ') || 'no browser or device verification needed'}.`);
   return L.join('\n');
+}
+
+/**
+ * Whether the change needs the independent code review (G13). Not by default: tests, the gate and browser QA
+ * verify routine changes. It runs when the user asked for a review, or when auth, payment or schema files
+ * changed, and then only on those files, on Opus.
+ */
+export function formatReviewDecision(p) {
+  const e = p.escalation;
+  if (!e) return 'Code review: not required (no auth, payment or schema change). Run forge-code-reviewer only if the user asked for a review.';
+  const files = [...new Set(Object.values(e.areas).flat())];
+  const list = files.slice(0, 8).join(', ') + (files.length > 8 ? ', …' : '');
+  const areas = Object.entries(e.areas).map(([k, v]) => `${k} (${v.length})`).join(', ');
+  return `Code review: required for ${areas}, on these files only: ${list}. Launch ${e.roles.join(', ')} with model opus (core/delegation.md#model-escalation).`;
 }
 
 /**
@@ -478,7 +549,8 @@ export function formatScope(p, { orchestrator = true } = {}) {
   const units = p.entries.map((e) => `${e.unit} [${e.kinds.join('+') || 'shared'}] (${e.reasons.join('; ')})`).join('; ');
   const n = p.next; const next = [n.browser.length && `browser ${n.browser.join(', ')}`, n.device.length && `device ${n.device.join(', ')}`, n.api.length && `API-level ${n.api.join(', ')}`].filter(Boolean).join('; ');
   const flags = [p.contractFiles.length && 'G6 contract check (mark)', p.migrationFiles.length && 'G12 migration check (mark)', p.serializeTests.length && `tests serialized: ${p.serializeTests.join(', ')}`].filter(Boolean);
-  return `Scope: ${units}. After the gate: ${next || 'no browser or device verification'}.${flags.length ? ` ${flags.join('; ')}.` : ''}${orchestrator && p.escalation ? `\n${formatEscalation(p.escalation)}` : ''}`;
+  const scope = p.base ? `Scope (branch since ${p.base} + working tree)` : 'Scope';
+  return `${scope}: ${units}. After the gate: ${next || 'no browser or device verification'}.${flags.length ? ` ${flags.join('; ')}.` : ''}${orchestrator ? `\n${formatReviewDecision(p)}` : ''}`;
 }
 
 const VERDICT = {
@@ -546,7 +618,7 @@ async function main() {
     process.exit(2);
   }
   const out = (data, text) => console.log(o.json ? JSON.stringify(data, (k, v) => (v instanceof Set ? [...v] : k === 'units' || k === 'tail' ? undefined : v), 2) : text);
-  if (cmd === 'plan') { const p = await plan(root, { units: list(o.units) }); out(p, formatPlan(p)); }
+  if (cmd === 'plan') { const p = await plan(root, { units: list(o.units), base: taskBase(root, o.task, o.base) }); out(p, formatPlan(p)); }
   else if (cmd === 'gate') { const g = await gate(root, o.task); out(g, formatGate(g, { verbose: o.verbose })); process.exit(g.result === 'OPEN' ? 0 : g.result === 'BLOCKED' ? 2 : 1); }
   else if (cmd === 'final') {
     const f = await finalCheck(root, o.task);
@@ -573,13 +645,17 @@ async function main() {
     out(ev, text.join('\n'));
     process.exit(ev.missing.length ? 1 : 0);
   } else {
-    const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
+    const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
     // Compact on purpose: passing checks take one line in total; only failures get their output.
     const passed = r.results.filter((x) => x.status === 'PASSED');
     const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
     if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
     for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
     if (r.deferred.length) L.push(`DEFERRED until the final check: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --build\` once, right before \`final\`.`);
+    if (r.sideEffects.length) {
+      const files = [...new Set(r.sideEffects.map((x) => x.file))].join(' ');
+      L.push('', `Build side effect: ${r.sideEffects.map((x) => `${x.check} rewrote ${x.file}`).join(', ')}. Not a code change, so no check went stale. If it should not ship: git checkout -- ${files}`);
+    }
     if (r.modifiedDuringRun.length) L.push('', `WARNING: files in ${r.modifiedDuringRun.join(', ')} changed while the checks ran. Review them (G14). ${o.baseline ? 'This baseline is unreliable: record it before any edit starts.' : 'If an implementer was still editing, these results are already stale: run checks only after every editor has returned.'}`);
     if (r.gate) L.push('', formatGate(r.gate, { final: r.final }));
     out({ ...r, plan: undefined }, L.join('\n'));

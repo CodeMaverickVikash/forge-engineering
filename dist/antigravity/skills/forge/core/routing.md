@@ -35,7 +35,7 @@ Choose the **smallest team that covers the task's risks**. Never invoke every sp
 
 ## Routing matrix
 
-`+` means core team for that task type. "Add when" lists conditional members. `forge-code-reviewer` always runs the final review for any task that changes code.
+`+` means core team for that task type. "Add when" lists conditional members. `forge-code-reviewer` runs only when the user asks for a review, or when `V run` prints `Code review: required` (auth, payment or schema files); then it reviews only those files.
 
 | Task type | Core team | Add when |
 |---|---|---|
@@ -75,7 +75,7 @@ Use the detected stack (`.forge/context.json`) and the affected paths:
 - **Typical waves:**
   1. Discovery (parallel), then architecture (if L).
   2. Implementation (parallel by owner).
-  3. Validation: `validation-gate.mjs run` checks every affected app in one parallel batch while `forge-code-reviewer` reviews.
+  3. Validation: `validation-gate.mjs run` checks every affected app in one parallel batch (with `forge-code-reviewer` when G13 requires it).
   4. Pre-browser gate OPEN.
   5. Browser and device verification (`forge-browser-qa`).
   6. Targeted fixes, then re-run only the stale checks, reopen the gate, and re-verify only what failed.

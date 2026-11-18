@@ -23,12 +23,12 @@ Type `/forge` followed by what you want, in plain words. You don't have to pick 
 
 | Request | Typical team | Ceremony |
 |---|---|---|
-| "Fix the off-by-one in pagination" | backend engineer (or FORGE itself) → code reviewer, + browser QA if visible | S: no written spec or plan; regression test and independent review |
-| "Improve the dashboard UI" | PM, UX, frontend, browser QA, accessibility, reviewer | M: spec, plan, before and after screenshots, viewport checks |
+| "Fix the off-by-one in pagination" | backend engineer (or FORGE itself), + browser QA if visible | S: no written spec or plan; regression test and the final gate |
+| "Improve the dashboard UI" | PM, UX, frontend, browser QA, accessibility | M: spec, plan, before and after screenshots, viewport checks |
 | "Build a notification system" | PM, BA, architect, UX, backend, database, frontend, QA lead, test automation, browser QA, security, reviewer | L: spec, ADR, contract-first parallel implementation, full gates |
 | "Analyze the project" | explorer, architect, security, performance (+ researcher) | read-only, ranked findings, roadmap |
 
-A task that touches auth, payments, PII, migrations or schema, a public API contract, more than about 8 files or more than one deployable unit is sized up one step. Size reduces paperwork, not assurance: at every size FORGE runs the detector, adds a regression test for every bug fix, sends every browser-visible change to `forge-browser-qa`, and has `forge-code-reviewer` review every code change. With native subagents, the specialists do the work; FORGE implements directly only S-size fixes.
+A task that touches auth, payments, PII, migrations or schema, a public API contract, more than about 8 files or more than one deployable unit is sized up one step. Size reduces paperwork, not assurance: at every size FORGE runs the detector, adds a regression test for every bug fix, sends every browser-visible change to `forge-browser-qa`, and runs `forge-code-reviewer` when you ask for a review or a change touches auth, payment or schema files (only those files, on Opus). With native subagents, the specialists do the work; FORGE implements directly only S-size fixes.
 
 ## Reviewing a PR or branch
 

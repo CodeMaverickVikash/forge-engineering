@@ -27,9 +27,11 @@ Implementers validate through the runner because it records every result. When t
 A measured run spent about 32 minutes of check time on one change: a baseline that overlapped the edits, implementers running the suites by hand, a gate cycle that was already stale when it finished, and a mobile build in every cycle. Follow these rules so each suite runs about once per round:
 - **VERIFY WITH is always the runner** (`V run --task <slug> --units <own units>`), never raw `pnpm test` / `npm run typecheck` lines. Raw runs are not recorded, so the gate runs them all again. An implementer runs it **once, when its edits are done**. While iterating, it runs only the tests for the files it touched.
 - **Run checks only when no editor is running.** A `V run` started while any implementer is still editing is stale the moment that edit lands. Wait for every implementer of the wave to return, then run once.
-- **One fix wave per round.** Wait for the code review **and** browser QA of a wave, merge their findings, and send each owner a single fix list. Each separate fix trickle costs a full gate cycle.
+- **One fix wave per round.** Wait for every verifier of a wave (browser QA, and the code review when G13 requires it), merge their findings, and send each owner a single fix list. Each separate fix trickle costs a full gate cycle.
 - **The validation wave runs `V run --task <slug>` without `--units`.** Then everything the working tree changed, staged work included, is covered in one cycle, not discovered as MISSING in a second one.
 - **Builds run once, at the end.** `V run` defers a build that type check or tests already cover (`DEFERRED`, not blocking the browser). Run `V run --task <slug> --build` once, after the last fix and right before `V final`.
+- **Branch work uses `--base <base branch>`, never `--all`, for coverage.** Without it the gate sees only uncommitted files and misses what the branch committed. `--all` re-runs passing checks and is never the way to widen scope.
+- **A build that rewrites a tracked file** (a sitemap's lastmod) is reported as a build side effect and does not stale other checks. Restore the file only if it should not ship.
 - **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. It skips deferred builds. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
 
 ## Browser QA scope
@@ -130,5 +132,5 @@ If the conflict is a genuine business trade-off (a clarification-policy trigger)
 When no native subagents exist, run the same work orders yourself in wave order:
 1. Read `roles/<agent-name>.md`. Load each skill it lists from `<FORGE_HOME>/../<skill-name>/SKILL.md`.
 2. Do only that role's job and write its specialist report to the task folder.
-3. Drop the role's mindset before starting the next role. For the final review, re-read the diff as if you had never seen it.
+3. Drop the role's mindset before starting the next role. When G13 requires a review, re-read the listed files as if you had never seen them.
 4. Report the specialists as "emulated sequentially in Mode B". Never describe them as independent agents.

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, formatPlan, formatScope, resolveCommand } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, formatPlan, formatScope, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -181,19 +181,60 @@ test('browser tool artifacts in the project do not make passed checks stale', as
   } finally { clean(dir); }
 });
 
-test('the scope line names an Opus escalation only when a critical workflow changed', async () => {
+test('code review is required only for auth, payment or schema changes, scoped to those files', async () => {
   const dir = monorepo();
   try {
     w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
-    assert.equal((await plan(dir)).escalation, null);
+    const routine = await plan(dir);
+    assert.equal(routine.escalation, null);
+    assert.match(formatScope(routine), /Code review: not required .*only if the user asked/);
     w(dir, 'services/api/auth/session.js', 'module.exports = 2;\n');
     const p = await plan(dir);
     assert.deepEqual(p.escalation.areas, { auth: ['services/api/auth/session.js'] });
-    assert.match(formatPlan(p), /Opus escalation: auth \(1 file\)/);
-    assert.match(formatScope(p), /Opus escalation/);
-    assert.doesNotMatch(formatScope(p, { orchestrator: false }), /Opus/, 'implementers cannot launch agents, so their --units runs skip the line');
+    assert.match(formatPlan(p), /Code review: required for auth \(1\), on these files only: services\/api\/auth\/session\.js\. Launch forge-code-reviewer.*model opus/);
+    assert.doesNotMatch(formatScope(p, { orchestrator: false }), /Code review/, 'implementers cannot launch agents, so their --units runs skip the line');
     const units = cli(dir, 'run', '--task', 't', '--units', 'services/api');
-    assert.doesNotMatch(units.stdout, /Opus escalation/);
+    assert.doesNotMatch(units.stdout, /Code review/);
+  } finally { clean(dir); }
+});
+
+test('--base adds what the branch committed, is kept for the task, and is validated', async () => {
+  const dir = monorepo();
+  try {
+    const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], { cwd: dir, stdio: 'pipe' });
+    g('branch', 'base');
+    w(dir, 'services/api/server.js', 'module.exports = 2;\n'); g('commit', '-qam', 'branch work');
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n'); // uncommitted
+    assert.deepEqual((await plan(dir)).entries.map((e) => e.unit), ['apps/web', 'packages/ui'], 'without a base the committed API change is invisible');
+    const r = await run(dir, 't', { base: 'base', checks: ['lint'] });
+    assert.ok(r.plan.entries.some((e) => e.unit === 'services/api'), 'the branch commit puts the API in scope');
+    assert.equal(r.plan.base, 'base');
+    const later = await gate(dir, 't');
+    assert.ok(later.scope.some((s) => s.unit === 'services/api'), 'gate keeps the stored base');
+    assert.throws(() => taskBase(dir, 'x', '--output=/tmp/x'), /not a git ref/);
+    await assert.rejects(run(dir, 'y', { base: 'no-such-branch' }), /git diff no-such-branch\.\.\.HEAD failed/);
+  } finally { clean(dir); }
+});
+
+test('--all re-runs checks without builds; a build that rewrites a tracked file does not stale other checks', async () => {
+  // The measured run: `--all` rebuilt mobile (173s) and web every cycle, and the web build rewrote the
+  // sitemap's lastmod, which made every web check stale and cost a full extra cycle.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vg-'));
+  try {
+    const stamp = "require('fs').writeFileSync('public/sitemap.xml', '<lastmod>' + Date.now() + '</lastmod>\\n')\n";
+    w(dir, 'package.json', JSON.stringify({ name: 'site', scripts: { test: 'node ok.js', build: 'node stamp.js' } }));
+    w(dir, 'ok.js', OK_JS); w(dir, 'stamp.js', stamp); w(dir, 'public/sitemap.xml', '<lastmod>0</lastmod>\n'); w(dir, 'src/a.js', '1\n');
+    const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', ...a], { cwd: dir, stdio: 'pipe' });
+    g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'base');
+    w(dir, 'src/a.js', '2\n');
+    const all = await run(dir, 't', { all: true });
+    assert.ok(!all.results.some((x) => x.column === 'build'), '--all never runs builds');
+    const built = await run(dir, 't', { build: true });
+    assert.deepEqual(built.sideEffects, [{ check: '.:build', file: 'public/sitemap.xml' }]);
+    assert.deepEqual(built.modifiedDuringRun, [], 'a build output is not an edit made during the run');
+    assert.equal(built.gate.result, 'OPEN');
+    w(dir, 'public/sitemap.xml', '<lastmod>hand edit</lastmod>\n');
+    assert.ok((await gate(dir, 't')).rows.some((r) => r.state === 'STALE'), 'a later edit of that file counts again');
   } finally { clean(dir); }
 });
 

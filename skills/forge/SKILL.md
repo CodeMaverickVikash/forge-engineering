@@ -31,7 +31,7 @@ If the line above still shows a literal `$ARGUMENTS` placeholder, the request is
   - **Launch in waves:** every agent of a wave goes in **one message**. Launching one per message measured up to 4× slower.
     1. **Discovery:** the read-only analysts the task needs.
     2. **Implementation:** engineers with disjoint file ownership, after the contract is frozen in `plan.md`.
-    3. **Validation:** `V run` (step 7) + `forge-code-reviewer` together (+ `forge-qa-lead` / `forge-test-automation-engineer` when needed).
+    3. **Validation:** `V run` (step 7) (+ `forge-qa-lead` / `forge-test-automation-engineer` when needed, + `forge-code-reviewer` only per [G13](#never-skipped-s-and-up)).
     4. **Browser / device:** `forge-browser-qa`, only behind an OPEN gate.
     5. **Fix:** the owners of failing items only, then a delta retest ([core/delegation.md](core/delegation.md#delta-retests)).
 
@@ -51,7 +51,7 @@ Size the task, then run only the phases it needs ([core/lifecycle.md](core/lifec
 | Size | Signal | Phases |
 |---|---|---|
 | **Q** | a question about the code (how, where, why), with no change, audit or review asked | Answer directly with `file:line` evidence: no agents, task folder or report template. Re-size if it turns into a change or a broad audit |
-| **S** | one obvious defect or small tweak, 1–3 files, low risk | understand → targeted explore → fix → `V run` until the gate is OPEN → review + browser QA in one wave → report; no spec or plan |
+| **S** | one obvious defect or small tweak, 1–3 files, low risk | understand → targeted explore → fix → `V run` until the gate is OPEN → browser QA (+ review only per G13) in one wave → report; no spec or plan |
 | **M** | a feature or change across a few modules | all 10 phases, spec and plan, 3–6 specialists |
 | **L** | cross-cutting, new subsystem, security or data risk, "production-ready" | all 10 phases, ADR, parallel specialists, full gates |
 
@@ -64,14 +64,14 @@ Pick exactly one size; when in doubt pick the larger. Any new feature, endpoint,
 4. **Architect.** Pick the smallest team that covers the risks ([core/routing.md](core/routing.md)). For L, `forge-architect` writes the approach and an ADR.
 5. **Plan.** For M/L, write `plan.md` ([templates/implementation-plan.md](templates/implementation-plan.md)): small ordered tasks, a **file owner** for each, and a validation strategy.
 6. **Implement.** Delegate per [core/delegation.md](core/delegation.md); parallelize only on disjoint files.
-7. **Verify** ([core/quality-gates.md](core/quality-gates.md)), with `V` = `node "<FORGE_HOME>/scripts/validation-gate.mjs"`. `V run --task <slug>` checks every affected app (type check, lint, tests; builds are deferred to step 9) in one parallel batch, never repeating a check that still passes, and exits with the **pre-browser gate**. Start it only after every implementer has returned, and without `--units` ([check budget](core/delegation.md#check-budget-no-repeated-suites)):
+7. **Verify** ([core/quality-gates.md](core/quality-gates.md)), with `V` = `node "<FORGE_HOME>/scripts/validation-gate.mjs"`. `V run --task <slug>` (add `--base <base branch>` once when the task covers a branch's commits) checks every affected app (type check, lint, tests; builds are deferred to step 9) in one parallel batch, never repeating a check that still passes, and exits with the **pre-browser gate**. Start it only after every implementer has returned, and without `--units` ([check budget](core/delegation.md#check-budget-no-repeated-suites)):
    - 0 (OPEN): browser QA or device verification may start.
    - 1: fix, then run again.
    - 2: unblock, or report BLOCKED.
 
    Backend-only changes get API-level verification instead.
 8. **Fix.** Fix at the root cause (`forge-debugging`), at most 3 cycles per failure, then report it unresolved; never hide a failure. A check that `V` marks `failed in 2 cycles` gets its root-cause analysis on Opus. Merge the review's and browser QA's findings into **one fix wave**, then `V run` once after every owner has returned, then retest **only the delta** ([core/delegation.md](core/delegation.md#delta-retests)).
-9. **Final review.** `forge-code-reviewer` reviews the diff against the spec. Check `git diff --stat` for unrelated changes. Then run `V run --task <slug> --build` (the deferred builds, once) and `V final --task <slug>`; it covers the gate after the last edit, line endings, new comments and evidence. The file's owner fixes anything it flags before you report.
+9. **Final check.** When G13 requires it, `forge-code-reviewer` reviews the listed files against the spec. Check `git diff --stat` for unrelated changes. Then run `V run --task <slug> --build` (the deferred builds, once) and `V final --task <slug>`; it covers the gate after the last edit, line endings, new comments and evidence. The file's owner fixes anything it flags before you report.
 10. **Report.** Fill [templates/engineering-report.md](templates/engineering-report.md) with one **completion status** (rules in quality-gates.md), save it to `.forge/tasks/<slug>/report.md`, and **print the full report as your final message**, not a summary. Often it is the only thing anyone reads. Write it only after **every launched agent has returned**. If a result still arrives after you printed it, update the saved report and print the **full** report again, starting with its heading line and nothing before it; never end on a recap or a pointer to an earlier message.
 
 Analysis-only requests (analyze, audit, suggest) skip phases 6–8 unless fixes were asked, and deliver findings ranked by impact with `file:line` evidence.
@@ -86,7 +86,7 @@ Size reduces paperwork, not assurance:
   - In Mode A, always delegate it to `forge-browser-qa`. It runs Playwright journeys *and* DevTools console and network checks, and its heavy snapshots stay out of your context.
   - In Mode B, follow the `forge-browser-qa` skill.
   - Without Playwright or the DevTools MCP, the verdict is *"implemented, not browser-verified"* plus the reason.
-- **Every code change gets an independent review (G13)** from `forge-code-reviewer`, or a deliberate fresh-eyes pass in Mode B. Authors see what they meant, not what they wrote.
+- **The independent code review (G13) runs only when it pays:** when the user asked for a review, or when `V run` prints `Code review: required` (auth, payment or schema files). Then it covers only the files that line lists, on Opus. Otherwise the regression test, the gate, browser QA and `V final` verify the change, and the report says "G13: not required". A request to check whether a branch broke something is regression analysis, not G13: answer it with tests, `V run --base <base branch>` and targeted reviewers.
 - **The report template is used exactly** (reviews use their own 13-section template). The first line is exactly `### FORGE Execution Report`, followed by the template's bold labels, verbatim and in order: Task, Enhanced specification, Project understanding, Specialists involved, Skills & capabilities, Implementation, Validation summary, Browser & device verification, Evidence, Issues found and resolved, Remaining issues and blockers, Assumptions, Remaining work, Completion status, Git status. Write "N/A" rather than dropping a section, and end with "No commit, push, or pull request was created." Tools parse these reports and users compare them across tasks.
 
 ## Workspace and ownership

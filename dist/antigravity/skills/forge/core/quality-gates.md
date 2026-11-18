@@ -29,7 +29,8 @@ More options:
 - `--units a,b`: an implementer validates only its own apps.
 - `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there. Let it finish before any implementer starts; it skips deferred builds.
 - `--build`: the deferred builds, once, after the last fix.
-- `--all`: when project policy or a broad change requires a full re-run.
+- `--all`: when project policy or a broad change requires a full re-run of the checks. It never runs builds; only `--build` does.
+- `--base <ref>`: the task covers a branch ("test this branch", "did it break anything"). The scope adds what the branch committed since `<ref>`, so the API and shared packages it changed are checked in the same cycle. Pass it once; later runs, `gate` and `final` keep it.
 - `V mark … --status PRE-EXISTING|BLOCKED|NOT RUN`: also records the manual G6 and G12 checks. Confirm a `PRE-EXISTING` (the gate flags failures that also failed on the baseline) before marking it.
 - `V gate --task <slug>`: re-checks without running anything; `--verbose` lists every row.
 
@@ -54,7 +55,7 @@ If the host's command timeout is shorter than the suite, run it in the backgroun
 | G10m **Device verification** (emulator, simulator or device) | Any native mobile UI or behavior change |
 | G11 Responsive check (mobile / tablet / desktop viewports) | Layout or styling changes |
 | G12 Migration safety (up, down or rollback, data preservation) | Schema change |
-| G13 Independent code review, including comment quality | Any code change |
+| G13 Independent code review, including comment quality | The user asked for a review, or `V run` prints `Code review: required` (auth, payment or schema files; review only those, on Opus). Otherwise N/A: tests, the gate, browser QA and `V final` (comments included) cover the change |
 | G14 Scope check: `git diff --stat` shows only intended files | Always |
 | G15 Install provenance: every skill or tool installed in this task has a verified OSS license, a recorded user approval for its batch and an entry in `forge-skills.lock.json` | Any installation happened |
 
@@ -62,7 +63,7 @@ If the host's command timeout is shorter than the suite, run it in the backgroun
 
 Browser QA and device verification start **only** when the gate is OPEN for the code as it is now. The one exception is reproducing a bug before the fix exists.
 - On BLOCKED, first try the allowed remedy: install the project's declared dependencies, or start a throwaway local service ([safety.md](safety.md)). Otherwise stop and report `BLOCKED`.
-- The code review (G13) is not a browser step and runs alongside the checks.
+- The code review (G13), when required, is not a browser step and runs alongside the checks.
 
 ## Browser and device verification (G10, G10m)
 
@@ -115,5 +116,5 @@ Precedence: FAILED > BLOCKED > VERIFIED WITH LIMITATIONS > VERIFIED. Never VERIF
 
 - Every acceptance criterion maps to evidence: a test name, command output, screenshot or code reference.
 - The final check is READY, or the report says exactly why not.
-- G13 and G14 are done.
+- G14 is done, and G13 when it is required.
 - The report, with its completion status and git state, is printed. Nothing was committed.

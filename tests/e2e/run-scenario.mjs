@@ -88,6 +88,7 @@ function evaluate(name, sc, dir, ev, before) {
   const used = new Set(ev.agents);
   for (const a of e.agentsAll || []) if (!used.has(a)) fails.push(`agent not invoked: ${a}`);
   for (const group of e.agentsAny || []) if (!group.some((a) => used.has(a))) fails.push(`none of [${group}] invoked`);
+  for (const a of e.agentsNone || []) if (used.has(a)) fails.push(`agent should not run: ${a}`);
   const report = ev.result?.result || '';
   if (e.answerOnly) {
     // Q size: a direct answer with evidence, no specialists and no full report.

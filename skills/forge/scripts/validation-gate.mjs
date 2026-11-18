@@ -69,6 +69,8 @@ const MUTATE_RE = /(^|\s)--(fix|write)\b/;
 const CHECK_ONLY_RE = /(^|\s)--(check|test|diff|list-different)\b|(^|\s)-l(\s|$)/;
 const DEPLOY_RE = /\b(eas\s+(build|submit|update)|fastlane|deploy|publish|release|docker\s+push|netlify\s+deploy|firebase\s+deploy|wrangler\s+(deploy|publish)|terraform\s+apply|gh\s+release)\b/i;
 const NO_TEST_RE = /no test specified/i;
+// Runner messages for a test that exceeded its own timeout (vitest, jest, mocha), the signature of an overloaded machine.
+const LOAD_TIMEOUT_RE = /Test timed out in \d+ ?ms|Hook timed out in \d+ ?ms|Exceeded timeout of \d+ ?ms|Timeout - Async callback was not invoked|Timeout of \d+ ?ms exceeded/i;
 const NOT_FOUND_RE = /is not recognized as an internal or external command|command not found|could not determine executable to run|canceled due to missing packages|npm (error|ERR!) code E404|No such file or directory.*(mvnw|gradlew)/i;
 const DOC_RE = /\.(md|txt|rst|adoc)$|(^|\/)(LICENSE|CHANGELOG|AUTHORS|CODEOWNERS)(\.[a-z]+)?$/i;
 const CODE_RE = /\.([cm]?[jt]sx?|py|go|java|kt|kts|scala|php|rb|rs|cs|fs|swift|dart|vue|svelte|ex|exs|css|scss|html|sql|graphql|gql|proto)$/i;
@@ -258,9 +260,10 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
     const u = a.unit; const checks = [];
     const testOnly = a.own.length > 0 && a.own.every((f) => TEST_RE.test(f)) && !broad.length && !a.reasons.includes('requested');
     // Only a unit's own changes can be traced to its tests: a consumer may import a changed package's built
-    // output, which the runner's module graph never links to the changed sources.
-    const ownChangesOnly = a.own.length > 0 && !broad.length && a.reasons.every((r) => r === 'changed files' || r === 'requested')
-      && ![...upstreamClosure(U, u)].some((d) => affected.has(d));
+    // output, which the runner's module graph never links to the changed sources. So with a changed upstream,
+    // the related-tests run needs proof: a full pass that already saw the upstream exactly as it is now.
+    const ownChanges = a.own.length > 0 && !broad.length && a.reasons.every((r) => r === 'changed files' || r === 'requested');
+    const upstreamChanged = [...upstreamClosure(U, u)].some((d) => affected.has(d));
     for (const name of ORDER) {
       const cmds = pickCommands(u, name);
       if (!cmds.length) {
@@ -276,7 +279,7 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
         else if (DEPLOY_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', required: false, reason: 'script deploys or publishes; needs user authorization' });
         else if (MUTATE_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'script modifies files (--fix/--write); run a check-only equivalent and record it with mark' });
         else if (WATCH_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'watch-mode script; run a one-shot equivalent and record it with mark' });
-        else if (name === 'test' && ownChangesOnly && git) { const cmd = affectedCommand(c, gitBase); if (cmd) base.affected = cmd; }
+        else if (name === 'test' && ownChanges && git) { const cmd = affectedCommand(c, gitBase); if (cmd) Object.assign(base, { affected: cmd, ...(upstreamChanged && { affectedNeedsProof: true }) }); }
         checks.push(base);
       });
     }
@@ -324,7 +327,7 @@ function nonCodeState(root) {
   return new Map(changedFiles(root).filter((f) => !CODE_RE.test(f)).map((f) => [f, hashOf(root, f)]));
 }
 
-function fingerprints(root, p, task = null) {
+function fingerprints(root, p, task = null, { upstreamOnly = false } = {}) {
   if (!p.git) return {};
   // A file is ignored while it still holds exactly what a build wrote (a sitemap's lastmod, a version stamp).
   // That is a side effect of checking, not an edit; any later edit changes the hash and counts again.
@@ -334,7 +337,7 @@ function fingerprints(root, p, task = null) {
   const files = [...hashes.keys()];
   const monorepo = p.units.length > 1; const out = {};
   for (const u of p.units) {
-    const scope = new Set([u.path, ...upstreamClosure(p.units, u)]);
+    const scope = new Set([...(upstreamOnly ? [] : [u.path]), ...upstreamClosure(p.units, u)]);
     const mine = files.filter((f) => {
       if (!monorepo) return true;
       const o = ownerOf(p.units, f);
@@ -404,19 +407,24 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
 }
 
 /**
- * At most n jobs at once; a free slot goes to the waiting job with the highest priority. Starting is deferred to
- * the next macrotask so every job queued in the same tick competes for the first slots.
+ * At most n jobs at once, and at most caps[kind] of one kind; a free slot goes to the waiting job with the highest
+ * priority whose kind still has room. One queue, so a capped kind never lets a lower-priority job jump ahead.
+ * Starting is deferred to the next macrotask so every job queued in the same tick competes for the first slots.
  */
-function limiter(n) {
-  let active = 0; const q = [];
+function limiter(n, caps = {}) {
+  let active = 0; const q = []; const byKind = {};
+  const room = (kind) => caps[kind] == null || (byKind[kind] || 0) < caps[kind];
   const next = () => {
-    while (active < n && q.length) {
-      let i = 0; for (let j = 1; j < q.length; j++) if (q[j].prio > q[i].prio) i = j;
-      active++; const { fn, res, rej } = q.splice(i, 1)[0];
-      fn().then(res, rej).finally(() => { active--; next(); });
+    while (active < n) {
+      let i = -1;
+      for (let j = 0; j < q.length; j++) if (room(q[j].kind) && (i < 0 || q[j].prio > q[i].prio)) i = j;
+      if (i < 0) return;
+      const { fn, res, rej, kind } = q.splice(i, 1)[0];
+      active++; byKind[kind] = (byKind[kind] || 0) + 1;
+      fn().then(res, rej).finally(() => { active--; byKind[kind]--; next(); });
     }
   };
-  return (fn, prio = 0) => new Promise((res, rej) => { q.push({ fn, res, rej, prio }); setImmediate(next); });
+  return (fn, prio = 0, kind = '') => new Promise((res, rej) => { q.push({ fn, res, rej, prio, kind }); setImmediate(next); });
 }
 
 const lockFile = (root, task) => path.join(taskDir(root, task), 'validation', 'run.lock');
@@ -526,10 +534,15 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const prior = readLedger(root, task);
   const cycle = baseline ? 'baseline' : 1 + Math.max(0, ...prior.map((r) => (typeof r.cycle === 'number' ? r.cycle : 0)));
   const fps = fingerprints(root, p, task);
+  const upFps = fingerprints(root, p, task, { upstreamOnly: true });
+  // A full pass that already saw the upstream packages exactly as they are now: only the unit's own changes are new.
+  const provenUpstream = (unit, key) => prior.some((r) => r.unit === unit && r.check === key && r.source === 'runner' && r.status === 'PASSED' && !r.scope && r.cycle !== 'baseline' && r.upstream === upFps[unit]);
   const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (withBuilds || !c.deferrable) && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
   const width = jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2)));
-  const slot = limiter(width);
+  // Test runners already use every core, so at most half the slots run suites; 4 at once on 8 cores timed out.
+  const slot = limiter(width, { test: Math.max(1, Math.floor(width / 2)) });
   const dbLock = limiter(1);
+  const retryAlone = [];
   const results = [];
   // Longest first: the slowest suite (263 s in a measured web app) used to start only after its unit's type
   // check, lint and format. Units that others wait on go before everything.
@@ -537,21 +550,28 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const upstream = new Set(p.entries.flatMap((e) => e.after));
   const prio = (unit, c) => (upstream.has(unit) ? 1e9 : 0) + (lastMs.get(`${unit}\0${c.key}`) ?? DEFAULT_MS[c.key.split('#')[0]] ?? 30000);
   onProgress?.(`Validation cycle ${cycle}: running ${work.reduce((n, w) => n + w.todo.length, 0)} check(s), up to ${width} at a time (pid ${process.pid}).`);
-  const runCheck = (e, c) => {
+  const runCheck = (e, c, { alone = false } = {}) => {
     const timed = () => slot(async () => {
       const pre = c.column === 'build' ? nonCodeState(root) : null;
       // Fix cycles run only the tests related to the change; `--build` (before final) runs the full suite once.
-      const affectedRun = !!c.affected && !withBuilds && !baseline;
+      const affectedRun = !!c.affected && !withBuilds && !baseline && (!c.affectedNeedsProof || provenUpstream(e.unit, c.key));
       const r = await execCheck(root, task, e.unit, affectedRun ? { ...c, command: c.affected, source: '' } : c, cycle, timeout);
-      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner', ...(affectedRun && { scope: 'affected' }) };
+      // A test that times out while other suites load the machine is not a verdict yet: re-run it alone once the
+      // batch ends. A measured cycle reported admin tests FAILED ("Test timed out in 5000ms"); alone they passed.
+      if (!alone && c.column === 'test' && r.status === 'FAILED' && LOAD_TIMEOUT_RE.test(r.tail.slice(-20000))) {
+        retryAlone.push({ e, c });
+        onProgress?.(`  … ${e.unit}:${c.key} timed out under load; re-running it alone after the batch`);
+        return;
+      }
+      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: alone && r.status === 'PASSED' ? 'passed when re-run alone after timing out under load' : r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', ...(affectedRun && { scope: 'affected' }) };
       if (pre) {
         const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
         if (Object.keys(wrote).length) rec.wrote = wrote;
       }
       append(root, task, rec);
       results.push({ ...rec, tail: r.tail });
-      onProgress?.(`  ${r.status === 'PASSED' ? '✓' : '✗'} ${e.unit}:${c.key}${affectedRun ? ' (affected)' : ''}${r.status === 'PASSED' ? '' : ` ${r.status}`} ${(r.durationMs / 1000).toFixed(1)}s`);
-    }, prio(e.unit, c));
+      onProgress?.(`  ${r.status === 'PASSED' ? '✓' : '✗'} ${e.unit}:${c.key}${affectedRun ? ' (affected)' : ''}${alone ? ' (alone)' : ''}${r.status === 'PASSED' ? '' : ` ${r.status}`} ${(r.durationMs / 1000).toFixed(1)}s`);
+    }, prio(e.unit, c), c.column === 'test' ? 'test' : '');
     // Tests that share a database wait for it before taking a slot, so no slot sits idle.
     return c.column === 'test' && p.serializeTests.includes(e.unit) ? dbLock(timed) : timed();
   };
@@ -568,6 +588,7 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
     } finally { done.get(e.unit).resolve(); }
   };
   await Promise.all(work.map(runUnit));
+  for (const { e, c } of retryAlone) await runCheck(e, c, { alone: true });
   const after = fingerprints(root, p, task);
   const modified = Object.keys(fps).filter((u) => fps[u] !== after[u] && p.entries.some((e) => e.unit === u));
   const g = baseline ? null : await gate(root, task, { ctx, final: withBuilds });
@@ -632,7 +653,7 @@ export function evidence(root, task, { init = false } = {}) {
   const unindexed = files.filter((f) => !f.startsWith(`${relRoot}/reports/validation/`) && !citedFiles.has(f)).map(label);
   const link = (f) => `[${label(f)}](${encodeURI(f)})`;
   const screenshots = files.filter((f) => IMAGE_RE.test(f) && /(^|\/)screenshots\//.test(f));
-  return { dir: relRoot, visualDir: vRoot, absolute: dir, files: files.map(label), links: files.map(link), missing, unindexed, screenshots, screenshotsAbsolute: screenshots.map((f) => path.join(root, f)), index, visual: visualResults(root, screenshots, index) };
+  return { dir: relRoot, visualDir: vRoot, absolute: dir, files: files.map(label), links: files.map(link), missing, unindexed, screenshots, screenshotsAbsolute: screenshots.map((f) => path.join(root, f)), index, budget: shotBudget(screenshots), visual: visualResults(root, screenshots, index) };
 }
 
 /**
@@ -649,12 +670,30 @@ export function visualResults(root, screenshots, index = '') {
   };
   const groups = new Map();
   for (const f of [...screenshots].sort()) { const k = pairKey(f) + '\0' + path.posix.dirname(f).replace(/\/(before|after)$/, ''); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
-  const rows = [...groups.values()].flatMap((g) => {
+  // Rank: before/after pairs, then final states, then unpaired before shots; the answer shows at most 8 rows.
+  const ranked = [...groups.values()].flatMap((g) => {
     const before = g.filter(isBefore); const after = g.filter((f) => !isBefore(f));
-    if (before.length === 1 && after.length === 1) return [`| ${describe(after[0])} | [View before](${encodeURI(before[0])}) · [View after](${encodeURI(after[0])}) |`];
-    return g.map((f) => `| ${describe(f)} | [View ${isBefore(f) ? 'before' : humanize(f)}](${encodeURI(f)}) |`);
-  });
+    if (before.length === 1 && after.length === 1) return [{ rank: 0, files: 2, row: `| ${describe(after[0])} | [View before](${encodeURI(before[0])}) · [View after](${encodeURI(after[0])}) |` }];
+    return g.map((f) => ({ rank: isBefore(f) ? 2 : 1, files: 1, row: `| ${describe(f)} | [View ${isBefore(f) ? 'before' : humanize(f)}](${encodeURI(f)}) |` }));
+  }).map((r, i) => ({ ...r, i })).sort((a, b) => a.rank - b.rank || a.i - b.i);
+  const rows = ranked.slice(0, MAX_VISUAL_ROWS).map((r) => r.row);
+  if (ranked.length > MAX_VISUAL_ROWS) {
+    const folder = screenshots[0].slice(0, screenshots[0].indexOf('/screenshots/') + '/screenshots/'.length);
+    rows.push(`| ${ranked.slice(MAX_VISUAL_ROWS).reduce((n, r) => n + r.files, 0)} more screenshot(s) | [Open the folder](${encodeURI(folder)}) |`);
+  }
   return ['### Visual Results', '', '| What it shows | Screenshot |', '|---|---|', ...rows].join('\n');
+}
+
+const MAX_VISUAL_ROWS = 8;
+// A measured discovery pass took 17 "before" shots and its retest 16 more: browser time, tokens and a wall of
+// links. Before shots cover the screens the change touches; final shots, one per changed screen and state.
+const SHOT_BUDGET = { before: 3, final: 8 };
+export function shotBudget(screenshots) {
+  const before = screenshots.filter(isBefore).length; const final = screenshots.length - before;
+  return [
+    before > SHOT_BUDGET.before && `${before} before screenshots (budget ${SHOT_BUDGET.before}: only the screens the change touches)`,
+    final > SHOT_BUDGET.final && `${final} final-state screenshots (budget about ${SHOT_BUDGET.final}: one per changed screen and state)`,
+  ].filter(Boolean);
 }
 
 const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`${c.deferrable ? ' (deferred to `run --build`)' : ''}` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
@@ -747,14 +786,28 @@ export async function finalCheck(root, task) {
   const comments = checkComments(root);
   const ev = evidence(root, task);
   const visual = visualCheck(root, task, g, ev);
+  const devtools = devtoolsCheck(root, task, g, ev);
   const problems = [
     g.result !== 'OPEN' && `gate ${g.result}`,
     eol.flagged.length && `${eol.flagged.length} line-ending flip(s)`,
     comments.errors && `${comments.errors} comment error(s)`,
     ev.missing.length && `${ev.missing.length} missing evidence file(s)`,
     visual,
+    devtools,
   ].filter(Boolean);
   return { ready: !problems.length, problems, gate: g, eol, comments, evidence: ev };
+}
+
+/**
+ * A browser-visible change needs the DevTools console and network read, recorded in evidence/devtools.md, or a
+ * stated reason it could not run. A measured browser pass loaded only the Playwright tools, never read DevTools,
+ * and the answer still called the web "fully verified".
+ */
+export function devtoolsCheck(root, task, g, ev) {
+  if (!(g.next?.browser ?? []).length) return null;
+  if (/^\s*[-*]?\s*(Visual evidence|DevTools( MCP)?) unavailable:\s*\S/im.test(ev.index)) return null;
+  if (fs.existsSync(path.join(evidenceDir(root, task), 'devtools.md'))) return null;
+  return 'no DevTools console/network record: read them with the Chrome DevTools MCP into evidence/devtools.md, or write "DevTools unavailable: <reason>" in evidence/index.md (then the web is not browser-verified)';
 }
 
 /**
@@ -789,7 +842,7 @@ async function main() {
   const o = parseArgs(process.argv.slice(2));
   const cmd = o._[0]; const root = path.resolve(o.root ?? '.');
   const list = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : null);
-  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] (see the header for options)';
+  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] (--help lists every option)';
   if (!['plan', 'run', 'mark', 'gate', 'evidence', 'final'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
   if (cmd !== 'evidence' && !isGitRepo(root) && !o.units) {
     console.error(`UNAVAILABLE: ${root} is not a git repository, so changed files and staleness cannot be tracked (pass --units to validate named units)`);
@@ -808,6 +861,7 @@ async function main() {
       L.push(`Evidence (${f.evidence.files.length} file(s)):`, ...f.evidence.links.map((l) => `- ${l}`));
       if (f.evidence.missing.length) L.push(`✗ index.md cites missing file(s): ${f.evidence.missing.join(', ')}`);
       if (f.evidence.unindexed.length) L.push(`- not described in index.md: ${f.evidence.unindexed.join(', ')}`);
+      for (const b of f.evidence.budget) L.push(`- over the screenshot budget: ${b}. The answer's table shows the most useful ${MAX_VISUAL_ROWS}.`);
     } else L.push('Evidence: none (no browser or device run recorded).');
     if (f.evidence.visual) L.push('', 'Paste this into the answer as is (every link points to a file that exists):', f.evidence.visual, '');
     L.push(f.ready ? 'FINAL: READY to report.' : `FINAL: NOT READY: ${f.problems.join('; ')}.`);
@@ -822,6 +876,7 @@ async function main() {
     if (ev.visual) text.push('', ev.visual);
     if (ev.missing.length) text.push(`MISSING: index.md cites files that do not exist: ${ev.missing.join(', ')}`);
     if (ev.unindexed.length) text.push(`Not described in index.md yet: ${ev.unindexed.join(', ')}`);
+    for (const b of ev.budget) text.push(`Over the screenshot budget: ${b}. Capture no more.`);
     out(ev, text.join('\n'));
     process.exit(ev.missing.length ? 1 : 0);
   } else {
@@ -856,5 +911,15 @@ async function main() {
   }
 }
 
+// --help prints the usage block at the top of this file, so nobody has to read the source to learn the options.
+const usageBlock = () => {
+  const out = [];
+  for (const l of fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split(String.fromCharCode(10)).slice(1)) {
+    if (!l.startsWith('//')) break;
+    out.push(l.slice(l.startsWith('// ') ? 3 : 2).trimEnd());
+  }
+  return out.join(String.fromCharCode(10));
+};
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain && (process.argv.includes('--help') || process.argv.includes('-h'))) { console.log(usageBlock()); process.exit(0); }
 if (isMain) main().catch((e) => { console.error(`validation-gate: ${e.message}`); process.exit(2); });

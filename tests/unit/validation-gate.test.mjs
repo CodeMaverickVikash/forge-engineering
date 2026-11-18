@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, visualResults, visualCheck, affectedCommand, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, visualResults, visualCheck, devtoolsCheck, shotBudget, affectedCommand, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -340,6 +340,9 @@ test('one run call validates and answers the gate; final checks everything phase
     assert.equal(noShot.status, 1);
     assert.match(noShot.stdout, /FINAL: NOT READY: no screenshot of the final state \(apps\/web\)/, 'a browser-visible change needs visual evidence');
     w(dir, '.playwright-mcp/t/screenshots/after/board.png', 'png');
+    const noDevtools = cli(dir, 'final', '--task', 't');
+    assert.match(noDevtools.stdout, /FINAL: NOT READY: no DevTools console\/network record/, 'screenshots alone are not browser verification');
+    w(dir, '.forge/tasks/t/evidence/devtools.md', '- /: no console errors; 0 failed requests\n');
     const ok = cli(dir, 'final', '--task', 't');
     assert.equal(ok.status, 0);
     assert.match(ok.stdout, /### Visual Results[\s\S]*\| board \| \[View board\]\(\.playwright-mcp\/t\/screenshots\/after\/board\.png\) \|/);
@@ -479,10 +482,99 @@ test('fix cycles run only the related tests; the full suite runs once with --bui
     assert.deepEqual(full.results.map((x) => `${x.check}:${x.status}`), ['test:PASSED']);
     assert.deepEqual(calls().slice(1), ['run'], '--build runs the full suite once');
     assert.equal((await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'PASSED');
-
-    w(dir, 'packages/ui/src/index.js', 'export const a = 3;\n');
-    w(dir, 'apps/web/package.json', JSON.stringify({ name: 'web', dependencies: { '@acme/ui': '*', next: '15.1.0' }, scripts: { test: 'vitest run' } }));
-    const p = await plan(dir);
-    assert.equal(check(p, 'apps/web', 'test').affected, undefined, "a consumer of a changed package runs its full suite: its tests can't see the package's sources");
   } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+});
+
+test('with a changed upstream package, related tests run only after a full pass has seen that upstream state', async () => {
+  // packages/lib consumes packages/ui (prebuilt), the shape of an app consuming a changed shared contract.
+  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', dependencies: { '@acme/ui': '*' }, scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
+  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
+  process.env.FAKE_VITEST_LOG = log;
+  const last = () => fs.readFileSync(log, 'utf8').trim().split('\n').at(-1);
+  try {
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    assert.equal(check(await plan(dir), 'packages/lib', 'test').affectedNeedsProof, true);
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
+    assert.equal(last(), 'run', "first the full suite: the lib's tests can't trace the package's changed sources");
+    w(dir, 'packages/lib/src/a.js', 'export const a = 3;\n');
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
+    assert.equal(last(), 'run --changed --passWithNoTests', 'then, with the package unchanged since that full pass, only the related tests');
+    w(dir, 'packages/ui/src/index.js', 'export const a = 4;\n');
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
+    assert.equal(last(), 'run', 'a new package change needs the full suite again');
+  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+});
+
+test('--help prints every option, so nobody reads the script source to learn them', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vg-help-'));
+  try {
+    for (const s of ['validation-gate.mjs', 'verify-delta.mjs', 'comment-check.mjs', 'review-target.mjs']) {
+      const r = spawnSync(process.execPath, [path.join(path.dirname(SCRIPT), s), '--help'], { cwd: dir, encoding: 'utf8' });
+      assert.equal(r.status, 0, s);
+      assert.match(r.stdout, /node \S+\.mjs/, `${s} prints its usage`);
+      assert.doesNotMatch(r.stdout, /^(import|const|function) /m, `${s} prints only the documented header`);
+    }
+    assert.match(cli(dir, '--help').stdout, /run --task <slug>[\s\S]*final --task <slug>/);
+    assert.match(cli(dir, 'bogus').stderr, /--help lists every option/);
+  } finally { clean(dir); }
+});
+
+test('at most half the slots run test suites, and a suite that timed out under load is re-run alone once', async () => {
+  // FLAKY_MARK lives outside the repo: the first call "times out" like an overloaded vitest run, the second passes.
+  const flaky = "const fs=require('fs');const m=process.env.FLAKY_MARK;if(!fs.existsSync(m)){fs.writeFileSync(m,'1');console.log('Error: Test timed out in 5000ms.');process.exit(1)}\n";
+  const dir = monorepo({
+    'packages/a/package.json': JSON.stringify({ name: 'a', scripts: { test: 'node sleep.js 1500' } }), 'packages/a/sleep.js': SLEEP_JS, 'packages/a/src/x.js': '1;\n',
+    'packages/b/package.json': JSON.stringify({ name: 'b', scripts: { test: 'node sleep.js 1500' } }), 'packages/b/sleep.js': SLEEP_JS, 'packages/b/src/x.js': '1;\n',
+    'packages/c/package.json': JSON.stringify({ name: 'c', scripts: { test: 'node sleep.js 1500' } }), 'packages/c/sleep.js': SLEEP_JS, 'packages/c/src/x.js': '1;\n',
+    'packages/f/package.json': JSON.stringify({ name: 'f', scripts: { test: 'node flaky.js' } }), 'packages/f/flaky.js': flaky, 'packages/f/src/x.js': '1;\n',
+    'packages/g/package.json': JSON.stringify({ name: 'g', scripts: { test: 'node fail.js' } }), 'packages/g/fail.js': "console.log('expected 2, got 3');process.exit(1)\n", 'packages/g/src/x.js': '1;\n',
+  });
+  const mark = path.join(dir, '..', path.basename(dir) + '-flaky');
+  process.env.FLAKY_MARK = mark;
+  try {
+    for (const u of ['a', 'b', 'c', 'f', 'g']) w(dir, `packages/${u}/src/x.js`, '2;\n');
+    const r = await run(dir, 't', { jobs: 4, units: ['packages/a', 'packages/b', 'packages/c', 'packages/f', 'packages/g'] });
+    const rows = fs.readFileSync(path.join(dir, '.forge/tasks/t/validation/ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    const spans = rows.filter((x) => ['packages/a', 'packages/b', 'packages/c'].includes(x.unit)).map(interval);
+    const overlap = Math.max(...spans.map((s) => spans.filter((o) => o.start <= s.start && s.start < o.end).length)); // suites running at each start
+    assert.equal(overlap, 2, 'with 4 slots, at most 2 suites run at once');
+    const f = rows.filter((x) => x.unit === 'packages/f');
+    assert.deepEqual(f.map((x) => x.status), ['PASSED'], 'the timed-out attempt is not recorded as a verdict');
+    assert.match(f[0].reason, /re-run alone after timing out under load/);
+    const g = r.results.filter((x) => x.unit === 'packages/g');
+    assert.deepEqual(g.map((x) => x.status), ['FAILED'], 'a real failure is reported once, never retried');
+  } finally { delete process.env.FLAKY_MARK; fs.rmSync(mark, { force: true }); clean(dir); }
+});
+
+test('the Visual Results table shows at most 8 rows, pairs first, and evidence flags shots over budget', () => {
+  // The shape of a measured run: 17 before shots and 16 after shots, only some of them pairs.
+  const before = Array.from({ length: 17 }, (_, i) => `.playwright-mcp/t/screenshots/before/${String(i + 1).padStart(2, '0')}-screen.png`);
+  const after = [1, 3, 6, 7, 8, 10, 11, 14, 15].map((i) => `.playwright-mcp/t/screenshots/after/${String(i).padStart(2, '0')}-screen.png`)
+    .concat(['15b', '15c', '15d', '15e', '16x', '18', '19'].map((n) => `.playwright-mcp/t/screenshots/after/${n}-extra.png`));
+  const table = visualResults('.', [...before, ...after]);
+  const rows = table.split('\n').filter((l) => l.startsWith('| ') && !l.startsWith('| What'));
+  assert.equal(rows.length, 9, '8 rows plus the folder link');
+  assert.ok(rows.slice(0, 8).every((r) => r.includes('[View before]') && r.includes('[View after]')), 'before/after pairs come first');
+  assert.match(rows[8], /^\| 17 more screenshot\(s\) \| \[Open the folder\]\(\.playwright-mcp\/t\/screenshots\/\) \|$/);
+  assert.deepEqual(shotBudget([...before, ...after]), ['17 before screenshots (budget 3: only the screens the change touches)', '16 final-state screenshots (budget about 8: one per changed screen and state)']);
+  assert.deepEqual(shotBudget(before.slice(0, 3).concat(after.slice(0, 5))), []);
+});
+
+test('devtoolsCheck: a browser-visible change needs a DevTools record or a stated reason', async () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'apps/web/page.js', 'export default 2;\n');
+    const g = await gate(dir, 't');
+    const ev = () => evidence(dir, 't');
+    assert.match(devtoolsCheck(dir, 't', g, ev()), /no DevTools console\/network record/);
+    w(dir, '.forge/tasks/t/evidence/index.md', '- DevTools unavailable: the Chrome DevTools MCP is not connected\n');
+    assert.equal(devtoolsCheck(dir, 't', g, ev()), null, 'a stated reason is accepted (and the answer may not say browser-verified)');
+    w(dir, '.forge/tasks/t/evidence/index.md', '');
+    w(dir, '.forge/tasks/t/evidence/devtools.md', '- /studio: no new console errors\n');
+    assert.equal(devtoolsCheck(dir, 't', g, ev()), null);
+    w(dir, 'apps/web/page.js', 'export default 1;\n');
+    w(dir, 'services/api/server.js', 'module.exports = 2;\n');
+    assert.equal(devtoolsCheck(dir, 't', await gate(dir, 't'), ev()), null, 'a backend-only change needs no browser record');
+  } finally { clean(dir); }
 });

@@ -27,6 +27,27 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
   - Reviews keep their 13-section report, since that report is what was asked for.
   - The e2e runner now fails an answer that prints the execution report or names internal agents, that lacks the status line, or whose status differs from the saved report's.
 
+### Fixed (measured live run, TruArt, 2026-11-18)
+These fixes come from a headless `/forge improve the UX of the feature implemented in the current branch` run: Opus orchestrator, 44.5 min, $9.11, 24.9M cache-read tokens. Its answer fit the request, and all 18 screenshot links in it opened. These were the problems:
+- **"Verified in the browser" without DevTools.** The browser QA agent loaded only the Playwright tools through `ToolSearch` (MCP tools were deferred), so it never read DevTools in either pass. The answer still said the web was "fully verified".
+  - The skill now loads both tool sets in the first call and writes `evidence/devtools.md`.
+  - `V final` is NOT READY for a browser-visible change without that record, or without a `DevTools unavailable: <reason>` line.
+- **False test failures under load.** Cycle 1 reported the admin tests FAILED ("Test timed out in 5000ms") while up to 4 suites ran at once on 8 cores. The tests were untouched, and they passed alone. This cost an extra 158 s gate cycle.
+  - At most half the slots now run test suites.
+  - A suite that fails with a runner timeout message is re-run alone after the batch. The timed-out attempt is not recorded as a verdict; the re-run's result is, with the reason. A real failure is never retried.
+- **Related tests never used.** The shared contract lived in `packages/types`, so web counted as a consumer of a changed package and ran its full 155–157 s suite in every cycle.
+  - Each full test pass now records an upstream fingerprint.
+  - When a unit's last full pass already saw the upstream exactly as it is now, its own changes run only the related tests. A new upstream change brings back the full suite.
+- **One overloaded engineer.** The web engineer got 7 MUST items plus every SHOULD in one large page: 16 min, 145 calls, 10.4M cache-read tokens (42% of the run), and it still hit its turn cap. Mobile took 4 min. Plans now give each engineer at most about 6 items and split the rest across disjoint files.
+- **Screenshot overload.** "At most 3 journeys" produced 17 before shots, plus 16 after shots.
+  - Work orders now say "at most 3 screenshots" for the before pass, and passes aim for at most about 8.
+  - `evidence` and `final` flag shots over budget.
+  - The Visual Results table shows at most 8 rows (pairs first) and links the folder for the rest.
+- **Dev servers left running.** FORGE's `pnpm dev` (web, admin, API, Expo) kept 4 ports busy, and the headless session could not exit. Step 10 now stops the servers FORGE started, never the user's own, and says how to restart them.
+- **Learning the gate from its source.** `validation-gate.mjs --help` printed one line saying "see the header", so the orchestrator read the source. `--help` now prints the documented usage in all four scripts. `comment-check` and `review-target` used to run a full check on `--help`.
+- **A targeted test that ran everything.** `pnpm --filter @truart/web test -- <file>` passes `--` through to vitest, so it ran the whole 133 s suite. The agent rules now name the runner command for one file.
+- The orchestrator may write a small frozen contract (shared types or copy, with tests) for parallel engineers; it did so in about 40 s. Everything else stays with specialists.
+
 ### Changed (performance)
 - **Fix cycles run only the related tests; the full suite runs once, before final.** In the measured TruArt runs, web's 263 s suite ran in 3–4 gate cycles per task.
   - A unit with its own changed files whose test script is a plain `vitest` or `jest` call now runs `vitest --changed [<base>]` or `jest --changedSince=<base>` / `--onlyChanged` (with `--passWithNoTests`) in fix cycles. The ledger marks it `scope: affected`, and it opens the pre-browser gate.

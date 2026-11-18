@@ -242,7 +242,17 @@ function main() {
   }
 }
 
+// --help prints the usage block at the top of this file, so nobody has to read the source to learn the options.
+const usageBlock = () => {
+  const out = [];
+  for (const l of fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split(String.fromCharCode(10)).slice(1)) {
+    if (!l.startsWith('//')) break;
+    out.push(l.slice(l.startsWith('// ') ? 3 : 2).trimEnd());
+  }
+  return out.join(String.fromCharCode(10));
+};
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain && (process.argv.includes('--help') || process.argv.includes('-h'))) { console.log(usageBlock()); process.exit(0); }
 if (isMain) {
   try { main(); } catch (e) { console.error(`verify-delta: ${e.message}`); process.exit(2); }
 }

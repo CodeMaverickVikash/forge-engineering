@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './lib/frontmatter.mjs';
 import { build, catalogs, ROOT } from './build.mjs';
+import { checkReviewDates, knowledgeFiles } from './check-freshness.mjs';
 
 const errors = []; const warnings = []; const stats = {};
 const err = (where, msg) => errors.push(`${where}: ${msg}`);
@@ -191,6 +192,19 @@ try {
     const stale = [...keys].filter((k) => a[k] !== b[k]);
     if (stale.length) err('dist', `out of date (${stale.length} file(s), e.g. ${stale.slice(0, 3).join(', ')}); run node scripts/build.mjs`);
   }
+  // Enforced git guard (Claude Code): every agent, the orchestrator skill and the plugin hooks must carry it.
+  const cc = path.join(tmp, 'claude-code');
+  const guardRe = /git-guard\.mjs" --scope (agent|skill|plugin)/;
+  if (!fs.existsSync(path.join(ROOT, 'skills', 'forge', 'scripts', 'git-guard.mjs'))) err('skills/forge/scripts/git-guard.mjs', 'missing');
+  for (const f of fs.readdirSync(path.join(cc, 'agents'))) {
+    const t = read(path.join(cc, 'agents', f));
+    if (!/--scope agent/.test(t.match(guardRe)?.[0] || '') || !/matcher: "Bash\|PowerShell"/.test(t)) err(`dist/claude-code/agents/${f}`, 'missing the git-guard PreToolUse hook (--scope agent)');
+  }
+  if (!/--scope skill/.test(read(path.join(cc, 'skills', 'forge', 'SKILL.md')).match(guardRe)?.[0] || '')) err('dist/claude-code/skills/forge/SKILL.md', 'missing the git-guard hook (--scope skill)');
+  try {
+    const hj = JSON.parse(read(path.join(cc, 'hooks', 'hooks.json')));
+    if (!hj.hooks?.PreToolUse?.some((h) => h.hooks?.some((x) => /--scope plugin/.test(x.command)))) err('dist/claude-code/hooks/hooks.json', 'missing the git-guard hook (--scope plugin)');
+  } catch { err('dist/claude-code/hooks/hooks.json', 'missing or invalid JSON'); }
   // Antigravity constraints
   const ag = path.join(tmp, 'antigravity');
   for (const f of fs.readdirSync(path.join(ag, 'agents'))) {
@@ -205,6 +219,15 @@ try {
     if (roles.length !== agents.length) err(`dist/${p}`, 'roles/ count does not match agents');
   }
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+
+// Knowledge freshness (offline): every reference and the registry need a review date. A missing date is an
+// error; an old one is a warning here (time alone should not break builds) and an error in check-freshness.mjs.
+{
+  const config = JSON.parse(read(path.join(ROOT, 'scripts', 'freshness.json')));
+  for (const i of checkReviewDates(config, knowledgeFiles(ROOT))) {
+    if (i.kind === 'STALE' || i.kind === 'ORPHAN') warn(i.file, i.detail); else err(i.file, i.detail);
+  }
+}
 
 for (const [f, content] of Object.entries(catalogs())) {
   const p = path.join(ROOT, f);

@@ -81,6 +81,18 @@ function Install-ForgePlatform([string]$Label, [string]$Root, [string]$SrcName, 
     }
   }
   if (-not $DryRun) {
+    # Point the git-guard hooks at this install (plugin installs resolve the token natively).
+    $guardHome = ((Resolve-Path (Join-Path $Root 'skills/forge')).Path) -replace '\\', '/'
+    $token = [regex]::Escape('${CLAUDE_PLUGIN_ROOT}/skills/forge')
+    $utf8 = New-Object System.Text.UTF8Encoding $false   # no BOM: frontmatter must start at byte 0
+    foreach ($p in $items) {
+      $f = $null
+      if ($p -like 'agents/*.md') { $f = Join-Path $Root $p } elseif ($p -eq 'skills/forge') { $f = Join-Path $Root 'skills/forge/SKILL.md' }
+      if ($f -and (Test-Path $f)) {
+        $text = [IO.File]::ReadAllText($f)
+        if ($text -match $token) { [IO.File]::WriteAllText($f, ($text -replace $token, $guardHome.Replace('$', '$$')), $utf8) }
+      }
+    }
     $lines = @("# FORGE install manifest $Version - paths relative to $Root") + $items
     [IO.File]::WriteAllLines($manifest, [string[]]$lines)
   }

@@ -1,0 +1,39 @@
+# Weekly knowledge freshness check for FORGE.
+# Flags stale or unregistered reference files, detector signals whose packages were removed, deprecated or
+# abandoned, and references that do not cover a technology's latest major version.
+# Read-only: it changes nothing in the repository and needs no secrets.
+name: Knowledge freshness
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'   # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check review dates and package registries
+        run: |
+          set -o pipefail
+          node scripts/check-freshness.mjs --online | tee freshness.txt
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '## FORGE knowledge freshness'
+            echo
+            echo '```'
+            cat freshness.txt 2>/dev/null || echo 'check did not run'
+            echo '```'
+            echo
+            echo 'Fix: update the reference or registry entry, then run `node scripts/check-freshness.mjs --mark <path>`.'
+          } >> "$GITHUB_STEP_SUMMARY"

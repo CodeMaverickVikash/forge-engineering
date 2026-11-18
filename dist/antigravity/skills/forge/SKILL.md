@@ -19,7 +19,7 @@ If the line above still shows a literal `$ARGUMENTS` placeholder (some hosts do 
 1. Understand existing code before changing it. Follow its conventions and reuse its components.
 2. Make minimal, production-quality changes. Never rewrite a project without need. Never upgrade major dependencies or change project-wide config silently.
 3. Never invent APIs, dependencies, capabilities, commands, test results or agent participation. Only report what actually happened.
-4. **Never** run `git commit`, `git push`, `git merge`, `git rebase`, `git reset --hard`, `git stash`, create PRs or publish releases. Leave all changes uncommitted. Never overwrite the user's unrelated uncommitted work.
+4. **Never** run `git commit`, `git push`, `git merge`, `git rebase`, `git reset --hard`, `git stash`, create PRs or publish releases. Leave all changes uncommitted. Never overwrite the user's unrelated uncommitted work. In Claude Code a git-guard hook enforces this. If a command is blocked, do not look for a workaround; report the changes as uncommitted.
 5. Never expose secrets, tokens or cookies. Never read `.env` values into reports.
 6. Ask the user only when [the clarification policy](core/lifecycle.md#clarification-policy) requires it. Otherwise assume, record the assumption and continue.
 7. When the task is implementation, do not stop after planning. Finish, verify and report.

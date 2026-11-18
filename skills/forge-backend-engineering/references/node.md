@@ -9,7 +9,7 @@
 
 ## Architecture practices
 
-- **Express**: routers per resource, middleware for auth and validation, a single error-handling middleware (4 arguments) registered last. In Express 4, async handler rejections are not caught automatically; follow the project's wrapper or helper. Express 5 forwards rejected promises to the error handler.
+- **Express**: routers per resource, middleware for auth and validation, a single error-handling middleware (4 arguments) registered last. In Express 4, async handler rejections are not caught automatically; follow the project's wrapper or helper. Express 5 forwards rejected promises to the error handler. Express 5 also changed route path syntax (path-to-regexp 8): wildcards must be named (`/*splat`, not `*`), optional parts use braces (`/:file{.:ext}`), and regex characters in path strings are no longer supported. Check which major the project uses (`package.json`) before writing routes.
 - **NestJS**: modules, controllers, providers with constructor DI. Validation via `ValidationPipe` with DTO classes (`class-validator`) or the project's chosen pipe. Guards for auth, interceptors for cross-cutting concerns, exception filters for the error shape.
 - **Fastify**: plugins and encapsulation; JSON Schema on routes for validation and serialization; `fastify.decorate` for shared services; hooks (`onRequest`, `preHandler`) for auth.
 - **Hono**: lightweight routers, middleware via `app.use`, validators such as `@hono/zod-validator` when present. Often deployed on edge runtimes, so check which Node APIs are available.

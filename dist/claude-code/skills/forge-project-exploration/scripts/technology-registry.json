@@ -70,7 +70,7 @@
     { "id": "websocket", "name": "WebSockets", "category": "api", "detect": { "npm": ["ws", "socket.io", "socket.io-client"], "py": ["websockets", "channels"], "maven": ["spring-boot-starter-websocket"], "go": ["github.com/gorilla/websocket"] }, "skills": ["forge-api-integration"] },
 
     { "id": "nextauth", "name": "Auth.js / NextAuth", "category": "auth", "detect": { "npm": ["next-auth", "@auth/core"] }, "skills": ["forge-security-engineering"] },
-    { "id": "clerk", "name": "Clerk", "category": "auth", "detect": { "npm": ["@clerk/nextjs", "@clerk/clerk-react", "@clerk/clerk-expo"] }, "skills": ["forge-security-engineering"] },
+    { "id": "clerk", "name": "Clerk", "category": "auth", "detect": { "npm": ["@clerk/nextjs", "@clerk/react", "@clerk/expo", "@clerk/clerk-react", "@clerk/clerk-expo"] }, "skills": ["forge-security-engineering"] },
     { "id": "passport", "name": "Passport.js", "category": "auth", "detect": { "npm": ["passport"] }, "skills": ["forge-security-engineering"] },
     { "id": "jwt", "name": "JWT", "category": "auth", "detect": { "npm": ["jsonwebtoken", "jose"], "py": ["pyjwt", "python-jose"], "maven": ["jjwt"], "go": ["github.com/golang-jwt/jwt"], "composer": ["firebase/php-jwt", "tymon/jwt-auth"] }, "skills": ["forge-security-engineering"] },
     { "id": "spring-security", "name": "Spring Security", "category": "auth", "detect": { "maven": ["spring-boot-starter-security"] }, "skills": ["forge-security-engineering"] },
@@ -80,7 +80,7 @@
 
     { "id": "stripe", "name": "Stripe", "category": "payments", "detect": { "npm": ["stripe", "@stripe/stripe-js"], "py": ["stripe"], "composer": ["stripe/stripe-php"], "maven": ["stripe-java"], "go": ["github.com/stripe/stripe-go"], "gem": ["stripe"] }, "skills": ["forge-api-integration", "forge-security-engineering"] },
     { "id": "razorpay", "name": "Razorpay", "category": "payments", "detect": { "npm": ["razorpay"], "py": ["razorpay"], "composer": ["razorpay/razorpay"] }, "skills": ["forge-api-integration", "forge-security-engineering"] },
-    { "id": "paypal", "name": "PayPal", "category": "payments", "detect": { "npm": ["@paypal/checkout-server-sdk", "@paypal/react-paypal-js"] }, "skills": ["forge-api-integration", "forge-security-engineering"] },
+    { "id": "paypal", "name": "PayPal", "category": "payments", "detect": { "npm": ["@paypal/paypal-server-sdk", "@paypal/react-paypal-js", "@paypal/checkout-server-sdk"] }, "skills": ["forge-api-integration", "forge-security-engineering"] },
 
     { "id": "openai-sdk", "name": "OpenAI SDK", "category": "ai", "detect": { "npm": ["openai"], "py": ["openai"] }, "skills": ["forge-ai-ml-engineering"] },
     { "id": "anthropic-sdk", "name": "Anthropic SDK", "category": "ai", "detect": { "npm": ["@anthropic-ai/sdk"], "py": ["anthropic"] }, "skills": ["forge-ai-ml-engineering"] },

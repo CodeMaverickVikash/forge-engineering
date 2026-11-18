@@ -81,6 +81,17 @@ install_platform() {
       *) run mkdir -p "$(dirname "$root/$p")"; run cp "$src/workflows/forge.md" "$root/$p" ;;
     esac
   done
+  # Point the git-guard hooks at this install (plugin installs resolve the token natively).
+  local home="$root/skills/forge"
+  command -v cygpath >/dev/null 2>&1 && home="$(cygpath -m "$home")"  # Windows: node needs C:/... paths
+  for p in "${items[@]}"; do
+    case "$p" in agents/*.md|skills/forge) ;; *) continue ;; esac
+    local f="$root/$p"; [ "$p" = "skills/forge" ] && f="$root/skills/forge/SKILL.md"
+    if [ "$DRY" = 1 ]; then continue; fi
+    if grep -q 'CLAUDE_PLUGIN_ROOT}/skills/forge' "$f" 2>/dev/null; then
+      sed "s|\${CLAUDE_PLUGIN_ROOT}/skills/forge|$home|g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    fi
+  done
   if [ "$DRY" = 1 ]; then echo "  [dry-run] write manifest $manifest"; else
     { echo "# FORGE install manifest $(cat "$REPO_DIR/VERSION") — paths relative to $root"; printf '%s\n' "${items[@]}"; } > "$manifest"
   fi

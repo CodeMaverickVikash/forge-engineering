@@ -8,11 +8,17 @@ export function parseFrontmatter(text) {
   if (end < 0) return { data: null, body: src, error: 'unterminated frontmatter' };
   const raw = src.slice(4, end);
   const body = src.slice(end + 4).replace(/^\n/, '');
-  const data = {}; const order = []; let listKey = null;
+  const data = {}; const order = []; let listKey = null; let nested = null;
   for (const [i, line] of raw.split('\n').entries()) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
-    const item = line.match(/^\s+-\s+(.*)$/);
-    if (item && listKey) { data[listKey].push(unquote(item[1].trim())); continue; }
+    if (/^\s/.test(line) && listKey) {
+      const item = line.match(/^\s+-\s+(.*)$/);
+      // A simple list item ("- value"); anything deeper (e.g. hooks:) is kept as raw nested text.
+      if (item && nested !== listKey && !/^[\w-]+:(\s|$)/.test(item[1].trim()) && Array.isArray(data[listKey])) { data[listKey].push(unquote(item[1].trim())); continue; }
+      if (nested !== listKey) { nested = listKey; data[listKey] = Array.isArray(data[listKey]) && data[listKey].length ? data[listKey].map((x) => `  - ${x}`).join('\n') + '\n' : ''; }
+      data[listKey] += (data[listKey] ? '\n' : '') + line;
+      continue;
+    }
     const kv = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
     if (!kv) return { data: null, body, error: `cannot parse frontmatter line ${i + 2}: ${line}` };
     const [, k, v] = kv;

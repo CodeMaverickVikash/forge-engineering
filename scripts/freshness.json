@@ -1,0 +1,34 @@
+{
+  "$comment": "Review dates for FORGE knowledge files. After reviewing a file against current upstream docs, run: node scripts/check-freshness.mjs --mark <path> (or --mark all). Checked by scripts/validate.mjs and the weekly freshness workflow.",
+  "maxAgeDays": 180,
+  "inactiveAfterDays": 730,
+  "legacySignals": [
+    "npm:@clerk/clerk-react",
+    "npm:@clerk/clerk-expo",
+    "npm:@paypal/checkout-server-sdk",
+    "composer:nunomaduro/larastan"
+  ],
+  "reviewed": {
+    "skills/forge-backend-engineering/references/dotnet.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/go.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/java-spring.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/node.md": "2026-11-18",
+    "skills/forge-backend-engineering/references/php-laravel.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/python.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/ruby-rails.md": "2026-11-17",
+    "skills/forge-backend-engineering/references/rust.md": "2026-11-17",
+    "skills/forge-browser-qa/references/setup.md": "2026-11-17",
+    "skills/forge-frontend-engineering/references/angular.md": "2026-11-17",
+    "skills/forge-frontend-engineering/references/react-nextjs.md": "2026-11-17",
+    "skills/forge-frontend-engineering/references/svelte.md": "2026-11-17",
+    "skills/forge-frontend-engineering/references/vue-nuxt.md": "2026-11-17",
+    "skills/forge-mobile-engineering/references/android-kotlin.md": "2026-11-17",
+    "skills/forge-mobile-engineering/references/flutter.md": "2026-11-17",
+    "skills/forge-mobile-engineering/references/ios-swift.md": "2026-11-17",
+    "skills/forge-mobile-engineering/references/react-native-expo.md": "2026-11-17",
+    "skills/forge-project-exploration/scripts/technology-registry.json": "2026-11-18",
+    "skills/forge-skill-discovery/references/license-policy.md": "2026-11-17",
+    "skills/forge-skill-discovery/references/proposal-template.md": "2026-11-17",
+    "skills/forge-skill-discovery/references/sources.md": "2026-11-17"
+  }
+}

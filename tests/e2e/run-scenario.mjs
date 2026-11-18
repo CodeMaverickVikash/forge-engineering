@@ -101,7 +101,11 @@ function run(name) {
   } }));
   const cliArgs = ['-p', sc.prompt, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
     '--allowedTools', ...ALLOW, '--disallowedTools', ...GIT_DENY, '--strict-mcp-config', '--mcp-config', mcpCfg,
-    '--model', opt('--model', 'sonnet'), '--max-budget-usd', opt('--budget', '10'), '--no-session-persistence'];
+    '--model', opt('--model', 'sonnet'), '--max-budget-usd', opt('--budget', '10'),
+    // Sessions are not saved by default, which keeps test runs out of your history. That also stops
+    // subagents from being resumed, so FORGE falls back to fresh delta retests. Pass --persist-sessions
+    // to exercise the SendMessage continuation path.
+    ...(args.includes('--persist-sessions') ? [] : ['--no-session-persistence'])];
   console.log(`▶ ${name}: sandbox ${dir}`);
   const t0 = Date.now();
   const r = spawnSync(CLAUDE, cliArgs, { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 });
@@ -136,7 +140,7 @@ function run(name) {
 }
 
 const which = args[0];
-if (!which) { console.log(`Usage: node tests/e2e/run-scenario.mjs <${Object.keys(SCENARIOS).join('|')}|all> [--model sonnet] [--budget 10] [--keep]`); process.exit(0); }
+if (!which) { console.log(`Usage: node tests/e2e/run-scenario.mjs <${Object.keys(SCENARIOS).join('|')}|all> [--model sonnet] [--budget 10] [--keep] [--persist-sessions]`); process.exit(0); }
 process.on('uncaughtException', (e) => { console.error(`run-scenario crashed: ${e.stack}`); process.exit(2); });
 const names = which === 'all' ? Object.keys(SCENARIOS) : which.split(',');
 const ok = names.map(run).every(Boolean);

@@ -7,6 +7,13 @@ maxTurns: 60
 color: purple
 skills:
   - forge-ai-ml-engineering
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        - type: command
+          command: 'node "${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/git-guard.mjs" --scope agent'
+          timeout: 10
 ---
 
 

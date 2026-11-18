@@ -86,17 +86,23 @@ The recorded results of the runs made during development are in [`tests/e2e/resu
 
 ## Performance
 
-The optimizations are listed in CHANGELOG `[Unreleased]`: parallel waves, `effort: medium` on 13 lighter roles, a browser-QA call budget, a scout search budget, and efficient batching.
+All runs used `sonnet` against the user-scope install (`--use-installed`). The optimizations are listed in CHANGELOG `[Unreleased]`.
 
-| Scenario | Before | After | Change |
+| Scenario | Baseline | Round 1 (waves, effort tiers, budgets) | Round 2 (delta retests, model tiers, turn caps, Q size, lean descriptions) |
 |---|---|---|---|
-| `architecture-analysis` | 4 agents, 2.3 min, $1.00 | 3 agents in one parallel wave, 1.8 min, $0.68 | −32% cost, −22% time, still PASS |
-| `new-feature` | 6.5 min, $1.41, FAIL (1 verification round) | 11.5 min, $2.34, PASS (3 rounds, 4 real defects fixed) | more assurance, higher cost |
+| `code-question` | n/a (new) | n/a | **PASS**, 0 agents, 0.2 min, **$0.12** |
+| `bug-fix` | PASS, 1.7 min, $0.56 | n/a | **PASS**, browser QA + reviewer, 1.5 min, **$0.50** |
+| `architecture-analysis` | PASS, 4 agents, 2.3 min, $1.00 | PASS, 3 agents in one wave, 1.8 min, $0.68 | **PASS**, 2 agents in one wave, 1.3 min, **$0.47** (−53% vs baseline) |
+| `new-feature` | FAIL, 6.5 min, $1.41 | PASS, 3 verification rounds, 11.5 min, $2.34 | **PASS**, 2 rounds with a delta retest, 7.5 min, **$1.83** (−22% cost, −35% time vs round 1) |
+
+FORGE's always-loaded context (skill and agent descriptions present in every session) went from ~2,133 to ~1,251 tokens (−41%).
 
 How to read these numbers:
-- Each figure is a single run on `sonnet`, and model nondeterminism changes the team and the number of fix rounds, so treat them as indicative.
-- The `architecture-analysis` gain comes from a leaner team plus the efficiency rules. It is not from parallelism alone.
+- Each figure is a single run, and model nondeterminism changes the team and the number of fix rounds, so treat them as indicative.
 - Agents launch asynchronously, so measure concurrency by grouping `Agent` launches on the same assistant `message.id`, not by counting stream events.
+- `new-feature` round 2 used `verify-delta` snapshot → delta → eol, and the retest work orders were marked RETEST.
+- Continuing the same verifier through `SendMessage` was **not** exercised. The runner passes `--no-session-persistence`, so subagents cannot be resumed, and FORGE correctly fell back to fresh delta retests. Pass `--persist-sessions` to test the continuation path.
+- One intermediate `architecture-analysis` run failed because the orchestrator analyzed a ~40-line scaffold alone. SKILL.md now requires specialists for analysis too, scaled to codebase size. The re-run above passed.
 
 ## Antigravity manual verification
 

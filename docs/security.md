@@ -6,13 +6,41 @@ FORGE is instructions plus a small amount of local tooling. It gains no privileg
 
 | Boundary | Mechanism |
 |---|---|
-| No commits, pushes, merges, rebases, stashes, resets, PRs or releases | Orchestrator rules (`skills/forge/core/safety.md`) plus shared operating rules appended to every agent. For hard enforcement, add host deny rules (below) |
+| No commits, pushes, merges, rebases, stashes, resets, PRs or releases | **Claude Code: enforced by the FORGE git guard hook** (below), plus the orchestrator rules (`skills/forge/core/safety.md`) and the operating rules appended to every agent. Antigravity: rules only; add host deny rules (below) |
 | Least-privilege specialists | Claude Code `tools` allow-lists: 14 agents are read-only, and no specialist can spawn agents |
 | No secret exposure | The detector never opens `.env*` values (names only, from example files). Every agent is told to redact tokens and cookies in output |
 | No new dependencies, major upgrades or project-wide config changes | Require user authorization (safety policy) |
 | No destructive data ops, production access, deploys or paid services | Require explicit authorization. Test or sandbox modes only |
 | User work preserved | `git status` before edits. Never revert unrelated changes. The installer refuses to overwrite files it didn't create |
 | Existing containers and data untouched | When the project's own tooling can't verify a change, FORGE may start **ephemeral, local** services (for example a throwaway database container): uniquely named, self-removing (`docker run --rm`), on a non-default port and stopped when done. It never connects to, modifies or stops existing containers, volumes or databases |
+
+## FORGE git guard (Claude Code, enforced)
+
+`skills/forge/scripts/git-guard.mjs` is a `PreToolUse` hook on Bash and PowerShell. It blocks a forbidden command before it runs, and the agent sees the reason. No model judgment is involved.
+
+**Blocked:**
+- `git commit`, `push`, `pull`, `merge`, `rebase`, `cherry-pick`, `revert`, `am`
+- `git reset --hard`; `git stash` (except `list` and `show`); `git clean` (except `-n`)
+- `git checkout -f` or `git checkout .`; `git restore .` or `--source`; `git switch --discard-changes`
+- branch delete, force or move; tag create or delete; history rewrites (`filter-branch`, `update-ref` and similar)
+- `gh pr create` and `gh pr merge`; `gh release` and `gh repo delete`
+
+**Detected inside wrapped commands too:** `&&` and `;` chains, pipes, `$(...)` and backticks, `bash -c` / `pwsh -Command` / `cmd /c`, `git -C <dir>` and `-c` options, env-var prefixes, `sudo`, and full paths to `git.exe`.
+
+**Always allowed:** read-only git such as `status`, `diff`, `log`, `show`, `blame`, `stash list`, `fetch`, and `restore --staged <file>`.
+
+| Where the hook lives | When it enforces |
+|---|---|
+| Every FORGE agent's frontmatter (`--scope agent`) | Always, but only while that agent runs, because Claude Code scopes agent hooks to the agent |
+| The `forge` skill's frontmatter (`--scope skill`) | Only during FORGE turns. The hook is registered when `/forge` runs. It then reads the session transcript and enforces only while the current turn is a `/forge` turn, or one where the model invoked the `forge` skill. If it can't tell, it blocks. Your own later requests in the same session ("now commit this") are **not** blocked |
+| Plugin `hooks/hooks.json` (`--scope plugin`) | For `forge-*` agents and FORGE turns only. Plugin hooks are global, so if it can't tell, it allows; other sessions are unaffected. This is needed because plugin agents ignore frontmatter hooks |
+
+Notes:
+- **Installers:** they write the absolute path of the installed script into the hook commands. Plugin installs use `${CLAUDE_PLUGIN_ROOT}`. Each hook call runs `node` once and returns in milliseconds; commands without `git` or `gh` exit immediately.
+- **Project-scope installs:** Claude Code skips frontmatter hooks in project-level agents until you trust the folder. This is normal when you open the project interactively. User-scope installs need no trust.
+- **Verified live (Claude Code 2.1.326, Windows):** a user-level agent, an `--agents` definition, a settings hook and the skill-scoped hook (with real transcript detection) all blocked the command before git ran.
+- **Best effort against shell tricks:** a git alias or a script file that runs git internally is not parsed. The rules and the reviewer still apply, and host deny rules (below) add another layer.
+- **Antigravity** has no equivalent hook mechanism in FORGE yet, so there it relies on the rules.
 
 ## Recommended hard guardrails (optional)
 

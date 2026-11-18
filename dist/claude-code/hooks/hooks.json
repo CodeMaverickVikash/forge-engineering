@@ -1,0 +1,17 @@
+{
+  "description": "FORGE git guard: blocks commit, push, merge, rebase, history rewrites and PR creation by FORGE agents and during /forge turns. Other sessions are unaffected.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/git-guard.mjs\" --scope plugin",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

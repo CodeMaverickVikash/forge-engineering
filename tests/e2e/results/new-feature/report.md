@@ -1,80 +1,93 @@
 ### FORGE Execution Report
 
-**Task:** Let users edit the title of an existing task. Size M (new endpoint = public contract, plus UI).
+**Task**
+Let users edit the title of an existing task. Size M (new endpoint plus new UI).
 
-**Enhanced specification:** `.forge/tasks/edit-task-title/spec.md`. Frozen contract: `PATCH /api/tasks/:id` with `{title}`. It returns 200 and the updated task (title trimmed, id/done unchanged), 400 for a blank, non-string or invalid-JSON title, and 404 for an unknown id. UI: an Edit button per row opens an inline input with Save and Cancel (Enter saves, Esc cancels). A blank title shows an inline error and sends no request. All titles are HTML-escaped. AC1 to AC10 are in the spec.
+**Enhanced specification**
+`.forge/tasks/edit-task-title/spec.md`.
+- **API contract:** `PATCH /api/tasks/:id` with body `{title}`.
+  - 200 returns the updated task. The title is trimmed.
+  - 400 `title is required` for invalid JSON, a non-string, or an empty or whitespace-only title.
+  - 400 `title too long` when the trimmed title is over 200 characters.
+  - 404 for an unknown id. The body is validated before the id.
+- **UI:** an Edit button on each row turns the title into an input. Enter saves, Escape cancels, and blur saves. An unchanged or empty title cancels with no request. Server errors show in a `role="alert"` message.
+- Titles must be escaped wherever they are rendered.
+- Six acceptance criteria (AC1–AC6).
 
-**Project understanding:** Zero-dependency Node `http` server (`server.mjs`, in-memory store) plus a vanilla JS UI in `public/`. Tests are `node:test` API tests run with `npm test`. There is no UI test harness, no CI and no lint script. `render()` rebuilds `innerHTML` on every `load()`, so edit state is kept in module variables.
+**Project understanding**
+- **Stack:** zero-dependency Node app. `server.mjs` has an in-memory store and a hand-rolled router. `public/` is a vanilla ES module that renders with `innerHTML`.
+- **Tests:** `node --test`. There is no lint, typecheck, build or CI.
+- **Files:** LF endings throughout.
 
-**Specialists involved:** `forge-backend-engineer`, `forge-frontend-engineer` (two runs: implementation, then a fix cycle), `forge-browser-qa` (three runs), `forge-code-reviewer` (three runs). FORGE did the exploration, spec, plan, a README line, and the final fix for the focus regression and line endings. No discovery specialists were used; the codebase was 164 lines and I read all of it. Specialists ran as native subagents (Mode A).
+**Specialists involved**
+- `forge-backend-engineer`
+- `forge-frontend-engineer`, two runs (feature, then a batched fix wave). The first engineer could not be resumed, so a fresh one did the fixes.
+- `forge-code-reviewer`, two runs (full review, then a delta re-review).
+- `forge-browser-qa`, two runs (full, then a delta retest).
+- I wrote the spec and plan myself and spot-checked the diff, `npm test` and `verify-delta.mjs eol`.
+- Mode A. No discovery analysts were needed.
 
-**Skills & capabilities:** The stack detector ran (`.forge/context.json`). Playwright MCP and Chrome DevTools MCP were both available and used. No skill discovery was run and nothing was installed.
+**Skills & capabilities**
+- Skills used: `forge-project-exploration` (the detector) and `verify-delta.mjs` for snapshot, delta and EOL checks.
+- Browser tools used: Playwright MCP and Chrome DevTools MCP.
+- I ran no skill discovery and installed nothing.
 
-**Implementation:**
-- `server.mjs`: `store.rename(id, title)` and the `PATCH /api/tasks/:id` route (+7 lines).
-- `test/api.test.mjs`: 3 new tests covering trim with id/done unchanged and GET reflecting it, 404, and 7 kinds of invalid body with the title left unchanged (+26).
-- `public/app.js`: inline edit UI.
-  - Edit state lives in module variables and survives a background reload.
-  - `escapeHtml` is used for every title render path.
-  - Focus handling and a save-in-flight guard.
-  - 400, 404 and network errors are handled.
-  - IME-safe Enter.
-  - After a save, the UI updates immediately from the cache and reloads in the background.
-- `public/styles.css`: edit-row styles, a long-title wrap rule, and a focus ring scoped to the edit controls only.
-- `README.md`: one line describing the feature.
-- Total diff: 175 insertions and 6 deletions across 5 files.
+**Implementation**
+- `server.mjs` (+9): `store.rename(id, title)` and the PATCH route. The route matches only without the `/toggle` suffix.
+- `test/api.test.mjs` (+58): 7 new tests covering AC1–AC3.
+- `README.md` (+12): an API section listing the endpoints.
+- `public/app.js` (+115/−1):
+  - `escapeHtml` is applied to the title text and to the aria-label.
+  - `startEdit` handles the inline editor.
+  - The click handler returns early for Edit, so `load()` does not destroy the editor.
+  - Save is guarded against double submits and against another open editor.
+- `public/styles.css` (+8/−2): styles for the Edit button and the inline editor, sized so an editing row is the same height as a normal row. I did not touch `public/index.html`.
 
-**QA and verification:**
+**QA and verification**
 
 | Gate | Result | Evidence |
 |---|---|---|
-| Unit/API tests | PASS | `npm test`: 6 of 6 pass (3 existing, 3 new). I re-ran them myself after the last change. |
-| Syntax check | PASS | `node --check` on `public/app.js` and `server.mjs` |
-| Lint / typecheck / build | N/A | The project has no such scripts. |
-| Regression test for the feature | PASS | The new API tests cover the PATCH contract. UI behavior has no harness, so it is covered by browser QA only. |
-| Browser QA (G10) | PASS | See below |
-| Independent review (G13) | PASS | Final verdict: approve. Earlier rounds: approve-with-nits, then approve-with-fixes. All substantive findings were fixed. |
-| Diff hygiene | PASS | `git diff --check` is clean, all files are LF, and there are no unrelated or untracked files. |
+| Tests | PASS | `npm test`: 10 of 10. I re-ran it myself at the end. |
+| Lint / typecheck / build | N/A | None configured. `node --check public/app.js` passes. |
+| Browser QA (G10) | PASS | Full journeys, then a delta retest. See below. |
+| Independent review (G13) | PASS | Approve with nits, then approve after the delta re-review. |
+| Line endings | PASS | `verify-delta.mjs eol` exits 0. |
+| Unrelated changes | PASS | Only the five intended files changed. |
 
-**Browser QA:**
-- Tools: Playwright MCP for journeys and Chrome DevTools MCP for console, network and runtime checks.
-- Round 1, full feature: all 10 journeys passed at 1440, 768 and 390 px. They covered the edit/save/cancel flow, blank-title error, one row editing at a time, the 404 path, XSS and quote escaping, a 300-character unbroken title, and toggle/delete/add regression.
-- Round 2, after the fix cycle: it found **F1 (medium)**. After a successful save the background refresh dropped focus to `body`, which loses context for keyboard users.
-- I fixed F1 in `render()`.
-- Round 3, retest: all journeys passed.
-  - Focus lands on the row's Edit button after both Enter and the Save button.
-  - Also verified: a delayed PATCH (mid-save Edit/Esc/Cancel ignored), the 404 path, an aborted reload after a successful PATCH, blank-title save, and Esc/Cancel sending no request.
-  - Toggle, delete and add are not affected by the focus logic.
-- Console: no errors caused by the feature. The only entries were the pre-existing `/favicon.ico` 404 and errors the tests injected on purpose.
-- Verdict: **browser-verified**.
+**Browser QA**
+- Playwright MCP and Chrome DevTools MCP, at 1440px and 390px. The final delta retest is **browser-verified**.
+- **Full pass:** all six journeys passed. Enter saves and preserves the done state, Escape sends no request, blur saves, over 200 characters shows an alert, an XSS payload renders as text, and two editors open at once survive each other's save. Toggle and delete still work.
+- **Delta retest after the fixes:**
+  - An editing row measured 38px against 38.4px for a normal row, so there is no layout shift. A real mouse click on another row's Edit now opens that editor.
+  - The aria-label refreshes after an in-place save.
+  - If the reload fails after a save, the editor closes cleanly.
+  - There is no stray error when a checkbox or delete re-renders the list during a save.
+  - The input has `name="edit-title"`.
+- **Console:** nothing from the feature. The only errors are the pre-existing `/favicon.ico` 404 and the 400 responses I deliberately provoked.
 
-**Issues:**
-- Found and fixed:
-  - Save-in-flight race clobbering another row's edit.
-  - The global `focus-visible` rule changing existing controls.
-  - Enter during IME composition submitting.
-  - A silent stale UI when the reload fails after a successful save.
-  - The focus-loss regression F1.
-  - CRLF line endings introduced by an agent write (the diff was 198 changed lines in `app.js` instead of about 134; converted back to LF).
-- Open, not fixed:
-  - Nit: a `load()` started before a save could resolve after it and briefly show the old title until the next refresh.
-  - Nit: `li span` styling is broader than needed.
-  - Low: Safari and Firefox on macOS don't focus a button on click, so after a delete, focus could return to a previously focused Edit button. This was not tested.
+**Issues**
+Found and fixed:
+- If the reload threw after a successful save, the editor got stuck.
+- The aria-label went stale after an in-place update.
+- An error was written into an editor that had been removed from the page.
+- The edit input had no `name` attribute.
+- A click on another row's Edit button was lost, because the editing row was 12px taller. The cause was verified from measured heights.
 
-**Assumptions:**
-- An Edit button with an inline input was chosen over double-click, for keyboard and screen-reader access.
-- PATCH validates and trims the title, and blank titles are rejected.
-- A bad body on an unknown id returns 400 rather than 404. The spec didn't set an order.
-- POST behavior is unchanged, so it still accepts blank titles.
-- The existing unescaped `${t.title}` was fixed only in the markup this change touches, because editing makes titles user-mutable and puts them in an input value.
+Open, both nits and neither affecting behaviour:
+- The 21px edit input is below the 24px WCAG 2.2 target-size guideline. Descender clipping was not seen in QA.
+- Row height equality depends on the system font. A taller font could leave a 1–2px difference.
 
-**Remaining work:**
-- Pre-existing, left alone as out of scope:
-  - "N tasks remaining" counts done tasks (`public/app.js`, `open = tasks.filter((t) => t.done)`, should be `!t.done`).
-  - POST accepts blank titles.
-  - No request-body size or title-length cap.
-  - No favicon.
-- There is no automated UI test harness. UI behavior is verified through browser QA only.
-- Optional: a sequence counter in `load()` to ignore stale responses.
+**Assumptions**
+- Edit is a button on the row, not double-click. Blur saves, as the spec said.
+- The 200-character limit counts JavaScript string length, so emoji count as 2.
+- Tasks are in-memory, so renames reset when the server restarts. That is existing behaviour.
 
-**Git status:** Changed files, all uncommitted: `README.md`, `public/app.js`, `public/styles.css`, `server.mjs`, `test/api.test.mjs`. `.forge/` is git-ignored workspace (spec, plan, report, knowledge). No commit, push, or pull request was created.
+**Remaining work**
+Two pre-existing bugs I deliberately did not fix. I recorded them in `.forge/knowledge.md`.
+- `public/app.js:18`: `render` counts done tasks as "remaining" (`filter(t => t.done)`). The "N tasks remaining" label is wrong today.
+- `POST /api/tasks` does not trim or reject empty titles, so a task can be created that the edit endpoint would not accept.
+
+Both are small fixes if you want them.
+
+**Git status**
+Seven files are staged or modified: `README.md`, `package.json`, `public/app.js`, `public/index.html`, `public/styles.css`, `server.mjs` and `test/api.test.mjs`. Five of them carry the feature changes listed under Implementation; the other two are untouched. `.forge/` is git-ignored, and the stray `.playwright-mcp/` folder was removed. No commit, push, or pull request was created.

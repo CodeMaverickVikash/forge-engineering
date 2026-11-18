@@ -38,3 +38,27 @@ Every change goes through the same loop: edit the sources in `skills/` or `agent
 ## Project-specific knowledge
 
 Keep universal skills generic. Project-specific facts belong in the target project's `.forge/knowledge.md`, or its `CLAUDE.md` / `AGENTS.md`. They don't belong in FORGE's skills.
+
+## Keeping knowledge fresh
+
+The technology registry and the `references/*.md` files go stale as frameworks release new versions and packages get renamed. `scripts/check-freshness.mjs` watches for this:
+
+| Check | Mode | Result |
+|---|---|---|
+| Every reference and the registry has a review date in `scripts/freshness.json` | offline (also run by `validate.mjs`) | missing date: error |
+| Review date older than `maxAgeDays` (180) | offline | error in `check-freshness.mjs`, warning in `validate.mjs` |
+| Each detector signal still exists in its public registry (npm, PyPI, Packagist, RubyGems, crates.io, pub.dev, Go proxy) | `--online` | `NOT_FOUND`: error |
+| The package is deprecated or abandoned | `--online` | error, unless the signal is listed in `legacySignals` |
+| No release in `inactiveAfterDays` (730). Go modules are followed to their newest `/vN` path | `--online` | warning |
+| A reference names a technology's major versions (for example "Express 4") but never the latest one | `--online` | `OUTDATED_MENTION`: error |
+
+Wildcard signals and SDK-only signals (such as `flutter`) are skipped. Maven signals are skipped because they are word matches, not coordinates. Only public package names are sent, and only to those public registries.
+
+**Workflow:**
+1. Run `node scripts/check-freshness.mjs --online`, or let the weekly GitHub Action (`.github/workflows/freshness.yml`) run it.
+2. Fix what it reports:
+   - Update the reference.
+   - Add the successor package to the registry entry.
+   - If a deprecated package is still worth detecting in older projects, keep it and add `"<eco>:<name>"` to `legacySignals` in `scripts/freshness.json`. Only do this after its successor is in the registry.
+3. After reviewing a file against current upstream docs, record it: `node scripts/check-freshness.mjs --mark <path>` (or `--mark all`).
+4. When you add a new reference file, run `--mark` for it too. Otherwise `validate.mjs` fails with `UNREGISTERED`.

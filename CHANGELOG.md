@@ -20,7 +20,20 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - **Turn caps.** Every agent has a `maxTurns` cap (30–60, well above observed needs) as a runaway guard. Output marked partial is continued once or reported as unverified. The validator requires the cap.
 - **Model tiers.** The 13 lighter roles (`effort: medium`) run on `model: sonnet` instead of inheriting a possibly more expensive main model. Implementers, reviewer, architect, security, performance and browser QA still inherit the main model. Antigravity builds keep `inherit`.
 - **Always-loaded context −41%.** Skill and agent descriptions were rewritten to be concise, cutting FORGE's footprint in every session from ~2,133 to ~1,251 tokens. The validator budget is now 120 characters per specialist skill and 110 per agent.
-- Measured on `architecture-analysis`: $1.00 → $0.68 (−32%) and 2.3 → 1.8 min (−22%), still passing. The optimized run used one fewer agent, so the gain is not attributable to parallelism alone. See `docs/testing.md`.
+- **Measured (single runs, sonnet).** `architecture-analysis`: $1.00 / 2.3 min → $0.47 / 1.3 min. `new-feature`: $2.34 / 11.5 min → $1.83 / 7.5 min. `bug-fix`: $0.56 → $0.50. `code-question`: $0.12 with no agents. All pass. See `docs/testing.md`.
+- Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.
+
+### Added
+- **Enforced git guard (Claude Code).** `skills/forge/scripts/git-guard.mjs` is a `PreToolUse` hook on Bash and PowerShell in every FORGE agent, in the `forge` skill and in the plugin `hooks/hooks.json`.
+  - It blocks commit, push, pull, merge, rebase, `reset --hard`, stash, clean, history rewrites, branch and tag changes, and `gh pr create/merge`. It also catches these inside `&&` chains, `$(...)`, `bash -c` / `pwsh -Command` / `cmd /c`, `git -C`, env prefixes and full `git.exe` paths.
+  - It enforces only for FORGE agents and during `/forge` turns. Your own requests later in the session are not blocked.
+  - Installers write the absolute script path into the hooks. The validator requires the guard in every Claude Code agent, the orchestrator skill and the plugin hooks.
+  - Verified live on Windows with Claude Code 2.1.326: user-level agents, `--agents` definitions and the skill-scoped hook (with real transcript detection) all blocked the command before git ran.
+- **Knowledge freshness check.** `scripts/check-freshness.mjs`, `scripts/freshness.json` and a weekly GitHub Action.
+  - Offline: review dates for all 21 knowledge files. `validate.mjs` errors on a missing date and warns on a stale one.
+  - `--online`: checks 189 detector signals against npm, PyPI, Packagist, RubyGems, crates.io, pub.dev and the Go proxy. It flags removed, deprecated or abandoned packages and references that never mention the latest major version, and it follows Go `/vN` module paths.
+  - Its first run found and fixed: Clerk renamed `@clerk/clerk-react` and `@clerk/clerk-expo` (the successors `@clerk/react` and `@clerk/expo` were added); PayPal deprecated `@paypal/checkout-server-sdk` (`@paypal/paypal-server-sdk` was added); `nunomaduro/larastan` is abandoned (the old names are kept as legacy signals). It also prompted adding the Express 5 route-syntax changes to the Node reference.
+- README section **Models per task**: which model and turn cap each agent uses, and which models each kind of task uses. It is generated from `agents/*.md` by the build, and the validator fails if it is stale. `docs/agents.md` gained Model and Max turns columns.
 
 ### Fixed
 - Line endings:

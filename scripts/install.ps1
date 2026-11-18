@@ -114,6 +114,15 @@ foreach ($t in $targets) {
   }
 }
 
+# Self-check when Node is available (installing does not need it): the install matches dist\ byte for byte and the
+# git guard works, or (after -Uninstall) nothing FORGE installed is left behind.
+if (-not $DryRun -and (Get-Command node -ErrorAction SilentlyContinue)) {
+  $verifyArgs = @('--target', ($targets -join ','), '--scope', $Scope, '--project', $Project)
+  if ($Uninstall) { $verifyArgs += '--absent' }
+  & node (Join-Path $RepoDir 'scripts/verify-install.mjs') @verifyArgs
+  if ($LASTEXITCODE -ne 0) { throw 'FORGE verification failed (see above)' }
+}
+
 if (-not $Uninstall -and -not $DryRun) {
   Write-Host @'
 

@@ -33,6 +33,10 @@ Set `FORGE_ANTIGRAVITY_HOME` to override the Antigravity global directory.
 
 **Uninstall:** `./scripts/uninstall.sh` (same flags) or `.\scripts\uninstall.ps1`. This removes only manifest-listed paths.
 
+**Update to the latest:** run `git pull`, then run the installer again. `dist/` is committed and the validator keeps it in sync with the sources, so there is nothing to build. Re-running the installer replaces every file from the previous install, so you don't need to uninstall first. Run `node scripts/build.mjs` before installing only if you edited the sources yourself.
+
+**Self-check:** when Node.js is available, both scripts verify their own result. After an install, every file is checked byte-for-byte against `dist/`, the hook paths are checked, and a live probe confirms the git guard blocks `git commit`. After an uninstall, the check confirms nothing FORGE installed is left. A failed check exits non-zero. You can also run it at any time: `node scripts/verify-install.mjs [--target ...] [--scope ...] [--absent]`.
+
 **After installing,** start a new session (or run `/skills reload` in the Antigravity CLI), then type `/forge`.
 
 ## Option 2: Claude Code plugin marketplace

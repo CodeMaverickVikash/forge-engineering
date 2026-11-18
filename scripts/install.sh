@@ -113,6 +113,13 @@ for t in "${TARGETS[@]}"; do
   esac
 done
 
+# Self-check when Node is available (installing does not need it): the install matches dist/ byte for byte and the
+# git guard works, or (after --uninstall) nothing FORGE installed is left behind.
+if [ "$DRY" != 1 ] && command -v node >/dev/null 2>&1; then
+  vflags=(--target "$TARGET" --scope "$SCOPE" --project "$PROJECT"); [ "$MODE" = "uninstall" ] && vflags+=(--absent)
+  node "$REPO_DIR/scripts/verify-install.mjs" "${vflags[@]}" || die "verification failed (see above)"
+fi
+
 if [ "$MODE" = "install" ] && [ "$DRY" != 1 ]; then
   cat <<'EOF'
 

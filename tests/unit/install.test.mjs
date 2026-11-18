@@ -90,3 +90,24 @@ for (const kind of ['bash', 'powershell']) {
     } finally { fs.rmSync(home, { recursive: true, force: true }); }
   });
 }
+
+test('verify-install: a fresh project install is identical to the build; tampering and leftovers are caught; --absent after uninstall', { skip: !hasBash && 'bash not available' }, async () => {
+  const { verifyTarget, targetRoots } = await import('../../scripts/verify-install.mjs');
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-verify-'));
+  try {
+    const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts', 'install.sh'), '--target', 'claude', '--scope', 'project', '--project', project, ...a], { encoding: 'utf8' });
+    const [t] = targetRoots({ target: 'claude', scope: 'project', project });
+    assert.equal(verifyTarget(t).ok, false, 'not installed yet');
+    assert.equal(run().status, 0);
+    const ok = verifyTarget(t);
+    assert.equal(ok.ok, true, ok.problems.join('; '));
+    assert.equal(ok.info.guardBlocksCommit, true);
+    fs.appendFileSync(path.join(project, '.claude', 'agents', 'forge-sre.md'), 'tampered\n');
+    fs.writeFileSync(path.join(project, '.claude', 'skills', 'forge', 'leftover.md'), 'x');
+    const bad = verifyTarget(t);
+    assert.ok(bad.problems.some((p) => /differ from the current build/.test(p)) && bad.problems.some((p) => /stale file/.test(p)), bad.problems.join('; '));
+    assert.equal(run('--uninstall').status, 0);
+    fs.rmSync(path.join(project, '.claude', 'skills', 'forge'), { recursive: true, force: true }); // the leftover keeps the folder alive
+    assert.equal(verifyTarget(t, { absent: true }).ok, true);
+  } finally { fs.rmSync(project, { recursive: true, force: true }); }
+});

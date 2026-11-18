@@ -25,6 +25,7 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.
 
 ### Added
+- **Install self-check** (`scripts/verify-install.mjs`). The installers run it automatically when Node is present. It confirms the installed files are byte-identical to `dist/` (allowing only the hook-path substitution), with nothing missing and no stale leftovers. It also confirms the hook paths resolve and that the installed guard blocks `git commit` and allows `git status`. After an uninstall, `--absent` confirms nothing is left. There is deliberately no separate reinstall script: re-running the installer already upgrades cleanly.
 - **PR and branch review mode** through `/forge`. FORGE picks the mode itself: a PR or MR URL means a PR review; otherwise it reviews the current branch.
   - `core/review.md` holds the playbook and `templates/review-report.md` the fixed 13-section Engineering Review Report.
   - `scripts/review-target.mjs` handles target detection:

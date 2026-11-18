@@ -10,7 +10,7 @@ user-invocable: false
 
 ## 0. Preconditions: the pre-browser gate
 
-You verify only code whose static checks and tests passed. **Your first command, every pass, retests included:** `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>` (`<FORGE_HOME>` = the sibling `forge` skill). It takes about a second, and it catches a work order sent before the checks ran. Exit 0 means OPEN. On anything else, return `STATUS: blocked` with its output and open no browser. The exception is bug reproduction before a fix exists.
+You verify only code whose static checks and tests passed. **Your first command, every pass, retests included:** `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>` (`<FORGE_HOME>` = the sibling `forge` skill). It takes about a second, and it catches a work order sent before the checks ran. Exit 0 means OPEN. On anything else, return `STATUS: blocked` with its output and open no browser. The exception is a pass before any edit: bug reproduction, or the before screenshots of a visual fix or UI improvement.
 
 Native apps (React Native, Expo, Flutter, Android, iOS) are verified on an emulator, simulator or device ([references/device-verification.md](references/device-verification.md)); browser tools cover only what really runs in a browser.
 
@@ -62,14 +62,15 @@ Mandatory when capture works. Save screenshots of the implemented behavior, not 
 - each affected journey's final state;
 - the success and error states the acceptance criteria name;
 - one per viewport for layout changes;
-- the "after" of each fixed issue;
-- a "before", only when one was taken.
+- the "after" of each fixed issue, taken **after the final fix** (`final` rejects screenshots older than the last code edit);
+- a "before", only when one was really taken before the change (visual fixes and UI improvements: the reproduction pass takes it, at most 3 screens). Never reconstruct one.
 
 Where and how:
-- **Folder:** `.forge/tasks/<slug>/evidence/{screenshots,network,traces,playwright,reports}` (`validation-gate.mjs evidence --task <slug> --init`).
-- **Capturing:** DevTools `take_screenshot` writes there directly via `filePath`. Copy Playwright MCP output in. Cite project-suite reports and traces where they are.
-- **Names** describe the content (`after-checkout-error-390x844.png`), with one line each in `evidence/index.md`: file — what it shows — page/workflow — viewport.
-- **Check:** `validation-gate.mjs evidence --task <slug>` must exit 0; cite only the links it prints. A screenshot never proves backend correctness.
+- **Folders:** `validation-gate.mjs evidence --task <slug> --init` creates `.playwright-mcp/<slug>/screenshots/{before,after,responsive,workflows}/` and `traces/` (with their own `.gitignore`, so they never show in git status), plus `.forge/tasks/<slug>/evidence/{network,reports}`.
+- **Capturing:** Playwright MCP saves into its output folder (`.playwright-mcp/` by default), so `browser_take_screenshot` with `filename: "<slug>/screenshots/after/<name>.png"` lands in place. DevTools `take_screenshot` takes `filePath: ".playwright-mcp/<slug>/screenshots/…"`. If the MCP is configured to write elsewhere, move the file into the task folder. Cite project-suite reports and traces where they are.
+- **Names** say what the screen shows (`login-before-fix.png`, `login-after-fix.png`, `checkout-success.png`, `login-390x844.png`), with one line each in `.forge/tasks/<slug>/evidence/index.md`: file — what it shows — page/workflow — viewport. That line becomes the screenshot's description in the user's answer.
+- **No capture possible** (no MCP, no device): write `Visual evidence unavailable: <reason>` in `evidence/index.md`. Never claim a screenshot that does not exist.
+- **Check:** `validation-gate.mjs evidence --task <slug>` must exit 0; cite only the links it prints. A screenshot never proves API or database correctness.
 
 ## Efficiency budget
 

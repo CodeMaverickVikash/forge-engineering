@@ -58,7 +58,7 @@ Use `<FORGE_HOME>/templates/engineering-report.md` as the structure; do not rest
 
 Never write VERIFIED next to a FAILED, BLOCKED, NOT RUN or stale required check.
 
-Save the report to `.forge/tasks/<slug>/report.md` and print it.
+Save the report to `.forge/tasks/<slug>/report.md`. It is the engineering record, not the answer: the final message follows `<FORGE_HOME>/templates/final-response.md` (the user's outcome, brief verification, the status line). Print the report only when the user asks for execution details, changed files, test evidence or an audit.
 
 ## Browser & device verification section
 

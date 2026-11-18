@@ -10,7 +10,7 @@
 //       Flag changed files whose line endings flipped (LF<->CRLF) or became mixed versus git's
 //       baseline. Exit 1 when any file is flagged.
 //
-// It never runs git commands that change the repository: only status, show and diff --no-index.
+// It never runs git commands that change the repository: only status, cat-file and diff --no-index.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -113,6 +113,7 @@ export function delta(root, task, { stat = false } = {}) {
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
   const changed = [];
   let patch = '';
+  const bases = baselines(root, [...candidates].filter((f) => !known.has(f)));
   for (const f of [...candidates].sort()) {
     const cur = readIfFile(path.join(root, f));
     const entry = known.get(f);
@@ -120,7 +121,7 @@ export function delta(root, task, { stat = false } = {}) {
     let beforePath = null;
     if (entry?.exists) beforePath = path.join(dir, 'files', f);
     else if (!entry) {
-      const base = baseline(root, f);
+      const base = bases.get(f) ?? null;
       if (base) {
         beforePath = path.join(dir, 'baseline', f);
         fs.mkdirSync(path.dirname(beforePath), { recursive: true });
@@ -146,21 +147,47 @@ export function delta(root, task, { stat = false } = {}) {
   return { round: n, changed, patch };
 }
 
-function baseline(root, f) {
-  for (const spec of [`HEAD:${f}`, `:${f}`]) {
-    try { return git(root, ['show', spec]); } catch { /* try next */ }
+/**
+ * Git's baseline of each file: its committed content, else its staged content. One `git cat-file --batch` per
+ * source instead of a `git show` per file: on Windows each process costs ~0.5 s, and a 110-file branch took 77 s.
+ */
+export function baselines(root, files) {
+  const found = new Map();
+  let pending = files.filter((f) => !/[\r\n]/.test(f)); // a batch line cannot carry a newline
+  for (const prefix of ['HEAD:', ':']) {
+    if (!pending.length) break;
+    let buf;
+    try {
+      buf = execFileSync('git', [...GIT_CFG, 'cat-file', '--batch'], { cwd: root, input: pending.map((f) => prefix + f).join('\n') + '\n', maxBuffer: 1024 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch { break; }
+    const missing = [];
+    let pos = 0;
+    for (const f of pending) {
+      const nl = buf.indexOf(10, pos);
+      if (nl < 0) { missing.push(f); continue; }
+      const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(buf.subarray(pos, nl).toString());
+      pos = nl + 1;
+      if (!m) { missing.push(f); continue; } // "<spec> missing" (or ambiguous): try the next source
+      const size = Number(m[2]);
+      if (m[1] === 'blob') found.set(f, buf.subarray(pos, pos + size));
+      pos += size + 1;
+    }
+    pending = missing;
   }
-  return null;
+  return found;
 }
+
 
 export function eolCheck(root) {
   const results = [];
-  for (const f of changedFiles(root)) {
+  const files = changedFiles(root);
+  const bases = baselines(root, files);
+  for (const f of files) {
     const cur = readIfFile(path.join(root, f));
     if (!cur) continue;
     const now = eolStyle(cur);
     if (now === 'binary') continue;
-    const base = baseline(root, f);
+    const base = bases.get(f) ?? null;
     const was = base ? eolStyle(base) : null;
     let problem = null;
     if (now === 'mixed') problem = 'mixed line endings';

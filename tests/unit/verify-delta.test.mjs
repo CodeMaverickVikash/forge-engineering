@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { snapshot, delta, eolCheck, eolStyle, changedFiles } from '../../skills/forge/scripts/verify-delta.mjs';
+import { snapshot, delta, eolCheck, eolStyle, changedFiles, baselines } from '../../skills/forge/scripts/verify-delta.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/verify-delta.mjs');
 
@@ -109,5 +109,24 @@ test('CLI reports a missing snapshot and a non-git folder without a stack trace'
     assert.match(r2.err, /no snapshot for task "nope"/);
     assert.doesNotMatch(r2.err, /at delta/);
     fs.rmSync(g, { recursive: true, force: true });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('baselines reads committed, then staged content in one batch per source, byte for byte', () => {
+  const dir = repo();
+  try {
+    const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', ...a], { cwd: dir, stdio: 'pipe' });
+    fs.writeFileSync(path.join(dir, 'with space.txt'), 'old\r\n');
+    g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'more');
+    w(dir, 'with space.txt', 'new\n');
+    w(dir, 'staged.js', 'staged\n'); g('add', 'staged.js'); w(dir, 'staged.js', 'edited after staging\n');
+    w(dir, 'untracked.js', 'u\n');
+    const b = baselines(dir, ['win.txt', 'with space.txt', 'staged.js', 'untracked.js', 'src/app.js']);
+    assert.equal(b.get('win.txt').toString(), 'one\r\ntwo\r\n', 'committed CRLF bytes are kept');
+    assert.equal(b.get('with space.txt').toString(), 'old\r\n');
+    assert.equal(b.get('staged.js').toString(), 'staged\n', 'a new file falls back to its staged content');
+    assert.equal(b.has('untracked.js'), false, 'an untracked file has no baseline');
+    assert.equal(b.get('src/app.js').toString(), 'a\nb\nc\n');
+    assert.equal(baselines(dir, []).size, 0);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

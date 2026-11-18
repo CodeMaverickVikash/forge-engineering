@@ -17,7 +17,7 @@ Type `/forge` followed by what you want, in plain words. You don't have to pick 
 2. **Questions only when they're needed.** FORGE asks only when a decision is genuinely yours: business trade-offs, destructive actions, paid services or missing credentials. Otherwise it records an assumption and carries on.
 3. **Working files** go in `.forge/tasks/<slug>/` (spec, plan, specialist reports, final report). `.forge/` is self-gitignored.
 4. **Changes stay uncommitted.** Review them with `git diff`, then commit yourself.
-5. **The FORGE Execution Report** is printed in full as the final message (and saved as `report.md`). It lists the specialists that actually ran, every gate with its real status, unresolved issues, assumptions and the git state.
+5. **The answer** is the final message: what you asked for and what you now have (with screenshots for UI work), a short verification note and one status line (VERIFIED, VERIFIED WITH LIMITATIONS, BLOCKED or FAILED). The full **FORGE Execution Report** is saved as `report.md`. It covers the specialists that actually ran, every gate with its real status, unresolved issues, assumptions and the git state. Ask for execution details and FORGE prints it.
 
 ## Size-adaptive behavior
 

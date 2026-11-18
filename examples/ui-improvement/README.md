@@ -9,7 +9,7 @@
 2. **Team:** `forge-product-manager`, `forge-ux-designer` (UX spec that reuses the existing CSS), `forge-frontend-engineer`, `forge-accessibility-specialist`, `forge-browser-qa`, `forge-code-reviewer`.
 3. **Validation, then browser QA:**
    - `validation-gate.mjs run` runs the type check, lint, tests and build once; browser QA starts only after `validation-gate.mjs gate` exits 0.
-   - Before and after screenshots, saved and indexed under `.forge/tasks/<slug>/evidence/`.
+   - Before and after screenshots in `.playwright-mcp/<slug>/screenshots/`, indexed in `.forge/tasks/<slug>/evidence/index.md` and linked in the answer's Visual Results table.
    - Viewports 390×844, 768×1024 and 1440×900.
    - An error state forced by stopping the API or mocking a route.
    - A keyboard-only pass.

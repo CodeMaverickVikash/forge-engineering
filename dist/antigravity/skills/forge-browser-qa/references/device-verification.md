@@ -32,7 +32,7 @@ Check what the change touches:
 
 ## 3. Evidence
 
-- **Screenshots:** `adb exec-out screencap -p > .forge/tasks/<slug>/evidence/screenshots/device-android-<flow>-<state>.png` or `xcrun simctl io booted screenshot .forge/tasks/<slug>/evidence/screenshots/device-ios-<flow>-<state>.png`.
+- **Screenshots:** `adb exec-out screencap -p > .playwright-mcp/<slug>/screenshots/after/android-<flow>-<state>.png` or `xcrun simctl io booted screenshot .playwright-mcp/<slug>/screenshots/after/ios-<flow>-<state>.png` (folders from `validation-gate.mjs evidence --task <slug> --init`).
 - **Logs:** relevant redacted crash or log excerpts go to `evidence/reports/device-<platform>.log`.
 - Add each file to `evidence/index.md` with the platform, the device or emulator and its OS version, the flow, and what the file shows.
 

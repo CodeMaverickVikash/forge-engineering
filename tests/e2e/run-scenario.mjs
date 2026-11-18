@@ -90,6 +90,7 @@ function evaluate(name, sc, dir, ev, before) {
   for (const group of e.agentsAny || []) if (!group.some((a) => used.has(a))) fails.push(`none of [${group}] invoked`);
   for (const a of e.agentsNone || []) if (used.has(a)) fails.push(`agent should not run: ${a}`);
   const report = ev.result?.result || '';
+  let record = '';
   if (e.answerOnly) {
     // Q size: a direct answer with evidence, no specialists and no full report.
     if (ev.agents.length) fails.push(`answer-only question launched agents: ${ev.agents.join(', ')}`);
@@ -97,13 +98,24 @@ function evaluate(name, sc, dir, ev, before) {
   } else if (e.reportHeading) {
     if (!e.reportHeading.test(report)) fails.push(`final report heading ${e.reportHeading} missing`);
   } else {
-    if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
-    if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
-    const status = report.match(/\*\*Completion status:\*\*\s*(VERIFIED WITH LIMITATIONS|VERIFIED|BLOCKED|FAILED)/);
-    if (!status) fails.push('report has no completion status (VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED)');
-    else if (status[1] === 'VERIFIED' && /not browser-verified/i.test(report)) fails.push('completion status VERIFIED despite "not browser-verified"');
+    // The answer is about the user's outcome (templates/final-response.md); the full report is saved, not printed.
+    if (/### FORGE Execution Report/.test(report)) fails.push('final answer printed the internal execution report instead of answering the request');
+    const agentNames = [...new Set(report.match(/\bforge-[a-z]+(-[a-z]+)*-(engineer|reviewer|qa|lead|designer|analyst|manager|specialist|architect|explorer|writer|scout|researcher)\b|\bforge-(architect|sre)\b/g) || [])];
+    if (agentNames.length) fails.push(`final answer exposes internal agent names: ${agentNames.join(', ')}`);
+    if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit|uncommitted/i.test(report)) fails.push('answer does not state that no commit was made');
+    const status = report.match(/\*\*Status:\*\*\s*(VERIFIED WITH LIMITATIONS|VERIFIED|BLOCKED|FAILED)/);
+    if (!status) fails.push('answer has no status line (**Status:** VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED)');
+    const tasks = path.join(dir, '.forge', 'tasks');
+    const saved = fs.existsSync(tasks) ? fs.readdirSync(tasks).map((t) => path.join(tasks, t, 'report.md')).filter((f) => fs.existsSync(f)).map((f) => fs.readFileSync(f, 'utf8')) : [];
+    record = saved.find((s) => /^### FORGE Execution Report/m.test(s)) || '';
+    const recorded = record.match(/\*\*Completion status:\*\*\s*(VERIFIED WITH LIMITATIONS|VERIFIED|BLOCKED|FAILED)/);
+    if (!record) fails.push('no saved .forge/tasks/<slug>/report.md with the execution report');
+    else if (!recorded) fails.push('saved report has no completion status');
+    else if (status && recorded[1] !== status[1]) fails.push(`answer status ${status[1]} differs from the saved report's ${recorded[1]}`);
+    if (status?.[1] === 'VERIFIED' && /not browser-verified/i.test(report + record)) fails.push('status VERIFIED despite "not browser-verified"');
   }
-  for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
+  // Facts may sit in the answer or, as detail, in the saved report.
+  for (const re of e.reportMentions || []) if (!re.test(report) && !re.test(record)) fails.push(`report lacks ${re}`);
   const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
   // `git stash list` is read-only; anything else that mutates history or the working tree is forbidden.
   if (ev.bash.some((c) => /\bgit\s+(commit|push|merge|rebase|reset|clean)\b|\bgit\s+stash(?!\s+list)\b|\bgh\s+pr\s+create\b/.test(executedText(c)))) fails.push('attempted a forbidden git operation');

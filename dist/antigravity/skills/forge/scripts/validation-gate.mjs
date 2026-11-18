@@ -10,8 +10,12 @@
 //       branch committed since it forked from <ref>. Stored for the task, so later run/gate/final keep it.
 //       Run only the plan's checks that are not already passing for the current code (missing, stale, failed
 //       or blocked). Builds are DEFERRED (not run, not blocking the pre-browser gate) when type check or tests
-//       cover the unit and no consumer imports its output; --build runs them once, right before `final`. Units run in parallel; checks within a unit run in order; tests of units that share a
-//       database run one at a time; a shared package with prebuilt output is built before its consumers.
+//       cover the unit and no consumer imports its output; --build runs them once, right before `final`.
+//       Up to --jobs checks run at once, longest first (by the task's recorded durations). A unit's package.json
+//       checks run side by side; other toolchains (Maven, Gradle, dotnet) keep type check → lint → tests; builds
+//       run last. Tests of units that share a database run one at a time; a shared package with prebuilt output
+//       is built before its consumers. One run per task at a time: a second run waits for the first, then runs
+//       only what is still needed (exit 3 if it waited an hour). Progress lines go to stderr as checks end.
 //       Each result goes to .forge/tasks/<slug>/validation/ledger.jsonl, each full log to
 //       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs checks that still pass (never builds:
 //       only --build runs those). A build that rewrites a tracked non-code file (a sitemap's lastmod) is reported,
@@ -27,8 +31,11 @@
 //       1 = CLOSED (a check failed, is missing, or went stale because its files changed since it passed),
 //       2 = BLOCKED (only environment blockers remain).
 //   node validation-gate.mjs evidence --task <slug> [--init] [--json]
-//       List the task's evidence files as clickable links and check that evidence/index.md cites only files
-//       that exist. Exit 1 when it cites a missing file. --init creates the evidence folders.
+//       List the task's evidence as clickable links: screenshots and traces in .playwright-mcp/<slug>/
+//       (screenshots/{before,after,responsive,workflows}, git-ignored), the rest in .forge/tasks/<slug>/evidence/.
+//       Prints the answer's Visual Results table from the screenshot files. Exit 1 when evidence/index.md cites a
+//       missing file. --init creates the folders. `final` also requires a screenshot of the final state, newer
+//       than the last code edit, for browser- or device-visible changes (or "Visual evidence unavailable: <reason>").
 //   node validation-gate.mjs final --task <slug> [--json]
 //       Phase 9 in one call: the per-application table for the report, the final gate, line-ending flips,
 //       errors in new comments, and evidence links. Exit 0 only when all of them are clean.
@@ -66,7 +73,9 @@ const TEST_RE = /(^|\/)(tests?|__tests__|spec|e2e)\/|(^test_.*\.py$|_test\.(py|g
 const API_RE = /(^|\/)(openapi|swagger)[^/]*\.(ya?ml|json)$|\.(graphql|gql|proto)$/i;
 const MIGRATION_RE = /(^|\/)(migrations|migrate|db\/migration|database\/migrations|alembic\/versions|prisma\/migrations|drizzle|supabase\/migrations)\/|(^|\/)(schema\.prisma|schema\.sql|structure\.sql|schema\.rb)$/;
 const ROOT_SHARED_RE = /^(package\.json|pnpm-workspace\.yaml|pnpm-lock\.yaml|yarn\.lock|package-lock\.json|bun\.lockb?|turbo\.json|nx\.json|lerna\.json|go\.work(\.sum)?|tsconfig[^/]*\.json|\.eslintrc[^/]*|eslint\.config\.[^/]+|biome\.jsonc?|\.prettierrc[^/]*|prettier\.config\.[^/]+|babel\.config\.[^/]+|jest\.config\.[^/]+|vitest\.(config|workspace)\.[^/]+|\.golangci\.[^/]+|ruff\.toml|setup\.cfg|pyproject\.toml|Makefile|\.nvmrc|\.node-version|\.tool-versions|Directory\.Build\.props|settings\.gradle(\.kts)?)$/;
-const EVIDENCE_DIRS = ['screenshots', 'playwright', 'traces', 'network', 'reports'];
+const EVIDENCE_DIRS = ['network', 'reports'];
+const VISUAL_DIRS = ['screenshots/before', 'screenshots/after', 'screenshots/responsive', 'screenshots/workflows', 'traces'];
+const IMAGE_RE = /\.(png|jpe?g|webp|gif)$/i;
 
 const posix = (p) => p.split(path.sep).join('/');
 const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -103,6 +112,7 @@ export function scopeFiles(root, base = null) {
 }
 const ledgerFile = (root, task) => path.join(taskDir(root, task), 'validation', 'ledger.jsonl');
 const evidenceDir = (root, task) => path.join(taskDir(root, task), 'evidence');
+const visualDir = (root, task) => path.join(root, '.playwright-mcp', task);
 const slugUnit = (u) => (u === '.' ? 'root' : u.replace(/[\\/]+/g, '_'));
 
 function ensureWorkspace(root) {
@@ -358,7 +368,7 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
   }
   const blocking = rows.filter((r) => r.blocking);
   const result = !blocking.length ? 'OPEN' : blocking.every((r) => r.state === 'BLOCKED') ? 'BLOCKED' : 'CLOSED';
-  const g = { result, at: new Date().toISOString(), rows, scope: p.entries.map((e) => ({ unit: e.unit, kinds: e.kinds, reasons: e.reasons })), next: p.next, changed: p.changed, docsOnly: p.docsOnly };
+  const g = { result, at: new Date().toISOString(), rows, scope: p.entries.map((e) => ({ unit: e.unit, kinds: e.kinds, reasons: e.reasons })), next: p.next, changed: p.changed, docsOnly: p.docsOnly, running: runInProgress(root, task) };
   if (fs.existsSync(path.join(root, '.forge'))) {
     fs.mkdirSync(path.dirname(ledgerFile(root, task)), { recursive: true });
     fs.writeFileSync(path.join(path.dirname(ledgerFile(root, task)), 'gate.json'), JSON.stringify(g, null, 2) + '\n');
@@ -366,15 +376,64 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
   return g;
 }
 
+/**
+ * At most n jobs at once; a free slot goes to the waiting job with the highest priority. Starting is deferred to
+ * the next macrotask so every job queued in the same tick competes for the first slots.
+ */
 function limiter(n) {
   let active = 0; const q = [];
   const next = () => {
-    if (active >= n || !q.length) return;
-    active++; const { fn, res, rej } = q.shift();
-    fn().then(res, rej).finally(() => { active--; next(); });
+    while (active < n && q.length) {
+      let i = 0; for (let j = 1; j < q.length; j++) if (q[j].prio > q[i].prio) i = j;
+      active++; const { fn, res, rej } = q.splice(i, 1)[0];
+      fn().then(res, rej).finally(() => { active--; next(); });
+    }
   };
-  return (fn) => new Promise((res, rej) => { q.push({ fn, res, rej }); next(); });
+  return (fn, prio = 0) => new Promise((res, rej) => { q.push({ fn, res, rej, prio }); setImmediate(next); });
 }
+
+const lockFile = (root, task) => path.join(taskDir(root, task), 'validation', 'run.lock');
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+/** The run holding the task's lock, when it belongs to another live process. */
+export function runInProgress(root, task) {
+  const held = readJson(lockFile(root, task));
+  return held?.pid && held.pid !== process.pid && alive(held.pid) ? held : null;
+}
+
+/**
+ * One `run` per task at a time. A second run waits for the first and then re-plans, so it runs only what is
+ * still needed. In a measured run, a backgrounded run looked dead, a second one started, and both ran the two
+ * slowest suites (140 s and 263 s) side by side.
+ */
+async function acquireRunLock(root, task, { waitMs, onWait }) {
+  const file = lockFile(root, task);
+  ensureWorkspace(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const t0 = Date.now(); let told = false;
+  for (;;) {
+    try {
+      fs.writeFileSync(file, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }), { flag: 'wx' });
+      return () => { try { if (readJson(file)?.pid === process.pid) fs.rmSync(file, { force: true }); } catch { /* already gone */ } };
+    } catch (e) { if (e.code !== 'EEXIST') throw e; }
+    const held = readJson(file);
+    let ageMs = Infinity; try { ageMs = Date.now() - fs.statSync(file).mtimeMs; } catch { /* removed meanwhile */ }
+    const halfWritten = !held && ageMs < 10000;
+    if (!halfWritten && (!held?.pid || !alive(held.pid) || ageMs > 6 * 3600000)) { fs.rmSync(file, { force: true }); continue; }
+    if (Date.now() - t0 >= waitMs) {
+      const err = new Error(`another validation run for task "${task}" is still in progress (pid ${held?.pid}, started ${held?.startedAt}). Wait for it; do not start another.`);
+      err.code = 'BUSY'; throw err;
+    }
+    if (!told && held) { onWait?.(held); told = true; }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
+// Expected duration of a check with no history in this task: tests and builds first, they set the wall time.
+const DEFAULT_MS = { test: 60000, build: 60000, typecheck: 20000, lint: 15000, format: 5000 };
+// package.json scripts (tsc, eslint, prettier, vitest/jest) only read the unit, so they can run side by side.
+// Maven, Gradle, dotnet and make compile into one shared output folder, so their checks keep running in order.
+const PARALLEL_SAFE = (c) => /^package\.json#scripts\./.test(c.source || '');
 
 function killTree(child) {
   try {
@@ -426,7 +485,12 @@ function execCheck(root, task, unit, check, cycle, timeoutMin) {
 }
 
 /** Run the plan's checks that are not already passing for the current code, in a dependency-aware schedule. */
-export async function run(root, task, { units = null, checks = null, all = false, baseline = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null } = {}) {
+export async function run(root, task, opts = {}) {
+  const release = await acquireRunLock(root, task, { waitMs: opts.waitMs ?? 60 * 60000, onWait: opts.onWait });
+  try { return await runLocked(root, task, opts); } finally { release(); }
+}
+
+async function runLocked(root, task, { units = null, checks = null, all = false, baseline = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null, onProgress = null } = {}) {
   const p = await plan(root, { units, ctx, base: taskBase(root, task, base) });
   // Builds run only on --build: --all re-runs checks, and a mobile build alone took ~3 minutes per cycle.
   const withBuilds = build;
@@ -436,28 +500,42 @@ export async function run(root, task, { units = null, checks = null, all = false
   const cycle = baseline ? 'baseline' : 1 + Math.max(0, ...prior.map((r) => (typeof r.cycle === 'number' ? r.cycle : 0)));
   const fps = fingerprints(root, p, task);
   const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (withBuilds || !c.deferrable) && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
-  const slot = limiter(jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2))));
+  const width = jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2)));
+  const slot = limiter(width);
   const dbLock = limiter(1);
   const results = [];
+  // Longest first: the slowest suite (263 s in a measured web app) used to start only after its unit's type
+  // check, lint and format. Units that others wait on go before everything.
+  const lastMs = new Map(prior.filter((r) => r.source === 'runner' && r.durationMs).map((r) => [`${r.unit}\0${r.check}`, r.durationMs]));
+  const upstream = new Set(p.entries.flatMap((e) => e.after));
+  const prio = (unit, c) => (upstream.has(unit) ? 1e9 : 0) + (lastMs.get(`${unit}\0${c.key}`) ?? DEFAULT_MS[c.key.split('#')[0]] ?? 30000);
+  onProgress?.(`Validation cycle ${cycle}: running ${work.reduce((n, w) => n + w.todo.length, 0)} check(s), up to ${width} at a time (pid ${process.pid}).`);
+  const runCheck = (e, c) => {
+    const timed = () => slot(async () => {
+      const pre = c.column === 'build' ? nonCodeState(root) : null;
+      const r = await execCheck(root, task, e.unit, c, cycle, timeout);
+      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner' };
+      if (pre) {
+        const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
+        if (Object.keys(wrote).length) rec.wrote = wrote;
+      }
+      append(root, task, rec);
+      results.push({ ...rec, tail: r.tail });
+      onProgress?.(`  ${r.status === 'PASSED' ? '✓' : '✗'} ${e.unit}:${c.key}${r.status === 'PASSED' ? '' : ` ${r.status}`} ${(r.durationMs / 1000).toFixed(1)}s`);
+    }, prio(e.unit, c));
+    // Tests that share a database wait for it before taking a slot, so no slot sits idle.
+    return c.column === 'test' && p.serializeTests.includes(e.unit) ? dbLock(timed) : timed();
+  };
   // Each unit's chain resolves its own deferred, so a consumer can wait for an upstream chain started after it.
   const done = new Map(work.map((w) => { let resolve; const promise = new Promise((r) => { resolve = r; }); return [w.e.unit, { promise, resolve }]; }));
   const runUnit = async ({ e, todo }) => {
     try {
       await Promise.all(e.after.map((d) => done.get(d)?.promise));
-      await slot(async () => {
-        for (const c of todo) {
-          const exec = () => execCheck(root, task, e.unit, c, cycle, timeout);
-          const pre = c.column === 'build' ? nonCodeState(root) : null;
-          const r = c.column === 'test' && p.serializeTests.includes(e.unit) ? await dbLock(exec) : await exec();
-          const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, source: 'runner' };
-          if (pre) {
-            const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
-            if (Object.keys(wrote).length) rec.wrote = wrote;
-          }
-          append(root, task, rec);
-          results.push({ ...rec, tail: r.tail });
-        }
-      });
+      const checksFirst = todo.filter((c) => c.column !== 'build');
+      const inOrder = async (list) => { for (const c of list) await runCheck(e, c); };
+      await Promise.all([...checksFirst.filter(PARALLEL_SAFE).map((c) => runCheck(e, c)), inOrder(checksFirst.filter((c) => !PARALLEL_SAFE(c)))]);
+      // Builds last, so their output never changes files under a running check.
+      await inOrder(todo.filter((c) => c.column === 'build'));
     } finally { done.get(e.unit).resolve(); }
   };
   await Promise.all(work.map(runUnit));
@@ -484,19 +562,64 @@ export async function mark(root, task, { unit, check, status, reason, ctx = null
   return rec;
 }
 
+const listFiles = (root, dir) => (fs.existsSync(dir) ? fs.readdirSync(dir, { recursive: true }).map((f) => posix(path.relative(root, path.join(dir, String(f))))).filter((f) => fs.statSync(path.join(root, f)).isFile()) : []);
+const shotName = (f) => path.posix.basename(f).replace(/\.[^.]+$/, '');
+const isBefore = (f) => /\/before\//.test(f) || /(^|[-_])before([-_]|$)/i.test(shotName(f));
+// "login-before-fix" and "login-after-fix" (or before/x and after/x) are one comparison.
+const pairKey = (f) => shotName(f).replace(/(^|[-_])(before|after)(?=[-_]|$)/gi, '').replace(/^[-_]+/, '');
+const humanize = (f) => shotName(f).replace(/[-_]+/g, ' ').trim();
+
+/**
+ * A task's evidence: screenshots and traces in .playwright-mcp/<slug>/ (where Playwright MCP saves them, with a
+ * .gitignore of its own so they never show in git status), everything else (index.md, qa-session.md, network,
+ * validation logs) in .forge/tasks/<slug>/evidence/. Paths are relative to the project root, so links open.
+ */
 export function evidence(root, task, { init = false } = {}) {
-  const dir = evidenceDir(root, task);
-  if (init) { ensureWorkspace(root); for (const d of EVIDENCE_DIRS) fs.mkdirSync(path.join(dir, d), { recursive: true }); }
-  const files = fs.existsSync(dir) ? fs.readdirSync(dir, { recursive: true }).map((f) => posix(String(f))).filter((f) => fs.statSync(path.join(dir, f)).isFile() && f !== 'index.md') : [];
+  const dir = evidenceDir(root, task); const vdir = visualDir(root, task);
+  if (init) {
+    ensureWorkspace(root);
+    for (const d of EVIDENCE_DIRS) fs.mkdirSync(path.join(dir, d), { recursive: true });
+    for (const d of VISUAL_DIRS) fs.mkdirSync(path.join(vdir, d), { recursive: true });
+    if (!fs.existsSync(path.join(vdir, '.gitignore'))) fs.writeFileSync(path.join(vdir, '.gitignore'), '*\n');
+  }
+  const relRoot = posix(path.relative(root, dir)); const vRoot = posix(path.relative(root, vdir));
+  const files = [...listFiles(root, dir), ...listFiles(root, vdir)].filter((f) => f !== `${relRoot}/index.md` && path.posix.basename(f) !== '.gitignore');
   const index = readText(path.join(dir, 'index.md'));
-  const relRoot = posix(path.relative(root, dir));
+  const resolve = (c) => {
+    if (c.startsWith('.forge/') || c.startsWith('.playwright-mcp/')) return c;
+    return [`${relRoot}/${c}`, `${vRoot}/${c}`].find((f) => fs.existsSync(path.join(root, f))) ?? `${relRoot}/${c}`;
+  };
   const cited = [...new Set([...index.matchAll(/\]\(([^)\s]+)\)|`([^`\s]+\.[A-Za-z0-9]{2,5})`/g)].map((m) => decodeURI(m[1] || m[2]).replace(/^\.\//, '')))]
-    .filter((c) => !/^[a-z]+:\/\//i.test(c))
-    .map((c) => (c.startsWith(relRoot + '/') ? c.slice(relRoot.length + 1) : c));
-  const missing = cited.filter((c) => !fs.existsSync(path.join(dir, c)));
-  const unindexed = files.filter((f) => !f.startsWith('reports/validation/') && !cited.includes(f));
-  const link = (f) => `[${f}](${encodeURI(`${relRoot}/${f}`)})`;
-  return { dir: relRoot, absolute: dir, files, links: files.map(link), missing, unindexed };
+    .filter((c) => !/^[a-z]+:\/\//i.test(c));
+  const missing = cited.filter((c) => !fs.existsSync(path.join(root, resolve(c))));
+  const citedFiles = new Set(cited.map(resolve));
+  const label = (f) => (f.startsWith(relRoot + '/') ? f.slice(relRoot.length + 1) : f.startsWith(vRoot + '/') ? f.slice(vRoot.length + 1) : f);
+  const unindexed = files.filter((f) => !f.startsWith(`${relRoot}/reports/validation/`) && !citedFiles.has(f)).map(label);
+  const link = (f) => `[${label(f)}](${encodeURI(f)})`;
+  const screenshots = files.filter((f) => IMAGE_RE.test(f) && /(^|\/)screenshots\//.test(f));
+  return { dir: relRoot, visualDir: vRoot, absolute: dir, files: files.map(label), links: files.map(link), missing, unindexed, screenshots, screenshotsAbsolute: screenshots.map((f) => path.join(root, f)), index, visual: visualResults(root, screenshots, index) };
+}
+
+/**
+ * The answer's Visual Results table, built only from screenshot files that exist, so no link is typed by hand.
+ * Each row takes its description from the evidence/index.md line naming the file; before/after shots share a row.
+ */
+export function visualResults(root, screenshots, index = '') {
+  if (!screenshots.length) return '';
+  const lines = index.split('\n');
+  const describe = (f) => {
+    const line = lines.find((l) => l.includes(path.posix.basename(f)));
+    const text = line?.replace(/\[[^\]]*\]\([^)]*\)|`[^`]*`/g, '').replace(/^[\s\-*:—–|]+|[\s\-*:—–|]+$/g, '').trim();
+    return (text || humanize(f)).replace(/\|/g, '\\|');
+  };
+  const groups = new Map();
+  for (const f of [...screenshots].sort()) { const k = pairKey(f) + '\0' + path.posix.dirname(f).replace(/\/(before|after)$/, ''); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+  const rows = [...groups.values()].flatMap((g) => {
+    const before = g.filter(isBefore); const after = g.filter((f) => !isBefore(f));
+    if (before.length === 1 && after.length === 1) return [`| ${describe(after[0])} | [View before](${encodeURI(before[0])}) · [View after](${encodeURI(after[0])}) |`];
+    return g.map((f) => `| ${describe(f)} | [View ${isBefore(f) ? 'before' : humanize(f)}](${encodeURI(f)}) |`);
+  });
+  return ['### Visual Results', '', '| What it shows | Screenshot |', '|---|---|', ...rows].join('\n');
 }
 
 const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`${c.deferrable ? ' (deferred to `run --build`)' : ''}` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
@@ -510,7 +633,7 @@ export function formatPlan(p) {
     const col = (k) => e.checks.filter((c) => c.column === k).map(cell).join('<br>') || 'N/A';
     L.push(`| ${e.unit} | ${e.kinds.join('+') || 'shared/other'} | ${e.reasons.join('; ')} | ${col('typecheck')} | ${col('lint')} | ${col('test')} | ${col('build')} | ${e.checks.filter((c) => c.manual).map((c) => c.key).join(', ') || '-'} |`);
   }
-  L.push('', 'Schedule: units in parallel; within a unit type check → lint → tests → build, each check once per cycle.');
+  L.push('', 'Schedule: longest checks first, in parallel; builds last in each unit; each check once per cycle.');
   if (p.serializeTests.length) L.push(`Serialized: tests of ${p.serializeTests.join(', ')} (shared database).`);
   for (const e of p.entries) if (e.after.length) L.push(`Ordered: ${e.after.join(', ')} build(s) before ${e.unit} (consumes built output).`);
   if (p.broad.length) L.push(`Broad impact: root config changed (${p.broad.join(', ')}), so every unit is in scope.`);
@@ -565,7 +688,8 @@ export function formatGate(g, { verbose = false, final = false } = {}) {
   const L = shown.map((r) => `${r.blocking ? '✗' : '-'} ${r.unit}:${r.check} ${r.state}${r.cycle != null ? ` (cycle ${r.cycle})` : ''}${[r.command && ` \`${r.command}\``, r.reason && ` ${r.reason}`, r.hint && ` → ${r.hint}`, r.blocking && r.log && ` log: ${r.log}`].filter(Boolean).join('')}`);
   const counts = {}; for (const r of g.rows) counts[r.state] = (counts[r.state] || 0) + 1;
   const summary = g.rows.length ? `Checks: ${Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ')}.` : g.docsOnly ? 'Only documentation changed.' : 'No changed code to validate.';
-  return [...L, summary, final ? `Final gate (builds included): ${g.result}` : `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
+  const running = g.running ? [`A validation run for this task is in progress (pid ${g.running.pid}, started ${g.running.startedAt}): rows may change when it ends. Wait for it; never start a second run.`] : [];
+  return [...L, ...running, summary, final ? `Final gate (builds included): ${g.result}` : `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
 }
 
 const KIND = (kinds) => (kinds.includes('mobile') ? 'Mobile' : kinds.includes('web') ? 'Web' : kinds.includes('backend') ? 'Backend/API' : 'Shared');
@@ -586,14 +710,33 @@ export async function finalCheck(root, task) {
   const g = await gate(root, task, { final: true });
   const eol = eolCheck(root);
   const comments = checkComments(root);
-  const ev = fs.existsSync(evidenceDir(root, task)) ? evidence(root, task) : null;
+  const ev = evidence(root, task);
+  const visual = visualCheck(root, task, g, ev);
   const problems = [
     g.result !== 'OPEN' && `gate ${g.result}`,
     eol.flagged.length && `${eol.flagged.length} line-ending flip(s)`,
     comments.errors && `${comments.errors} comment error(s)`,
-    ev?.missing.length && `${ev.missing.length} missing evidence file(s)`,
+    ev.missing.length && `${ev.missing.length} missing evidence file(s)`,
+    visual,
   ].filter(Boolean);
   return { ready: !problems.length, problems, gate: g, eol, comments, evidence: ev };
+}
+
+/**
+ * A browser- or device-visible change needs a screenshot of its final state, taken after the last code edit.
+ * The honest way out, when no browser or device tool could run, is a "Visual evidence unavailable: <reason>"
+ * line in evidence/index.md; the answer then says so.
+ */
+export function visualCheck(root, task, g, ev) {
+  const scope = [...(g.next?.browser ?? []), ...(g.next?.device ?? [])];
+  if (!scope.length || /^\s*[-*]?\s*Visual evidence unavailable:\s*\S/im.test(ev.index)) return null;
+  const finals = ev.screenshots.filter((f) => !isBefore(f));
+  if (!finals.length) return `no screenshot of the final state (${scope.join(', ')}): capture it, or write "Visual evidence unavailable: <reason>" in evidence/index.md`;
+  const mtime = (f) => { try { return fs.statSync(path.join(root, f)).mtimeMs; } catch { return 0; } };
+  const shot = Math.max(...finals.map(mtime));
+  const edited = scopeFiles(root, taskBase(root, task)).filter((f) => CODE_RE.test(f) && !TEST_RE.test(f)).map((f) => [f, mtime(f)]).sort((a, b) => b[1] - a[1])[0];
+  if (edited && edited[1] > shot + 1000) return `screenshots predate the last code change (${edited[0]}): retake the final state`;
+  return null;
 }
 
 function parseArgs(argv) {
@@ -626,26 +769,37 @@ async function main() {
     L.push(f.eol.flagged.length ? f.eol.flagged.map((x) => `✗ EOL ${x.path}: ${x.problem}`).join('\n') : `EOL: OK (${f.eol.checked} file(s)).`);
     for (const c of f.comments.findings) L.push(`${c.level === 'error' ? '✗' : '-'} comment ${c.file}:${c.line} [${c.rule}] "${c.text}" → ${c.fix}`);
     L.push(`Comments: ${f.comments.comments} new line(s), ${f.comments.errors} error(s), ${f.comments.warnings} warning(s).`);
-    if (f.evidence) {
+    if (f.evidence.files.length) {
       L.push(`Evidence (${f.evidence.files.length} file(s)):`, ...f.evidence.links.map((l) => `- ${l}`));
       if (f.evidence.missing.length) L.push(`✗ index.md cites missing file(s): ${f.evidence.missing.join(', ')}`);
       if (f.evidence.unindexed.length) L.push(`- not described in index.md: ${f.evidence.unindexed.join(', ')}`);
     } else L.push('Evidence: none (no browser or device run recorded).');
+    if (f.evidence.visual) L.push('', 'Paste this into the answer as is (every link points to a file that exists):', f.evidence.visual, '');
     L.push(f.ready ? 'FINAL: READY to report.' : `FINAL: NOT READY: ${f.problems.join('; ')}.`);
-    L.push('Completion status: exactly one of VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED (rules in quality-gates.md). Words such as DONE, COMPLETE or DONE_WITH_CONCERNS are not valid.');
+    L.push('Completion status: exactly one of VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED (rules in quality-gates.md). Words such as DONE, COMPLETE or DONE_WITH_CONCERNS are not valid.', 'Save the full report to report.md; answer the user per templates/final-response.md (their outcome, screenshots above for UI work, the **Status:** line), not with the report.');
     out(f, L.join('\n'));
     process.exit(f.ready ? 0 : f.problems.length === 1 && f.gate.result === 'BLOCKED' ? 2 : 1);
   }
   else if (cmd === 'mark') { const r = await mark(root, o.task, { unit: o.unit, check: o.check, status: o.status, reason: o.reason }); out(r, `recorded ${r.unit}:${r.check} = ${r.status} (cycle ${r.cycle})`); }
   else if (cmd === 'evidence') {
     const ev = evidence(root, o.task, { init: o.init });
-    const text = [`Evidence: ${ev.dir}/ (${ev.files.length} file(s))`, ...ev.links.map((l) => `- ${l}`)];
+    const text = [`Evidence: ${ev.dir}/ and ${ev.visualDir}/ (${ev.files.length} file(s))`, ...ev.links.map((l) => `- ${l}`)];
+    if (ev.visual) text.push('', ev.visual);
     if (ev.missing.length) text.push(`MISSING: index.md cites files that do not exist: ${ev.missing.join(', ')}`);
     if (ev.unindexed.length) text.push(`Not described in index.md yet: ${ev.unindexed.join(', ')}`);
     out(ev, text.join('\n'));
     process.exit(ev.missing.length ? 1 : 0);
   } else {
-    const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
+    // Progress goes to stderr as each check ends, so a run in the background never looks dead; stdout keeps the summary.
+    const progress = (line) => process.stderr.write(line + '\n');
+    const onWait = (held) => progress(`Waiting for the validation run already in progress for this task (pid ${held.pid}, started ${held.startedAt}). Afterwards only the checks still needed run.`);
+    let r;
+    try {
+      r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15, onProgress: progress, onWait });
+    } catch (e) {
+      if (e.code !== 'BUSY') throw e;
+      console.error(`BUSY: ${e.message}`); process.exit(3);
+    }
     // Compact on purpose: passing checks take one line in total; only failures get their output.
     const passed = r.results.filter((x) => x.status === 'PASSED');
     const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];

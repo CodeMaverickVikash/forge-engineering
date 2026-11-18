@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, formatPlan, formatScope, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, visualResults, visualCheck, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -292,14 +292,15 @@ test('evidence lists real files as links and flags an index that cites a missing
   const dir = monorepo();
   try {
     const ev0 = evidence(dir, 't', { init: true });
-    for (const d of ['screenshots', 'playwright', 'traces', 'network', 'reports']) assert.ok(fs.existsSync(path.join(ev0.absolute, d)));
-    w(dir, '.forge/tasks/t/evidence/screenshots/after-cart-390.png', 'png');
-    w(dir, '.forge/tasks/t/evidence/index.md', '- [after](screenshots/after-cart-390.png): cart, 390x844\n- `screenshots/before-cart-390.png`: before\n');
+    for (const d of ['network', 'reports']) assert.ok(fs.existsSync(path.join(ev0.absolute, d)));
+    for (const d of ['screenshots/before', 'screenshots/after', 'screenshots/responsive', 'screenshots/workflows', 'traces']) assert.ok(fs.existsSync(path.join(dir, '.playwright-mcp/t', d)), d);
+    w(dir, '.playwright-mcp/t/screenshots/after/cart-390.png', 'png');
+    w(dir, '.forge/tasks/t/evidence/index.md', '- [after](screenshots/after/cart-390.png): cart, 390x844\n- `screenshots/before/cart-390.png`: before\n');
     const ev = evidence(dir, 't');
-    assert.deepEqual(ev.links, ['[screenshots/after-cart-390.png](.forge/tasks/t/evidence/screenshots/after-cart-390.png)']);
-    assert.deepEqual(ev.missing, ['screenshots/before-cart-390.png']);
+    assert.deepEqual(ev.links, ['[screenshots/after/cart-390.png](.playwright-mcp/t/screenshots/after/cart-390.png)'], 'screenshots live in .playwright-mcp/<task>/, linked from the project root');
+    assert.deepEqual(ev.missing, ['screenshots/before/cart-390.png']);
     assert.equal(cli(dir, 'evidence', '--task', 't').status, 1);
-    assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).stdout.trim(), '', '.forge stays out of git');
+    assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).stdout.trim(), '', ".forge and the task's screenshots stay out of git");
   } finally { clean(dir); }
 });
 
@@ -332,8 +333,13 @@ test('one run call validates and answers the gate; final checks everything phase
     const stale = cli(dir, 'final', '--task', 't');
     assert.match(stale.stdout, /FINAL: NOT READY: gate CLOSED/, 'an edit after the last run makes the checks stale');
     cli(dir, 'run', '--task', 't', '--build');
+    const noShot = cli(dir, 'final', '--task', 't');
+    assert.equal(noShot.status, 1);
+    assert.match(noShot.stdout, /FINAL: NOT READY: no screenshot of the final state \(apps\/web\)/, 'a browser-visible change needs visual evidence');
+    w(dir, '.playwright-mcp/t/screenshots/after/board.png', 'png');
     const ok = cli(dir, 'final', '--task', 't');
     assert.equal(ok.status, 0);
+    assert.match(ok.stdout, /### Visual Results[\s\S]*\| board \| \[View board\]\(\.playwright-mcp\/t\/screenshots\/after\/board\.png\) \|/);
     assert.match(ok.stdout, /FINAL: READY to report\./);
   } finally { clean(dir); }
 });
@@ -348,5 +354,90 @@ test('CLI rejects a bad task slug and a non-git folder without a stack trace', (
     assert.equal(nogit.status, 2);
     assert.match(nogit.stderr, /UNAVAILABLE: .* not a git repository/);
     assert.doesNotMatch(nogit.stderr, /at .*\.mjs:\d+/);
+  } finally { clean(dir); }
+});
+
+// One package whose checks sleep for the given milliseconds (argv[2]).
+const SLEEP_JS = 'setTimeout(() => {}, Number(process.argv[2]) || 0);\n';
+function solo(ms) {
+  const scripts = Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, `node sleep.js ${v}`]));
+  return monorepo({ 'packages/solo/package.json': JSON.stringify({ name: 'solo', scripts }), 'packages/solo/sleep.js': SLEEP_JS, 'packages/solo/src/a.js': 'export const a = 1;\n' });
+}
+const interval = (r) => ({ check: r.check, end: Date.parse(r.at), start: Date.parse(r.at) - r.durationMs });
+const ledgerRows = (dir, cycle) => fs.readFileSync(path.join(dir, '.forge/tasks/t/validation/ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter((r) => r.cycle === cycle && r.unit === 'packages/solo');
+
+test("a unit's package.json checks run side by side and its build runs last", async () => {
+  const dir = solo({ typecheck: 1500, lint: 1500, test: 1500, build: 0 });
+  try {
+    w(dir, 'packages/solo/src/a.js', 'export const a = 2;\n');
+    const r = await run(dir, 't', { jobs: 4, build: true });
+    assert.deepEqual(r.results.filter((x) => x.unit === 'packages/solo').map((x) => x.status), ['PASSED', 'PASSED', 'PASSED', 'PASSED']);
+    const rows = ledgerRows(dir, r.cycle).map(interval);
+    const checks = rows.filter((x) => x.check !== 'build');
+    assert.ok(Math.max(...checks.map((x) => x.start)) < Math.min(...checks.map((x) => x.end)), 'type check, lint and tests overlap instead of queueing');
+    assert.ok(rows.find((x) => x.check === 'build').start >= Math.max(...checks.map((x) => x.end)) - 50, 'the build starts after the other checks end');
+  } finally { clean(dir); }
+});
+
+test('the longest check starts first, by default and then by its recorded duration', async () => {
+  const dir = solo({ typecheck: 1500, lint: 0, test: 0 });
+  try {
+    w(dir, 'packages/solo/src/a.js', 'export const a = 2;\n');
+    const r1 = await run(dir, 't', { jobs: 1, units: ['packages/solo'] });
+    assert.equal(ledgerRows(dir, r1.cycle)[0].check, 'test', 'with no history, tests go first');
+    w(dir, 'packages/solo/src/a.js', 'export const a = 3;\n');
+    const r2 = await run(dir, 't', { jobs: 1, units: ['packages/solo'] });
+    assert.equal(ledgerRows(dir, r2.cycle)[0].check, 'typecheck', 'the slowest check last cycle goes first');
+  } finally { clean(dir); }
+});
+
+test('one run per task: a second run waits for the first, a dead holder is ignored, BUSY after the wait limit', async () => {
+  const dir = solo({ test: 0 });
+  const lock = path.join(dir, '.forge/tasks/t/validation/run.lock');
+  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)']);
+  try {
+    w(dir, 'packages/solo/src/a.js', 'export const a = 2;\n');
+    fs.mkdirSync(path.dirname(lock), { recursive: true });
+    fs.writeFileSync(lock, JSON.stringify({ pid: holder.pid, startedAt: new Date().toISOString() }));
+    const g = await gate(dir, 't');
+    assert.equal(g.running.pid, holder.pid);
+    assert.match(formatGate(g), /in progress .*never start a second run/);
+
+    await assert.rejects(run(dir, 't', { units: ['packages/solo'], waitMs: 1200 }), (e) => e.code === 'BUSY');
+    const waits = [];
+    const waiting = run(dir, 't', { units: ['packages/solo'], waitMs: 30000, onWait: (h) => waits.push(h.pid) });
+    await new Promise((r) => setTimeout(r, 1500));
+    holder.kill();
+    const r = await waiting;
+    assert.deepEqual(waits, [holder.pid], 'it says once whom it waits for');
+    assert.equal(r.results.length, 1, 'then it runs');
+    assert.equal(fs.existsSync(lock), false, 'and releases the lock');
+    assert.equal((await gate(dir, 't')).running, null);
+  } finally { holder.kill(); clean(dir); }
+});
+
+test('visual evidence: before/after rows from real files; the final-state shot must postdate the last code edit', async () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'apps/web/page.js', 'export default 2;\n');
+    const shots = ['.playwright-mcp/t/screenshots/before/login-fix.png', '.playwright-mcp/t/screenshots/after/login-fix.png', '.playwright-mcp/t/screenshots/responsive/login-390.png'];
+    const table = visualResults(dir, shots, '- `screenshots/after/login-fix.png`: login button no longer hidden by the keyboard\n');
+    assert.match(table, /^### Visual Results/);
+    assert.ok(table.includes('| login button no longer hidden by the keyboard | [View before](.playwright-mcp/t/screenshots/before/login-fix.png) · [View after](.playwright-mcp/t/screenshots/after/login-fix.png) |'), table);
+    assert.ok(table.includes('| login 390 | [View login 390](.playwright-mcp/t/screenshots/responsive/login-390.png) |'), 'a screenshot with no index line gets a readable name');
+    assert.equal(visualResults(dir, []), '', 'no screenshots, no table: nothing is invented');
+
+    const g = await gate(dir, 't');
+    const ev = () => evidence(dir, 't');
+    assert.match(visualCheck(dir, 't', g, ev()), /no screenshot of the final state \(apps\/web\)/);
+    w(dir, shots[0], 'png');
+    assert.match(visualCheck(dir, 't', g, ev()), /no screenshot of the final state/, 'a before shot alone does not show the result');
+    w(dir, shots[1], 'png');
+    assert.equal(visualCheck(dir, 't', g, ev()), null);
+    const later = new Date(Date.now() + 60000);
+    fs.utimesSync(path.join(dir, 'apps/web/page.js'), later, later);
+    assert.match(visualCheck(dir, 't', g, ev()), /screenshots predate the last code change \(apps\/web\/page\.js\)/);
+    w(dir, '.forge/tasks/t/evidence/index.md', '- Visual evidence unavailable: Playwright MCP is not connected\n');
+    assert.equal(visualCheck(dir, 't', g, ev()), null, 'an honest, stated limitation is accepted');
   } finally { clean(dir); }
 });

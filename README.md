@@ -50,7 +50,7 @@ claude mcp add playwright -- npx @playwright/mcp@latest
   │  7 VERIFY       quality gates G1–G15: tests, types, lint, build, security, Playwright + DevTools
   │  8 FIX          root-cause fixes, at most 3 cycles, nothing hidden
   │  9 FINAL CHECK  scope check and final gate; independent review when you ask or auth/payment/schema changed
-  └ 10 REPORT       FORGE Execution Report, saying what really ran and what didn't
+  └ 10 REPORT       an answer about your outcome; the full execution report is saved
 ```
 
 **Reviews** (*"/forge Review my current branch"*, *"/forge Review this PR: <url>"*) take a read-only path. FORGE detects the target and base branch, sends one wave of reviewers chosen from the changed areas, and returns a 13-section Engineering Review Report with a status, findings, ticket drafts and a verdict. See [docs/usage.md](docs/usage.md#reviewing-a-pr-or-branch).
@@ -70,10 +70,10 @@ FORGE runs each specialist on the model that fits its job. **Your main model** i
 | `forge-backend-engineer` | Services, endpoints, jobs and CLIs in any stack, with tests. | 60 |
 | `forge-database-engineer` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. | 60 |
 | `forge-integration-engineer` | REST, GraphQL and gRPC contracts, webhooks, OAuth/OIDC, payments. | 60 |
+| `forge-code-reviewer` | Independent review of the uncommitted diff against the spec, with a verdict. | 45 |
 | `forge-performance-engineer` | Finds the real bottleneck and proves fixes with before/after numbers. | 40 |
 | `forge-security-engineer` | Threat model and OWASP review of auth, input, secrets and dependencies. | 40 |
 | `forge-architect` | Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work. | 30 |
-| `forge-code-reviewer` | Independent review of the uncommitted diff against the spec, with a verdict. | 30 |
 
 ### Always on Sonnet (18 agents): planning, documentation, UI, tests, config and browser checks, where tests, the browser or the reviewer catch mistakes
 

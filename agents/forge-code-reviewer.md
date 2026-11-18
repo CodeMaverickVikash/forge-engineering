@@ -3,7 +3,7 @@ name: forge-code-reviewer
 description: FORGE code reviewer. Independent review of the uncommitted diff against the spec, with a verdict.
 tools: Read, Grep, Glob, Bash, Skill
 model: inherit
-maxTurns: 30
+maxTurns: 45
 color: red
 skills:
   - forge-code-review
@@ -23,7 +23,7 @@ You are FORGE's **Code Reviewer**. You are independent: you review the change as
 2. Run `git status --short`, `git diff --stat` and `git diff` (plus `git diff --cached` if anything is staged). Read untracked files in full. Run nothing that changes the working tree.
 3. Read the surrounding code and the callers of changed functions and contracts, not only the hunks.
 4. Work through the checklist in the preloaded `forge-code-review` skill.
-5. Re-run at least one cheap claimed-passing check yourself (a targeted test file, typecheck or lint) and record the result.
+5. Don't re-run suites: the gate's ledger holds a recorded run of every check (`validation-gate.mjs gate --task <slug> --verbose`, logs in `evidence/reports/validation/`). Run one targeted test file only when a finding depends on behavior no recorded run covers.
 6. Rate each finding with the skill's severity scale. Skip style the project's formatter or linter already enforces.
 7. Give each finding a concrete suggested fix for the owning engineer; do not apply it.
 

@@ -18,7 +18,7 @@ Order, never skipped: **implement → static checks → tests → fix → pre-br
 
 One call does the whole cycle:
 - **Plans** from the detector's units and their real commands (package scripts, Makefile, Composer, toolchain defaults). Scope is the units with changed code plus the **consumers** of a changed shared package; a root config change puts every unit in scope; documentation-only changes need no checks. API contracts (G6) and migrations (G12) add manual checks.
-- **Runs** each affected app's type check → lint → tests → build. Apps run in parallel; tests that share a database run one at a time, and a prebuilt package builds before its consumers.
+- **Runs** each affected app's type check, lint and tests, then its build, longest checks first and in parallel (package.json checks side by side; Maven, Gradle and dotnet checks in order). Tests that share a database run one at a time, a prebuilt package builds before its consumers, and only one run per task executes at a time.
 - **Defers builds** when type check or tests already cover the unit and no consumer imports its output. The row shows `DEFERRED` and does not block the browser, since the browser runs on the dev server. `V run --task <slug> --build` runs them once, right before `V final`, which requires them. A build that is the unit's only compile step, or that feeds a consumer, still runs every cycle.
 - **Runs each check once.** It skips checks that already passed for the current code, so a fix re-runs only what it made stale or what failed.
 - **Never runs** scripts that deploy or publish (`NOT RUN`, needs authorization), or that rewrite files (`--fix`, `--write`) or watch. Run a check-only or one-shot equivalent and record it with `V mark --task <slug> --unit <u> --check <c> --status PASSED --reason "<command → key output>"`.
@@ -61,7 +61,7 @@ If the host's command timeout is shorter than the suite, run it in the backgroun
 
 ## Pre-browser gate
 
-Browser QA and device verification start **only** when the gate is OPEN for the code as it is now. The one exception is reproducing a bug before the fix exists.
+Browser QA and device verification start **only** when the gate is OPEN for the code as it is now. The one exception is a short pass before any edit: reproducing a bug, or capturing the before screenshots of a visual fix or UI improvement.
 - On BLOCKED, first try the allowed remedy: install the project's declared dependencies, or start a throwaway local service ([safety.md](safety.md)). Otherwise stop and report `BLOCKED`.
 - The code review (G13), when required, is not a browser step and runs alongside the checks.
 
@@ -87,8 +87,9 @@ Whenever a browser or device run happened and capture works, save screenshots of
 - a "before", only when one was really taken.
 
 Rules:
-- Store them in `.forge/tasks/<slug>/evidence/{screenshots,playwright,traces,network,reports}` (`V evidence --task <slug> --init`). The folder is git-ignored. Cite an existing project artifact folder in place instead of copying.
-- Give each file a descriptive name (`after-checkout-error-390x844.png`) and one line in `evidence/index.md`: what it shows, the page or workflow, the viewport.
+- Store screenshots in `.playwright-mcp/<slug>/screenshots/{before,after,responsive,workflows}/` and traces in `.playwright-mcp/<slug>/traces/`; other evidence in `.forge/tasks/<slug>/evidence/` (`V evidence --task <slug> --init` creates both, git-ignored). Cite an existing project artifact folder in place instead of copying.
+- Give each file a descriptive name (`checkout-error-390x844.png`) and one line in `evidence/index.md`: what it shows, the page or workflow, the viewport.
+- `V final` requires, for a browser- or device-visible change, a screenshot of the final state taken after the last code edit, or a `Visual evidence unavailable: <reason>` line in `evidence/index.md`. It prints the answer's Visual Results table from the real files.
 - Cite only links the tools print. A screenshot never proves backend correctness on its own.
 
 ## Final check (phase 9): `V final --task <slug>`
@@ -117,4 +118,4 @@ Precedence: FAILED > BLOCKED > VERIFIED WITH LIMITATIONS > VERIFIED. Never VERIF
 - Every acceptance criterion maps to evidence: a test name, command output, screenshot or code reference.
 - The final check is READY, or the report says exactly why not.
 - G14 is done, and G13 when it is required.
-- The report, with its completion status and git state, is printed. Nothing was committed.
+- The report, with its completion status and git state, is saved; the answer to the user ends with the same status. Nothing was committed.

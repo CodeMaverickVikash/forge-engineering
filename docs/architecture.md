@@ -69,7 +69,7 @@ Antigravity tool names differ from Claude Code's, and a wrong tool name can hang
   tasks/<slug>/spec.md            requirements (orchestrator-owned)
   tasks/<slug>/plan.md            tasks, file ownership, decisions log
   tasks/<slug>/reports/<agent>.md specialist reports
-  tasks/<slug>/report.md          final FORGE Execution Report
+  tasks/<slug>/report.md          FORGE Execution Report (saved; the user gets an answer)
 ```
 
 Specialists get short work orders that point to these files instead of pasting context, which keeps prompts small and consistent.

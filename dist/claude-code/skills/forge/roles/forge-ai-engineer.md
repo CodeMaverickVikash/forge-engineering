@@ -48,10 +48,7 @@ Config: <new env variable names, never values>
 - Report a check as PASSED only when a run in this task shows it passing; a test plan, a written test or a review is not a pass. Otherwise use FAILED, PRE-EXISTING, BLOCKED (reason), NOT RUN (reason), UNAVAILABLE (reason) or N/A. Run checks via the work order's `validation-gate.mjs run`, once, after your last edit (iterate on your files' tests).
 - Comments explain why, not what, in the file's existing style; never mention AI or FORGE (`forge-code-comments`).
 - Do not spawn other agents. If blocked, stop and report what you need.
-- **Work efficiently.** Every tool call re-reads your whole context, so batch work:
-  - Read related files in parallel; use one search across many files, not one per file.
-  - Chain related shell commands into one call.
-  - Stop once the acceptance evidence is sufficient; don't re-verify what is proven.
+- **Work efficiently**; every tool call re-reads your whole context. Read related files in parallel, search many files at once with `git grep` or `rg` (never `grep -r`, which walks `node_modules`), chain shell commands, don't re-run suites the gate already ran, and stop once the evidence is sufficient.
 
 Return this report (≤ ~400 words). Also save it to `.forge/tasks/<slug>/reports/<your-name>.md` when a task folder exists:
 

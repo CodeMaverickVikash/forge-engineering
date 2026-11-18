@@ -32,7 +32,7 @@ If the line above still shows a literal `$ARGUMENTS` placeholder, the request is
     1. **Discovery:** the read-only analysts the task needs.
     2. **Implementation:** engineers with disjoint file ownership, after the contract is frozen in `plan.md`.
     3. **Validation:** `V run` (step 7) (+ `forge-qa-lead` / `forge-test-automation-engineer` when needed, + `forge-code-reviewer` only per [G13](#never-skipped-s-and-up)).
-    4. **Browser / device:** `forge-browser-qa`, only behind an OPEN gate.
+    4. **Browser / device:** `forge-browser-qa`, only behind an OPEN gate, **at most 4 journeys per pass** (more hit the turn cap in every measured run).
     5. **Fix:** the owners of failing items only, then a delta retest ([core/delegation.md](core/delegation.md#delta-retests)).
 
     Go sequential only when an agent needs another's output.
@@ -64,7 +64,7 @@ Pick exactly one size; when in doubt pick the larger. Any new feature, endpoint,
 4. **Architect.** Pick the smallest team that covers the risks ([core/routing.md](core/routing.md)). For L, `forge-architect` writes the approach and an ADR.
 5. **Plan.** For M/L, write `plan.md` ([templates/implementation-plan.md](templates/implementation-plan.md)): small ordered tasks, a **file owner** for each, and a validation strategy.
 6. **Implement.** Delegate per [core/delegation.md](core/delegation.md); parallelize only on disjoint files.
-7. **Verify** ([core/quality-gates.md](core/quality-gates.md)), with `V` = `node "<FORGE_HOME>/scripts/validation-gate.mjs"`. `V run --task <slug>` (add `--base <base branch>` once when the task covers a branch's commits) checks every affected app (type check, lint, tests; builds are deferred to step 9) in one parallel batch, never repeating a check that still passes, and exits with the **pre-browser gate**. Start it only after every implementer has returned, and without `--units` ([check budget](core/delegation.md#check-budget-no-repeated-suites)):
+7. **Verify** ([core/quality-gates.md](core/quality-gates.md)), with `V` = `node "<FORGE_HOME>/scripts/validation-gate.mjs"`. `V run --task <slug>` (add `--base <base branch>` once when the task covers a branch's commits) checks every affected app (type check, lint, tests; builds are deferred to step 9) in one parallel batch, never repeating a check that still passes, and exits with the **pre-browser gate**. Start it only after every implementer has returned, and without `--units`. Only one runs per task (a second waits), and once the gate is OPEN you make no edits yourself ([check budget](core/delegation.md#check-budget-no-repeated-suites)):
    - 0 (OPEN): browser QA or device verification may start.
    - 1: fix, then run again.
    - 2: unblock, or report BLOCKED.
@@ -72,7 +72,9 @@ Pick exactly one size; when in doubt pick the larger. Any new feature, endpoint,
    Backend-only changes get API-level verification instead.
 8. **Fix.** Fix at the root cause (`forge-debugging`), at most 3 cycles per failure, then report it unresolved; never hide a failure. A check that `V` marks `failed in 2 cycles` gets its root-cause analysis on Opus. Merge the review's and browser QA's findings into **one fix wave**, then `V run` once after every owner has returned, then retest **only the delta** ([core/delegation.md](core/delegation.md#delta-retests)).
 9. **Final check.** When G13 requires it, `forge-code-reviewer` reviews the listed files against the spec. Check `git diff --stat` for unrelated changes. Then run `V run --task <slug> --build` (the deferred builds, once) and `V final --task <slug>`; it covers the gate after the last edit, line endings, new comments and evidence. The file's owner fixes anything it flags before you report.
-10. **Report.** Fill [templates/engineering-report.md](templates/engineering-report.md) with one **completion status** (rules in quality-gates.md), save it to `.forge/tasks/<slug>/report.md`, and **print the full report as your final message**, not a summary. Often it is the only thing anyone reads. Write it only after **every launched agent has returned**. If a result still arrives after you printed it, update the saved report and print the **full** report again, starting with its heading line and nothing before it; never end on a recap or a pointer to an earlier message.
+10. **Report.** Only after **every launched agent has returned**:
+    - **Save the engineering record:** fill [templates/engineering-report.md](templates/engineering-report.md) with one **completion status** (rules in quality-gates.md) into `.forge/tasks/<slug>/report.md`. Don't print it.
+    - **Answer the user** as your final message, following [templates/final-response.md](templates/final-response.md). It covers what they asked for and what they now have, with real screenshots for UI work, and ends with the status line. Leave out agents, phases and command logs unless the user asks for execution details; then print `report.md`. If a result arrives after you answered, update `report.md` and send the complete answer again.
 
 Analysis-only requests (analyze, audit, suggest) skip phases 6–8 unless fixes were asked, and deliver findings ranked by impact with `file:line` evidence.
 
@@ -87,10 +89,10 @@ Size reduces paperwork, not assurance:
   - In Mode B, follow the `forge-browser-qa` skill.
   - Without Playwright or the DevTools MCP, the verdict is *"implemented, not browser-verified"* plus the reason.
 - **The independent code review (G13) runs only when it pays:** when the user asked for a review, or when `V run` prints `Code review: required` (auth, payment or schema files). Then it covers only the files that line lists, on Opus. Otherwise the regression test, the gate, browser QA and `V final` verify the change, and the report says "G13: not required". A request to check whether a branch broke something is regression analysis, not G13: answer it with tests, `V run --base <base branch>` and targeted reviewers.
-- **The report template is used exactly** (reviews use their own 13-section template). The first line is exactly `### FORGE Execution Report`, followed by the template's bold labels, verbatim and in order: Task, Enhanced specification, Project understanding, Specialists involved, Skills & capabilities, Implementation, Validation summary, Browser & device verification, Evidence, Issues found and resolved, Remaining issues and blockers, Assumptions, Remaining work, Completion status, Git status. Write "N/A" rather than dropping a section, and end with "No commit, push, or pull request was created." Tools parse these reports and users compare them across tasks.
+- **The saved `report.md` uses its template exactly**: first line `### FORGE Execution Report`, then the template's bold labels verbatim and in order, "N/A" rather than a dropped section, ending with "No commit, push, or pull request was created." Tools parse it and later tasks read it. The user-facing answer is free-form, but its status matches the report's. Reviews print their own 13-section report, because that report is the answer.
 
 ## Workspace and ownership
 
 - `.forge/` (self-gitignored) holds `context.json` (the project map, refreshed by the detector), `knowledge.md` (durable conventions and gotchas, updated after M/L tasks, never secrets) and `tasks/<slug>/` (spec, plan, specialist reports, report).
-- Treat specialist claims as unverified: spot-check with `git diff`, and re-run at least one claimed-passing command yourself. Resolve disagreements with the [conflict precedence](core/delegation.md#conflict-resolution) and record the decision in `plan.md`.
-- Keep user-visible output short: one status line per phase, then the final report.
+- Treat specialist claims as unverified: spot-check with `git diff`; a claimed pass counts only as a `V` ledger row for the current code, never as a suite you re-run. Resolve disagreements with the [conflict precedence](core/delegation.md#conflict-resolution) and record the decision in `plan.md`.
+- Keep user-visible output short: one status line per phase, then the answer.

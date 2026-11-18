@@ -15,12 +15,13 @@ VERIFY WITH: node "<FORGE_HOME>/scripts/validation-gate.mjs" run --task <slug> -
              (once, when your edits are done; never raw suite commands; read-only roles: omit)
 GATE:        (browser QA and device verification only) pre-browser gate OPEN at cycle <n>;
              re-check: node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>
-EVIDENCE:    (browser QA only) .forge/tasks/<slug>/evidence/  (index.md + validation-gate.mjs evidence)
+EVIDENCE:    (browser QA only) screenshots: .playwright-mcp/<slug>/screenshots/{before,after,responsive,workflows}/
+             index + session: .forge/tasks/<slug>/evidence/  (validation-gate.mjs evidence --init / evidence)
 MODEL:       (only when escalated) opus: <trigger from Model escalation below>; otherwise omit
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
-Implementers validate through the runner because it records every result. When their checks already passed for the final code, the validation wave reuses them instead of running them again. Never send a browser QA or device work order while the gate is CLOSED or BLOCKED. The one exception is reproducing a bug before the fix exists.
+Implementers validate through the runner because it records every result. When their checks already passed for the final code, the validation wave reuses them instead of running them again. Never send a browser QA or device work order while the gate is CLOSED or BLOCKED. The one exception is a short pass before any edit: reproducing a bug, or capturing the before screenshots of a visual fix or UI improvement.
 
 ## Check budget (no repeated suites)
 
@@ -32,11 +33,14 @@ A measured run spent about 32 minutes of check time on one change: a baseline th
 - **Builds run once, at the end.** `V run` defers a build that type check or tests already cover (`DEFERRED`, not blocking the browser). Run `V run --task <slug> --build` once, after the last fix and right before `V final`.
 - **Branch work uses `--base <base branch>`, never `--all`, for coverage.** Without it the gate sees only uncommitted files and misses what the branch committed. `--all` re-runs passing checks and is never the way to widen scope.
 - **A build that rewrites a tracked file** (a sitemap's lastmod) is reported as a build side effect and does not stale other checks. Restore the file only if it should not ship.
+- **One `V run` per task at a time.** The runner holds a lock: a second run waits for the first, then runs only what is still needed. A run in the background prints a stderr line per finished check; read those, and never start a run to find out whether one is alive.
+- **No edits of your own once the gate is OPEN**, not even a comment reflow. In a measured run, one comment edit made 8 checks stale (the 140 s API suite among them) and stopped browser QA at its gate check. Put the edit in the next fix wave, or leave it for the report.
 - **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. It skips deferred builds. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
 
 ## Browser QA scope
 
 The first browser pass in the measured run hit its 45-turn cap. It had 6 journeys across 2 viewports, 3 model types and 4 modes, plus account setup. Size every browser work order to fit:
+- **Before screenshots** (visual fixes and UI improvements only): the reproduction pass, before any edit, captures at most 3 affected screens into `screenshots/before/`. New features have no before.
 - **At most 4 journeys per pass, at one viewport.** Add a second viewport only for layout assertions (one `evaluate` per page). Rank journeys by risk. Put the rest in a second pass, or list them as NOT RUN with the reason.
 - **Give it the session:** the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
 - **Same verifier for retests** (SendMessage), with only the delta. Never relaunch a full pass after a fix.
@@ -109,7 +113,7 @@ Specialists must also save this report to `.forge/tasks/<slug>/reports/<agent-na
 2. **File ownership.** Implementers edit only the files they own. Before launching parallel implementers, make sure ownership is disjoint. Shared files (route registries, barrel exports, lockfiles, config) get a single owner, and the other agents request changes through their report.
 3. **Contract first.** When frontend and backend both change, freeze the API contract in `plan.md` before launching both.
 4. **Parallel launch.** Issue independent Agent calls in the same message. Never launch two editors on overlapping files.
-5. **Verification of claims.** Treat specialist claims as unverified until you see evidence: diff, command output or a screenshot. Re-run at least one "passed" command yourself.
+5. **Verification of claims.** Treat specialist claims as unverified until you see evidence: diff, a ledger row, command output or a screenshot. A claimed pass counts only as a `V` ledger row for the current code; never re-run a suite to confirm it.
 6. **No nesting by default.** Specialists do their own job and do not spawn further agents. The orchestrator coordinates everything.
 7. **Retry budget.** If a specialist returns `blocked` or wrong work, re-brief it once with the specific correction. After that, do it yourself or report it.
 

@@ -28,7 +28,7 @@ Use **Q** (answer only) when the user asks how, where or why something works and
 | 7 | Verify | Static checks and tests ran once per cycle for every affected app. The pre-browser gate opened **before** browser or device verification started, or the run stopped as BLOCKED. Every required gate is passed, failed or recorded as blocked or unavailable, each with evidence |
 | 8 | Fix | Failures introduced by our change are fixed, or reported as unresolved after 3 cycles. After each fix, the affected checks re-ran and the gate reopened before any browser retest |
 | 9 | Final check | Reviewer verdict recorded when G13 requires a review. No unrelated diffs. `validation-gate.mjs final` is READY (gate, line endings, comments, evidence) |
-| 10 | Report | Report printed and saved, with links to real evidence and one completion status. Git state stated. No commit or PR created |
+| 10 | Report | Report saved with links to real evidence and one completion status; the user gets an answer about their outcome (templates/final-response.md) with the same status. Git state stated. No commit or PR created |
 
 ## Task-type playbooks (deltas from the default)
 

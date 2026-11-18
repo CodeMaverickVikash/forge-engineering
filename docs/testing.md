@@ -43,12 +43,12 @@ Defined in `tests/e2e/scenarios.mjs`:
 
 | Scenario | Fixture | Checks |
 |---|---|---|
-| `bug-fix` | `web-tasks` | code reviewer and browser QA invoked (the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
+| `bug-fix` | `web-tasks` | browser QA invoked and **no** code reviewer (G13 not required; the orchestrator may fix an S task directly); counter logic fixed; tests pass; browser-verified or honestly not |
 | `branch-review` | `web-tasks` + scenario-built history (`main`, `feature/edit-title` with seeded defects, one uncommitted edit) | 13-section Engineering Review Report; base `main` detected; seeded unknown-id crash found (BR-001); local change reported; status CHANGES REQUIRED; **the working tree, HEAD, index and stash are byte-for-byte unchanged**; review lock removed |
 | `code-question` | `web-tasks` | Q size: answered directly with `app.js` evidence; **no** agents, **no** changes, no full execution report |
 | `security-review` | `web-tasks` | security engineer invoked; **no** source changes; report names the XSS sink |
 | `ui-improvement` | `web-tasks` | frontend, UX or accessibility, and browser QA; source changes; tests pass |
-| `new-feature` | `web-tasks` | engineers, browser QA and the reviewer; update endpoint added **with an automated test**; tests pass |
+| `new-feature` | `web-tasks` | engineers and browser QA, **no** code reviewer; update endpoint added **with an automated test**; tests pass |
 | `skill-discovery` | `web-tasks` | `forge-skill-scout` invoked; proposal mentions licenses and approval; headless means **nothing installed** (no new skill dirs, no lock file) and no source changes |
 | `database-change` | `spring-boot-app` | database engineer and code reviewer; a new Flyway migration; V1 untouched; Maven missing is reported as UNAVAILABLE / NOT RUN, not as passed |
 | `architecture-analysis` | monorepo (Next.js + FastAPI + Go) | explorer or architect plus security or performance; **no** changes |
@@ -124,7 +124,7 @@ Antigravity could not be exercised in the development environment. Verify it wit
    - Specialists are delegated through `invoke_subagent` (App/CLI). In the IDE, the report should say *emulated sequentially (Mode B)*.
    - `public/app.js` is fixed.
    - `npm test` is PASSED.
-   - The final report ends with a git status and "No commit, push, or pull request was created."
+   - The final answer explains the fix, ends with a `**Status:**` line and says nothing was committed; `.forge/tasks/<slug>/report.md` holds the full execution report.
 5. **Browser QA:** add the Chrome DevTools and Playwright MCP servers to `~/.gemini/config/mcp_config.json`, re-run step 4, and expect DevTools console and network evidence in the report. Without them, expect the verdict *"implemented, not browser-verified"*.
 6. **Arguments:** if the request text after `/forge` is ignored, report it. The skill already tells the agent to fall back to the invoking message.
 7. **Uninstall:** `./scripts/uninstall.sh --target antigravity`. The FORGE files are removed and your other skills remain.

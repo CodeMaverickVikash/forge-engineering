@@ -14,7 +14,7 @@ FORGE ships 26 specialist agents. The orchestrator (`/forge`) selects the smalle
 | Engineering | `forge-backend-engineer` | implementer | main model | 60 | `forge-backend-engineering`, `forge-code-comments` | Services, endpoints, jobs and CLIs in any stack, with tests. |
 | Quality | `forge-browser-qa` | inherits all (minus Agent) | Sonnet | 45 | `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. |
 | Product | `forge-business-analyst` | read-only | Sonnet | 30 | `forge-business-analysis`, `forge-requirements-engineering` | Business rules, workflows and edge cases from code into a spec. |
-| Quality | `forge-code-reviewer` | read-only | main model | 30 | `forge-code-review` | Independent review of the uncommitted diff against the spec, with a verdict. |
+| Quality | `forge-code-reviewer` | read-only | main model | 45 | `forge-code-review` | Independent review of the uncommitted diff against the spec, with a verdict. |
 | Engineering | `forge-database-engineer` | implementer | main model | 60 | `forge-database-engineering`, `forge-code-comments` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. |
 | Engineering | `forge-devops-engineer` | implementer | Sonnet | 60 | `forge-devops-cloud`, `forge-code-comments` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. |
 | Delivery | `forge-dx-engineer` | implementer | Sonnet | 40 | `forge-documentation`, `forge-devops-cloud`, `forge-code-comments` | Removes setup and workflow friction (scripts, task runners, dev containers). |

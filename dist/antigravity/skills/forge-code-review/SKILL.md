@@ -72,7 +72,7 @@ Review **only the fix delta** from the work order (`verify-delta.mjs delta`), no
 - [ ] Unrelated changes (formatting sweeps, renames, refactors, lockfile churn, config edits) are flagged as scope creep.
 - [ ] No line-ending or encoding flips. A file whose diff covers nearly every line for a small change usually means LF↔CRLF. Confirm with `git diff --stat` or `verify-delta.mjs eol`, and report it as **major** (it hides the real diff).
 
-Re-run at least one claimed-passing check yourself when it is cheap (a targeted test file or typecheck).
+Verify claimed passes against the gate's ledger (`validation-gate.mjs gate --task <slug> --verbose`), not by re-running suites. Run one targeted test file only when a finding depends on behavior no recorded run covers.
 
 ## 3. Severity scale
 

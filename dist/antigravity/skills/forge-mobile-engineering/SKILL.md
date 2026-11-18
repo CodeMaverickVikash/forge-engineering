@@ -88,6 +88,7 @@ Then open the matching reference:
 
 - Unit-test logic; component/widget-test UI states; use the project's E2E tool for affected flows when it exists.
 - Run on an emulator or simulator only if one is actually available in this environment. iOS simulators require macOS with Xcode.
+- Order: type check or analyze, lint, unit and widget tests, and the platform build pass first, recorded through `validation-gate.mjs run` when the work order gives it. Only then comes device verification of the affected flows (by `forge-browser-qa` in the verification wave, following its `references/device-verification.md`).
 - Report device coverage exactly: which platform, emulator/simulator/physical, OS version, or `NOT RUN` / `UNAVAILABLE` with the reason. Never write "tested on device" for checks that were not executed.
 - When native config changed, at minimum compile the affected platform build if the toolchain is available.
 

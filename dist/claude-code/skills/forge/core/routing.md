@@ -23,7 +23,7 @@ Choose the **smallest team that covers the task's risks**. Never invoke every sp
 | Quality | `forge-qa-lead` | Test strategy, acceptance verification, regression scope |
 | Quality | `forge-manual-qa` | Workflow walkthroughs, exploratory and edge-case checks (CLI/HTTP) |
 | Quality | `forge-test-automation-engineer` | Unit, integration and E2E tests in the project's frameworks |
-| Quality | `forge-browser-qa` | Playwright and Chrome DevTools MCP runtime verification |
+| Quality | `forge-browser-qa` | Playwright and Chrome DevTools MCP runtime verification; emulator/device verification of native mobile changes |
 | Quality | `forge-security-engineer` | OWASP, authN/Z, injection, secrets, dependencies |
 | Quality | `forge-performance-engineer` | Latency, rendering, queries, memory, caching (measured) |
 | Quality | `forge-accessibility-specialist` | WCAG 2.2 AA, keyboard, screen readers, contrast |
@@ -62,7 +62,7 @@ Choose the **smallest team that covers the task's risks**. Never invoke every sp
 
 Use the detected stack (`.forge/context.json`) and the affected paths:
 - Web UI files → `forge-frontend-engineer`
-- Mobile app (Expo, RN, Flutter, android/, ios/) → `forge-mobile-engineer`
+- Mobile app (Expo, RN, Flutter, android/, ios/) → `forge-mobile-engineer`; once the gate is OPEN, `forge-browser-qa` does device verification
 - Server code, workers or CLIs → `forge-backend-engineer`
 - Migrations, schema or ORM models → `forge-database-engineer`
 - External API clients, webhooks or OAuth → `forge-integration-engineer`
@@ -72,6 +72,13 @@ Use the detected stack (`.forge/context.json`) and the affected paths:
 
 - **Parallel-safe:** read-only specialists (explorer, PM, BA, researcher, architect, security, performance, accessibility, QA lead) together, and implementers with **disjoint file ownership**.
 - **Sequential:** anything that shares files, depends on a contract another agent is defining (define the contract first), or depends on test results.
-- **Typical waves:** discovery (parallel) → architecture (if L) → implementation (parallel by owner) → verification (`forge-browser-qa` + `forge-code-reviewer` in parallel) → targeted fixes → re-verify only what failed.
+- **Typical waves:**
+  1. Discovery (parallel), then architecture (if L).
+  2. Implementation (parallel by owner).
+  3. Validation: `validation-gate.mjs run` checks every affected app in one parallel batch while `forge-code-reviewer` reviews.
+  4. Pre-browser gate OPEN.
+  5. Browser and device verification (`forge-browser-qa`).
+  6. Targeted fixes, then re-run only the stale checks, reopen the gate, and re-verify only what failed.
+- **Validation batches:** independent apps (web, API, mobile) are checked at the same time. Checks that share a database, an emulator or build output run in sequence; the runner does this from the plan.
 - **Analysis / audit:** a single parallel wave of every analyst (for example architect + security + performance + DX), then synthesize. There is never a reason to run read-only analysts one after another.
 - **Shared app server:** for browser verification, start the app once (in the background, on a free port) and pass its URL in the work orders. Browser QA and the retest reuse it instead of each booting the app.

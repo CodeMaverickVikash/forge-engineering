@@ -17,7 +17,8 @@ It runs on **Claude Code** and **Google Antigravity** from one shared core.
 | **Skills** | 27 reusable, technology-independent skills with per-stack references ([docs/skills.md](docs/skills.md)) |
 | **Stacks** | Any stack, discovered from evidence. The registry ships 116 technology signatures plus references for Node, Python, Java/Spring, Go, PHP/Laravel, .NET, Ruby/Rails, Rust, React/Next, Vue, Angular, Svelte, React Native/Expo, Flutter, Android and iOS |
 | **Skill discovery** | Free & open-source only, license-verified per skill, with the Vercel Skills CLI as the primary engine. **Nothing is installed without your explicit approval** ([docs/skill-discovery.md](docs/skill-discovery.md)) |
-| **Browser QA** | Playwright journeys + Chrome DevTools MCP (console, network, performance) with a hard completion gate |
+| **Validation** | Type check, lint, tests and build for every affected app (web, API, mobile, shared packages and their consumers) in one parallel batch. Each check runs once, and only checks whose code changed re-run. A pre-browser gate blocks browser work until they pass |
+| **Browser QA** | Playwright journeys + Chrome DevTools MCP (console, network, performance) with a hard completion gate; native apps on emulators or devices; indexed screenshot evidence |
 | **Runtime deps** | None. Node ≥ 18 is optional and powers the fast stack detector, with a manual fallback |
 
 ## Install
@@ -73,7 +74,7 @@ FORGE runs each specialist on the model that fits its job. **Your main model** i
 | `forge-integration-engineer` | REST, GraphQL and gRPC contracts, webhooks, OAuth/OIDC, payments. | 60 |
 | `forge-mobile-engineer` | React Native/Expo, Flutter, Android and iOS features, with tests. | 60 |
 | `forge-test-automation-engineer` | Deterministic unit, integration, E2E and regression tests; flake triage. | 60 |
-| `forge-browser-qa` | Verifies web changes in a real browser via Playwright and Chrome DevTools MCP. | 45 |
+| `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. | 45 |
 | `forge-performance-engineer` | Finds the real bottleneck and proves fixes with before/after numbers. | 40 |
 | `forge-security-engineer` | Threat model and OWASP review of auth, input, secrets and dependencies. | 40 |
 | `forge-architect` | Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work. | 30 |
@@ -115,7 +116,8 @@ Notes:
 
 ## Guarantees and limits
 
-- **Honest verification.** Every gate is reported as `PASSED`, `FAILED`, `PRE-EXISTING`, `NOT RUN`, `UNAVAILABLE` or `N/A`, with evidence. A missing Chrome DevTools MCP connection makes a change *"implemented, not browser-verified"*. It never counts as a pass.
+- **Honest verification.** Every gate is reported as `PASSED`, `FAILED`, `PRE-EXISTING`, `BLOCKED`, `NOT RUN`, `UNAVAILABLE` or `N/A`, with evidence. A missing Chrome DevTools MCP connection makes a change *"implemented, not browser-verified"*. It never counts as a pass.
+- **Ordered verification.** Static checks and tests run first. Browser and device verification wait for the pre-browser gate (`validation-gate.mjs gate`, which exits 0 only when every required check passed for the current code). Every report ends with one completion status: **VERIFIED**, **VERIFIED WITH LIMITATIONS**, **BLOCKED** or **FAILED**. Screenshots are saved under `.forge/tasks/<slug>/evidence/` and linked; a path that does not exist is caught before the report.
 - **Safe autonomy.** FORGE edits code and runs local tools on its own. Commits, pushes, PRs, deploys, destructive data operations, new dependencies and paid services are out of bounds without your authorization. In Claude Code the git rules are **enforced by a hook**: the FORGE git guard blocks `git commit/push/merge/rebase/reset --hard`, `gh pr create` and similar commands from FORGE agents and during `/forge` turns, and leaves your own sessions alone. See [docs/security.md](docs/security.md).
 - **Platform differences.** Claude Code and the Antigravity App and CLI run specialists as native subagents. Surfaces without custom subagents (the Antigravity IDE is not documented to support them) fall back to sequential role emulation, and the report says so. See [docs/compatibility.md](docs/compatibility.md).
 

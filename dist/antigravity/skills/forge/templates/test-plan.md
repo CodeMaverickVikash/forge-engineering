@@ -19,4 +19,4 @@
 - <exact commands from .forge/context.json>
 
 ## Exit criteria
-- All ACs evidenced; no new failures vs baseline; browser gate per quality-gates.md G10.
+- All ACs evidenced; no new failures vs baseline; pre-browser gate OPEN before browser/device runs; browser gate per quality-gates.md G10 (G10m for native mobile); screenshots indexed under the task's `evidence/`.

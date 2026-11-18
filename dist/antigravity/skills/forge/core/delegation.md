@@ -11,9 +11,15 @@ CONTEXT: .forge/context.json (stack, commands). Key paths: <3-10 paths>
 SCOPE: <what to do>  |  OUT OF SCOPE: <what not to touch>
 FILE OWNERSHIP: <exact files/globs you may edit>   (omit for read-only roles)
 DEPENDS ON: <contracts or decisions already fixed, e.g. API shape in plan.md §3>
-VERIFY WITH: <commands or checks you must run, from context.json>
+VERIFY WITH: node "<FORGE_HOME>/scripts/validation-gate.mjs" run --task <slug> --units <your units>
+             (+ any extra check from context.json; read-only roles: omit)
+GATE:        (browser QA and device verification only) pre-browser gate OPEN at cycle <n>;
+             re-check: node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>
+EVIDENCE:    (browser QA only) .forge/tasks/<slug>/evidence/  (index.md + validation-gate.mjs evidence)
 RETURN: Specialist Report (format below), max ~400 words
 ```
+
+Implementers validate through the runner because it records every result. When their checks already passed for the final code, the validation wave reuses them instead of running them again. Never send a browser QA or device work order while the gate is CLOSED or BLOCKED. The one exception is reproducing a bug before the fix exists.
 
 ## Delta retests
 
@@ -22,7 +28,7 @@ Re-verifying the whole change after every fix was the biggest cost in measured r
 - **Continue the same verifier** when the host can (Claude Code: `SendMessage` to its agent ID). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
 - **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
 - **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
-- **Automated tests:** re-run in full; they are cheap.
+- **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, across every affected app, and nothing that still passes for the current code. Then `gate` must be OPEN again **before** the browser retest.
 - **Minor findings and nits** never start a new round. Batch them into the fix wave and let the delta re-review confirm them.
 - **Full re-verification only** when the delta is large (more than about a third of the original change), touches files the earlier round never saw, or changes a contract.
 
@@ -42,6 +48,7 @@ FIX DELTA: run `node "<FORGE_HOME>/scripts/verify-delta.mjs" delta --task <slug>
 SCOPE: reviewer: each previous finding is resolved, plus problems introduced in the delta lines only.
        browser QA: the failed journeys + the one adjacent journey at most risk, one viewport (more only if the delta touches layout/CSS).
 APP URL: <url of the already-running server>
+GATE: (browser QA) pre-browser gate OPEN again at cycle <n> after the fix
 RETURN: Specialist Report; list each previous finding as resolved | still open | regressed
 ```
 

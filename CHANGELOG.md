@@ -25,6 +25,18 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 - Analysis and audit requests always use specialists, with the team scaled to codebase size. Only Q questions skip them.
 
 ### Added
+- **Mandatory validation order with an enforced pre-browser gate.** Verification now always runs: implement → static checks → automated tests → fix → pre-browser gate → browser/device verification → fix and re-verify → final gate → evidence and report.
+  - New `skills/forge/scripts/validation-gate.mjs` (zero dependencies; it reuses the detector and `verify-delta.mjs` and writes only inside `.forge/`), with five subcommands:
+    - `plan` maps the changed files to the project's units (web, backend/API, mobile, shared) and adds the consumers of changed shared packages (workspace names or relative-path references). It puts every unit in scope for a root config change, needs nothing for documentation-only changes, and flags API contracts (manual G6 check plus their web/mobile consumers) and migrations (manual G12 check).
+    - `run` runs type check → lint → tests → build per unit, with units in parallel. Tests that share a database run one at a time, and a prebuilt shared package builds before its consumers. **Each check runs once:** a check that passed is re-run only when a file in its scope (the unit plus its upstream packages and root config) changed. Results go to a ledger (`validation/ledger.jsonl`) with full logs as evidence. A missing toolchain is `BLOCKED`, not `FAILED`. `npx` runs with `--no-install`. Scripts that deploy or publish, rewrite files (`--fix`/`--write`) or watch are never run.
+    - `mark` records manual checks, confirmed `PRE-EXISTING` failures and one-shot equivalents. `PASSED` requires evidence text.
+    - `gate` exits 0 OPEN, 1 CLOSED (failed, missing or stale) or 2 BLOCKED (environment only). It flags failures that also failed on the `--baseline` run.
+    - `evidence` lists the real artifact files as links and exits 1 when `evidence/index.md` cites a file that does not exist.
+  - Browser QA and device verification start only behind an OPEN gate (the work order carries the gate cycle, and the agent re-checks it). The one exception is bug reproduction before the fix. After a browser-found fix, the affected checks re-run and the gate reopens before the retest.
+  - New status `BLOCKED` (a required check prevented by the environment). New gate G10m (device verification).
+  - New `forge-browser-qa/references/device-verification.md` (adb / emulator, simctl, Flutter, Maestro/Detox, never EAS or OTA). `forge-browser-qa` now also verifies native mobile changes on an available emulator or device.
+  - **Evidence:** screenshots of the implemented behavior are mandatory whenever a browser or device run happened. They live in `.forge/tasks/<slug>/evidence/{screenshots,playwright,traces,network,reports}` with an `index.md` (what each file shows, page or workflow, viewport). The browser QA screenshot budget changed from "about 3" to the evidence list (usually 3–8), and its call budget from about 25 to about 30.
+  - Tests: `tests/unit/validation-gate.test.mjs` (8 tests on a real temporary monorepo: consumer scoping, run-once and staleness, PRE-EXISTING marking, contract, `--fix`, watch and deploy handling, BLOCKED toolchains, docs-only changes, evidence links, CLI errors). The live e2e runner now fails a report without a completion status, a VERIFIED next to "not browser-verified", and any browser call made after the first edit but before the gate was checked.
 - **Install self-check** (`scripts/verify-install.mjs`). The installers run it automatically when Node is present. It confirms the installed files are byte-identical to `dist/` (allowing only the hook-path substitution), with nothing missing and no stale leftovers. It also confirms the hook paths resolve and that the installed guard blocks `git commit` and allows `git status`. After an uninstall, `--absent` confirms nothing is left. There is deliberately no separate reinstall script: re-running the installer already upgrades cleanly.
 - **PR and branch review mode** through `/forge`. FORGE picks the mode itself: a PR or MR URL means a PR review; otherwise it reviews the current branch.
   - `core/review.md` holds the playbook and `templates/review-report.md` the fixed 13-section Engineering Review Report.
@@ -45,6 +57,14 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
   - `--online`: checks 189 detector signals against npm, PyPI, Packagist, RubyGems, crates.io, pub.dev and the Go proxy. It flags removed, deprecated or abandoned packages and references that never mention the latest major version, and it follows Go `/vN` module paths.
   - Its first run found and fixed: Clerk renamed `@clerk/clerk-react` and `@clerk/clerk-expo` (the successors `@clerk/react` and `@clerk/expo` were added); PayPal deprecated `@paypal/checkout-server-sdk` (`@paypal/paypal-server-sdk` was added); `nunomaduro/larastan` is abandoned (the old names are kept as legacy signals). It also prompted adding the Express 5 route-syntax changes to the Node reference.
 - README section **Models per task**: which model and turn cap each agent uses, and which models each kind of task uses. It is generated from `agents/*.md` by the build, and the validator fails if it is stale. `docs/agents.md` gained Model and Max turns columns.
+
+### Changed (report format)
+- The execution report follows the validation workflow:
+  - **Validation summary** (a per-application type check / lint / tests / build table, the commands, the cycles and the gate state) replaces "QA and verification".
+  - **Browser & device verification** (an Area / Tool / Result table) replaces "Browser QA".
+  - New sections: **Evidence** (links printed by `validation-gate.mjs evidence`), **Issues found and resolved** (root cause, fix, retest, evidence), **Remaining issues and blockers** (pre-existing, unresolved, environment, not executed), and a final **Completion status**: VERIFIED, VERIFIED WITH LIMITATIONS, BLOCKED or FAILED, with precedence rules.
+- The verification wave is split. The code reviewer now runs alongside the static checks, and browser QA waits for the gate. On browser tasks this trades some wall-clock time for never browser-testing code that fails its checks.
+- The orchestrator prompt grows by about 1.2k characters (10.3k → 11.5k) for the verification order. The detail lives in `core/quality-gates.md`, which is read only when needed.
 
 ### Fixed
 - Line endings:

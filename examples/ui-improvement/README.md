@@ -7,8 +7,9 @@
 ## Expected flow
 1. **Spec** (`.forge/tasks/<slug>/spec.md`). ACs cover each state: loading, empty, error and success. a11y NFRs: an accessible name for the delete button, label associations, focus visibility and contrast.
 2. **Team:** `forge-product-manager`, `forge-ux-designer` (UX spec that reuses the existing CSS), `forge-frontend-engineer`, `forge-accessibility-specialist`, `forge-browser-qa`, `forge-code-reviewer`.
-3. **Browser QA:**
-   - Before and after screenshots.
+3. **Validation, then browser QA:**
+   - `validation-gate.mjs run` runs the type check, lint, tests and build once; browser QA starts only after `validation-gate.mjs gate` exits 0.
+   - Before and after screenshots, saved and indexed under `.forge/tasks/<slug>/evidence/`.
    - Viewports 390×844, 768×1024 and 1440×900.
    - An error state forced by stopping the API or mocking a route.
    - A keyboard-only pass.

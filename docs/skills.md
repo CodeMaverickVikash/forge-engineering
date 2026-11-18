@@ -6,12 +6,12 @@ FORGE ships 27 skills. Only `forge` is user-invocable; the specialists are loade
 
 | Skill | Supporting files | Description |
 |---|---|---|
-| `forge` | 14 | FORGE, a one-command software engineering team. Use when the user invokes /forge or asks FORGE to build, fix, improve, review or analyze software. It explores, specs, delegates to specialists, verifies with tests and browser QA, and reports. It never commits or pushes. |
+| `forge` | 15 | FORGE, a one-command software engineering team. Use when the user invokes /forge or asks FORGE to build, fix, improve, review or analyze software. It explores, specs, delegates to specialists, verifies with tests and browser QA, and reports. It never commits or pushes. |
 | `forge-accessibility-engineering` | 0 | WCAG 2.2 AA review of web and mobile UI (semantics, keyboard, focus, contrast, forms, ARIA). |
 | `forge-ai-ml-engineering` | 0 | LLM and ML features (prompts, structured output, RAG, agents, evals, injection safety, cost). |
 | `forge-api-integration` | 0 | API contracts and integrations (REST, GraphQL, gRPC, webhooks, OAuth/OIDC, payments). |
 | `forge-backend-engineering` | 8 | Server-side code in any stack (validation, authz, errors, idempotency, transactions, jobs, tests). |
-| `forge-browser-qa` | 1 | Real-browser QA with Playwright and Chrome DevTools MCP (journeys, console, network, performance). |
+| `forge-browser-qa` | 2 | Real-browser QA with Playwright and Chrome DevTools MCP (journeys, console, network, performance). |
 | `forge-business-analysis` | 0 | Business rules, workflows, state machines and edge cases (money, time, concurrency) from code. |
 | `forge-code-review` | 0 | Independent review of the uncommitted diff against the spec, ending in a verdict. |
 | `forge-database-engineering` | 0 | Schemas, safe migrations, indexes, query plans and N+1 fixes for SQL and NoSQL stores. |

@@ -19,16 +19,16 @@ Use **Q** (answer only) when the user asks how, where or why something works and
 | # | Phase | Exit criterion |
 |---|---|---|
 | 1 | Understand | Task type, size, risks and a draft goal sentence are known |
-| 2 | Explore | Stack identified from evidence. Affected files and modules listed. Existing tests and validation commands known |
+| 2 | Explore | Stack identified from evidence. Affected apps (web, backend/API, mobile, shared packages), files and modules listed. Existing tests and validation commands known (`validation-gate.mjs plan`). Baseline captured for M/L |
 | 2b | Capabilities | Local skill inventory done. If discovery ran, the proposal was presented and the user's answer is recorded (approved / rejected / not yet received). Only approved items are installed |
 | 3 | Specify | Spec has acceptance criteria (testable), edge cases, NFRs, boundaries, assumptions, and grounding references (file paths) |
 | 4 | Architect | Team chosen. Approach chosen with the alternatives considered. ADR for L tasks |
 | 5 | Plan | Ordered tasks with owners, dependencies and a validation strategy per task |
 | 6 | Implement | Every plan task is done or explicitly deferred with a reason |
-| 7 | Verify | Every required gate in quality-gates.md is passed, failed or recorded as unavailable, each with evidence |
-| 8 | Fix | Failures introduced by our change are fixed, or reported as unresolved after 3 cycles |
-| 9 | Final review | Reviewer verdict recorded. No unrelated diffs |
-| 10 | Report | Report printed and saved. Git state stated. No commit or PR created |
+| 7 | Verify | Static checks and tests ran once per cycle for every affected app. The pre-browser gate opened **before** browser or device verification started, or the run stopped as BLOCKED. Every required gate is passed, failed or recorded as blocked or unavailable, each with evidence |
+| 8 | Fix | Failures introduced by our change are fixed, or reported as unresolved after 3 cycles. After each fix, the affected checks re-ran and the gate reopened before any browser retest |
+| 9 | Final review | Reviewer verdict recorded. No unrelated diffs. The final gate is OPEN after the last edit, and the evidence check exits 0 |
+| 10 | Report | Report printed and saved, with links to real evidence and one completion status. Git state stated. No commit or PR created |
 
 ## Task-type playbooks (deltas from the default)
 

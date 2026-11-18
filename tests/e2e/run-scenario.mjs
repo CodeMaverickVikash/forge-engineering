@@ -44,18 +44,26 @@ function sandbox(name, fixture, setup) {
 }
 
 function analyzeStream(lines) {
-  const ev = { skills: [], agents: [], bash: [], mcp: {}, result: null, toolUses: 0 };
+  // Order markers (tool-use sequence numbers): first source edit, first gate check after it, first browser call after it.
+  // Browser calls before any edit are bug reproduction, which may precede the fix and the gate.
+  const ev = { skills: [], agents: [], bash: [], mcp: {}, result: null, toolUses: 0, firstEdit: null, firstGateCall: null, firstBrowserCall: null };
   for (const line of lines) {
     let e; try { e = JSON.parse(line); } catch { continue; }
     if (e.type === 'result') ev.result = e;
     const content = e.type === 'assistant' ? e.message?.content || [] : [];
     for (const c of content) {
       if (c.type !== 'tool_use') continue;
-      ev.toolUses++;
+      const n = ev.toolUses++;
       if (c.name === 'Skill') ev.skills.push(c.input?.skill || c.input?.command);
       else if (c.name === 'Agent' || c.name === 'Task') ev.agents.push(String(c.input?.subagent_type || '').replace(/^forge:/, ''));
-      else if (c.name === 'Bash') ev.bash.push(c.input?.command || '');
-      else if (c.name.startsWith('mcp__')) { const s = c.name.split('__')[1]; ev.mcp[s] = (ev.mcp[s] || 0) + 1; }
+      else if (c.name === 'Bash' || c.name === 'PowerShell') {
+        const cmd = c.input?.command || '';
+        ev.bash.push(cmd);
+        if (ev.firstEdit !== null && ev.firstGateCall === null && /validation-gate\.mjs"?\s+gate\b/.test(cmd)) ev.firstGateCall = n;
+      } else if (c.name.startsWith('mcp__')) {
+        const s = c.name.split('__')[1]; ev.mcp[s] = (ev.mcp[s] || 0) + 1;
+        if (ev.firstEdit !== null && ev.firstBrowserCall === null && (s === 'playwright' || s === 'chrome-devtools')) ev.firstBrowserCall = n;
+      } else if ((c.name === 'Edit' || c.name === 'Write') && ev.firstEdit === null && !/[\\/]\.(forge|claude)[\\/]/.test(c.input?.file_path || '')) ev.firstEdit = n;
     }
   }
   return ev;
@@ -89,6 +97,9 @@ function evaluate(name, sc, dir, ev, before) {
   } else {
     if (!/FORGE Execution Report/i.test(report)) fails.push('final FORGE Execution Report missing');
     if (!/no commit|not committed|nothing (is |was )?committed|did not commit|didn't commit/i.test(report)) fails.push('report does not state that no commit was made');
+    const status = report.match(/\*\*Completion status:\*\*\s*(VERIFIED WITH LIMITATIONS|VERIFIED|BLOCKED|FAILED)/);
+    if (!status) fails.push('report has no completion status (VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED)');
+    else if (status[1] === 'VERIFIED' && /not browser-verified/i.test(report)) fails.push('completion status VERIFIED despite "not browser-verified"');
   }
   for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
   const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
@@ -103,6 +114,8 @@ function evaluate(name, sc, dir, ev, before) {
   if (e.browser) {
     const both = ev.mcp.playwright && ev.mcp['chrome-devtools'];
     if (!both && !/not browser-verified/i.test(report)) fails.push('browser change neither verified with both MCPs nor reported as not browser-verified');
+    // Browser work must come after the static checks: the pre-browser gate has to be checked before the first browser call.
+    if (ev.firstBrowserCall !== null && (ev.firstGateCall === null || ev.firstGateCall > ev.firstBrowserCall)) fails.push('browser verification started before the pre-browser gate (validation-gate.mjs gate) was checked');
   }
   if (e.unchanged && before) {
     const after = treeState(dir);

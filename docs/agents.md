@@ -12,7 +12,7 @@ FORGE ships 26 specialist agents. The orchestrator (`/forge`) selects the smalle
 | Engineering | `forge-ai-engineer` | implementer | main model | 60 | `forge-ai-ml-engineering` | Builds LLM features (prompts, RAG, tools, evals) safely and cost-aware. |
 | Engineering | `forge-architect` | read-only | main model | 30 | `forge-system-architecture` | Approaches, trade-offs, frozen contracts and ADRs for M/L, schema or API work. |
 | Engineering | `forge-backend-engineer` | implementer | main model | 60 | `forge-backend-engineering` | Services, endpoints, jobs and CLIs in any stack, with tests. |
-| Quality | `forge-browser-qa` | inherits all (minus Agent) | main model | 45 | `forge-browser-qa` | Verifies web changes in a real browser via Playwright and Chrome DevTools MCP. |
+| Quality | `forge-browser-qa` | inherits all (minus Agent) | main model | 45 | `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. |
 | Product | `forge-business-analyst` | read-only | Sonnet | 30 | `forge-business-analysis`, `forge-requirements-engineering` | Business rules, workflows and edge cases from code into a spec. |
 | Quality | `forge-code-reviewer` | read-only | main model | 30 | `forge-code-review` | Independent review of the uncommitted diff against the spec, with a verdict. |
 | Engineering | `forge-database-engineer` | implementer | main model | 60 | `forge-database-engineering` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. |

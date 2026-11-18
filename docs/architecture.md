@@ -16,7 +16,8 @@
                     │   core/lifecycle.md            adaptive 10-phase lifecycle, sizing│
                     │   core/routing.md              roster + task→team matrix         │
                     │   core/delegation.md           work orders, ownership, conflicts │
-                    │   core/quality-gates.md        G1–G14 + browser completion gate  │
+                    │   core/quality-gates.md        G1–G15, pre-browser+browser gates │
+                    │   scripts/validation-gate.mjs  plan, run once, gate, evidence    │
                     │   core/safety.md               autonomy policy                   │
                     │   templates/                   spec, plan, test plan, report     │
                     │ skills/forge-*/                25 specialist skills (+references)│

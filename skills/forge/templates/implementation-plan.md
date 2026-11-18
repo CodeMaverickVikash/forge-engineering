@@ -17,8 +17,11 @@ Spec: `./spec.md`
 1. <parallel group> → 2. <…>
 
 ## Validation strategy
-- Baseline: <commands run before changes + results>
-- Per task: <see table>
+- Affected apps: <unit — web / backend-API / mobile / shared — why (changed, consumer, contract)> (from `validation-gate.mjs plan`)
+- Baseline: <`validation-gate.mjs run --baseline --units …` results>
+- Per task: <see table; implementers run `validation-gate.mjs run --task <slug> --units <theirs>`>
+- Ordering: <checks that must run in sequence: shared DB, emulator, build-before-consumer> or "all parallel"
+- After the gate: <browser journeys / device flows / API-level verification, per app>
 - Final gates: <list from quality-gates.md that apply>
 
 ## Risks & mitigations

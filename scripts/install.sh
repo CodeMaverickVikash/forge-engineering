@@ -127,7 +127,7 @@ Next steps
   • Restart Claude Code / Antigravity (or start a new session) so the skills and agents load.
   • Run:  /forge <what you want done>      e.g.  /forge Fix the payment issue
   • Optional browser QA (recommended for web apps):
-      claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest
+      claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --redactNetworkHeaders
       claude mcp add playwright -- npx @playwright/mcp@latest
     (Antigravity: add the same servers to ~/.gemini/config/mcp_config.json — see docs/installation.md)
   • FORGE never commits, pushes or opens pull requests.

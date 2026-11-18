@@ -62,7 +62,7 @@ FORGE never installs or connects these by itself. Without them, browser-visible 
 
 **Claude Code**
 ```bash
-claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest
+claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --redactNetworkHeaders
 claude mcp add playwright -- npx @playwright/mcp@latest
 claude mcp list
 ```
@@ -71,7 +71,7 @@ claude mcp list
 ```json
 {
   "mcpServers": {
-    "chrome-devtools": { "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest"] },
+    "chrome-devtools": { "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest", "--redactNetworkHeaders"] },
     "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] }
   }
 }

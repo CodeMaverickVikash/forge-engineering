@@ -33,7 +33,7 @@ The options are `--target claude|antigravity|all`, `--scope user|project`, `--pr
 
 **Recommended for web apps:** connect the browser-QA MCP servers:
 ```bash
-claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest
+claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --redactNetworkHeaders
 claude mcp add playwright -- npx @playwright/mcp@latest
 ```
 

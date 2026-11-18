@@ -12,16 +12,21 @@
 //       Each result goes to .forge/tasks/<slug>/validation/ledger.jsonl, each full log to
 //       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs everything. --baseline records
 //       pre-change results (use --units, since nothing has changed yet); the gate ignores them.
+//       It prints the scope and ends with the gate verdict; without --units it exits like `gate`, so one
+//       call validates and answers whether browser verification may start.
 //   node validation-gate.mjs mark --task <slug> --unit <path> --check <name> --status <STATUS> --reason "<text>"
 //       Record what the runner cannot: manual checks (contract, migration), PRE-EXISTING failures, BLOCKED or
 //       NOT RUN with a reason, or the PASSED one-shot equivalent of a watch-mode or --fix script.
-//   node validation-gate.mjs gate --task <slug> [--json]
-//       Pre-browser completion gate. Exit 0 = OPEN (every required check passed for the code as it is now),
+//   node validation-gate.mjs gate --task <slug> [--verbose] [--json]
+//       Pre-browser completion gate (compact: only rows that need attention; --verbose lists all). Exit 0 = OPEN (every required check passed for the code as it is now),
 //       1 = CLOSED (a check failed, is missing, or went stale because its files changed since it passed),
 //       2 = BLOCKED (only environment blockers remain).
 //   node validation-gate.mjs evidence --task <slug> [--init] [--json]
 //       List the task's evidence files as clickable links and check that evidence/index.md cites only files
 //       that exist. Exit 1 when it cites a missing file. --init creates the evidence folders.
+//   node validation-gate.mjs final --task <slug> [--json]
+//       Phase 9 in one call: the per-application table for the report, the final gate, line-ending flips,
+//       errors in new comments, and evidence links. Exit 0 only when all of them are clean.
 //
 // Common: --root <dir> (default: cwd). It writes only inside .forge/ and runs no git command that changes the repo.
 
@@ -31,7 +36,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { changedFiles, isGitRepo } from './verify-delta.mjs';
+import { changedFiles, isGitRepo, eolCheck } from './verify-delta.mjs';
+import { check as checkComments } from './comment-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DETECTOR = path.join(HERE, '..', '..', 'forge-project-exploration', 'scripts', 'detect-stack.mjs');
@@ -280,7 +286,7 @@ export async function gate(root, task, { ctx = null, p = null } = {}) {
   }
   const blocking = rows.filter((r) => r.blocking);
   const result = !blocking.length ? 'OPEN' : blocking.every((r) => r.state === 'BLOCKED') ? 'BLOCKED' : 'CLOSED';
-  const g = { result, at: new Date().toISOString(), rows, next: p.next, changed: p.changed, docsOnly: p.docsOnly };
+  const g = { result, at: new Date().toISOString(), rows, scope: p.entries.map((e) => ({ unit: e.unit, kinds: e.kinds, reasons: e.reasons })), next: p.next, changed: p.changed, docsOnly: p.docsOnly };
   if (fs.existsSync(path.join(root, '.forge'))) {
     fs.mkdirSync(path.dirname(ledgerFile(root, task)), { recursive: true });
     fs.writeFileSync(path.join(path.dirname(ledgerFile(root, task)), 'gate.json'), JSON.stringify(g, null, 2) + '\n');
@@ -420,22 +426,63 @@ export function formatPlan(p) {
   return L.join('\n');
 }
 
-export function formatGate(g) {
-  const L = ['| Unit | Check | Status | Cycle | Command / reason |', '|---|---|---|---|---|'];
-  for (const r of g.rows) L.push(`| ${r.unit} | ${r.check} | ${r.state}${r.blocking ? ' ✗' : ''} | ${r.cycle ?? '-'} | ${[r.command && `\`${r.command}\``, r.reason, r.hint, r.log].filter(Boolean).join(' · ')} |`);
-  const verdict = {
-    OPEN: 'OPEN: every required check passed for the current code. Browser/device verification may start.',
-    CLOSED: 'CLOSED: fix or run the ✗ rows (`run` re-runs only those), then check the gate again. Browser verification must not start.',
-    BLOCKED: 'BLOCKED: only environment blockers remain (✗). Unblock them or report BLOCKED. Browser verification must not start.'
-  }[g.result];
-  return `${g.rows.length ? L.join('\n') + '\n\n' : g.docsOnly ? 'Only documentation changed.\n\n' : 'No changed code to validate.\n\n'}Pre-browser gate: ${verdict}`;
+/** One line of scope: what is validated, why, and which verification follows the gate. */
+export function formatScope(p) {
+  if (!p.entries.length) return p.docsOnly ? 'Scope: documentation only; no checks needed.' : 'Scope: no changed code.';
+  const units = p.entries.map((e) => `${e.unit} [${e.kinds.join('+') || 'shared'}] (${e.reasons.join('; ')})`).join('; ');
+  const n = p.next; const next = [n.browser.length && `browser ${n.browser.join(', ')}`, n.device.length && `device ${n.device.join(', ')}`, n.api.length && `API-level ${n.api.join(', ')}`].filter(Boolean).join('; ');
+  const flags = [p.contractFiles.length && 'G6 contract check (mark)', p.migrationFiles.length && 'G12 migration check (mark)', p.serializeTests.length && `tests serialized: ${p.serializeTests.join(', ')}`].filter(Boolean);
+  return `Scope: ${units}. After the gate: ${next || 'no browser or device verification'}.${flags.length ? ` ${flags.join('; ')}.` : ''}`;
+}
+
+const VERDICT = {
+  OPEN: 'OPEN: every required check passed for the current code. Browser/device verification may start.',
+  CLOSED: 'CLOSED: fix or run the ✗ rows (`run` re-runs only those). Browser verification must not start.',
+  BLOCKED: 'BLOCKED: only environment blockers remain (✗). Unblock them or report BLOCKED. Browser verification must not start.'
+};
+
+/** Compact by default: only rows that need attention, plus counts. `verbose` prints every row. */
+export function formatGate(g, { verbose = false } = {}) {
+  const shown = verbose ? g.rows : g.rows.filter((r) => r.blocking || !['PASSED', 'N/A'].includes(r.state));
+  const L = shown.map((r) => `${r.blocking ? '✗' : '-'} ${r.unit}:${r.check} ${r.state}${r.cycle != null ? ` (cycle ${r.cycle})` : ''}${[r.command && ` \`${r.command}\``, r.reason && ` ${r.reason}`, r.hint && ` → ${r.hint}`, r.blocking && r.log && ` log: ${r.log}`].filter(Boolean).join('')}`);
+  const counts = {}; for (const r of g.rows) counts[r.state] = (counts[r.state] || 0) + 1;
+  const summary = g.rows.length ? `Checks: ${Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ')}.` : g.docsOnly ? 'Only documentation changed.' : 'No changed code to validate.';
+  return [...L, summary, `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
+}
+
+const KIND = (kinds) => (kinds.includes('mobile') ? 'Mobile' : kinds.includes('web') ? 'Web' : kinds.includes('backend') ? 'Backend/API' : 'Shared');
+const RANK = ['FAILED', 'BLOCKED', 'STALE', 'MISSING', 'NOT RUN', 'PRE-EXISTING', 'UNAVAILABLE', 'PASSED', 'N/A'];
+
+/** The report's per-application table: the worst status per column for each unit. */
+export function appTable(g) {
+  const L = ['| Application | Type check | Lint | Tests | Build |', '|---|---|---|---|---|'];
+  for (const s of g.scope) {
+    const col = (k) => g.rows.filter((r) => r.unit === s.unit && r.column === k).map((r) => r.state).sort((a, b) => RANK.indexOf(a) - RANK.indexOf(b))[0] ?? 'N/A';
+    L.push(`| ${KIND(s.kinds)}: ${s.unit} | ${col('typecheck')} | ${col('lint')} | ${col('test')} | ${col('build')} |`);
+  }
+  return L.join('\n');
+}
+
+/** Everything phase 9 needs in one call: final gate, line endings, new comments and evidence links. */
+export async function finalCheck(root, task) {
+  const g = await gate(root, task);
+  const eol = eolCheck(root);
+  const comments = checkComments(root);
+  const ev = fs.existsSync(evidenceDir(root, task)) ? evidence(root, task) : null;
+  const problems = [
+    g.result !== 'OPEN' && `gate ${g.result}`,
+    eol.flagged.length && `${eol.flagged.length} line-ending flip(s)`,
+    comments.errors && `${comments.errors} comment error(s)`,
+    ev?.missing.length && `${ev.missing.length} missing evidence file(s)`,
+  ].filter(Boolean);
+  return { ready: !problems.length, problems, gate: g, eol, comments, evidence: ev };
 }
 
 function parseArgs(argv) {
   const o = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--json', '--all', '--baseline', '--init'].includes(a)) o[a.slice(2)] = true;
+    if (['--json', '--all', '--baseline', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
     else if (a.startsWith('--')) o[a.slice(2)] = argv[++i];
     else o._.push(a);
   }
@@ -446,15 +493,30 @@ async function main() {
   const o = parseArgs(process.argv.slice(2));
   const cmd = o._[0]; const root = path.resolve(o.root ?? '.');
   const list = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : null);
-  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence --task <slug> [--root <dir>] [--units a,b] [--json] (see the header for options)';
-  if (!['plan', 'run', 'mark', 'gate', 'evidence'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
+  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] (see the header for options)';
+  if (!['plan', 'run', 'mark', 'gate', 'evidence', 'final'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
   if (cmd !== 'evidence' && !isGitRepo(root) && !o.units) {
     console.error(`UNAVAILABLE: ${root} is not a git repository, so changed files and staleness cannot be tracked (pass --units to validate named units)`);
     process.exit(2);
   }
   const out = (data, text) => console.log(o.json ? JSON.stringify(data, (k, v) => (v instanceof Set ? [...v] : k === 'units' || k === 'tail' ? undefined : v), 2) : text);
   if (cmd === 'plan') { const p = await plan(root, { units: list(o.units) }); out(p, formatPlan(p)); }
-  else if (cmd === 'gate') { const g = await gate(root, o.task); out(g, formatGate(g)); process.exit(g.result === 'OPEN' ? 0 : g.result === 'BLOCKED' ? 2 : 1); }
+  else if (cmd === 'gate') { const g = await gate(root, o.task); out(g, formatGate(g, { verbose: o.verbose })); process.exit(g.result === 'OPEN' ? 0 : g.result === 'BLOCKED' ? 2 : 1); }
+  else if (cmd === 'final') {
+    const f = await finalCheck(root, o.task);
+    const L = [appTable(f.gate), '', formatGate(f.gate, { verbose: o.verbose })];
+    L.push(f.eol.flagged.length ? f.eol.flagged.map((x) => `✗ EOL ${x.path}: ${x.problem}`).join('\n') : `EOL: OK (${f.eol.checked} file(s)).`);
+    for (const c of f.comments.findings) L.push(`${c.level === 'error' ? '✗' : '-'} comment ${c.file}:${c.line} [${c.rule}] "${c.text}" → ${c.fix}`);
+    L.push(`Comments: ${f.comments.comments} new line(s), ${f.comments.errors} error(s), ${f.comments.warnings} warning(s).`);
+    if (f.evidence) {
+      L.push(`Evidence (${f.evidence.files.length} file(s)):`, ...f.evidence.links.map((l) => `- ${l}`));
+      if (f.evidence.missing.length) L.push(`✗ index.md cites missing file(s): ${f.evidence.missing.join(', ')}`);
+      if (f.evidence.unindexed.length) L.push(`- not described in index.md: ${f.evidence.unindexed.join(', ')}`);
+    } else L.push('Evidence: none (no browser or device run recorded).');
+    L.push(f.ready ? 'FINAL: READY to report.' : `FINAL: NOT READY: ${f.problems.join('; ')}.`);
+    out(f, L.join('\n'));
+    process.exit(f.ready ? 0 : f.problems.length === 1 && f.gate.result === 'BLOCKED' ? 2 : 1);
+  }
   else if (cmd === 'mark') { const r = await mark(root, o.task, { unit: o.unit, check: o.check, status: o.status, reason: o.reason }); out(r, `recorded ${r.unit}:${r.check} = ${r.status} (cycle ${r.cycle})`); }
   else if (cmd === 'evidence') {
     const ev = evidence(root, o.task, { init: o.init });
@@ -465,12 +527,16 @@ async function main() {
     process.exit(ev.missing.length ? 1 : 0);
   } else {
     const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
-    const L = [`Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `; already passing for the current code, not re-run: ${r.skipped.join(', ')}` : ''}`];
-    for (const x of r.results) L.push(`- ${x.unit}:${x.check} ${x.status} in ${(x.durationMs / 1000).toFixed(1)}s, \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}, log: ${x.log}`);
-    for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `--- ${x.unit}:${x.check} ${x.status}: last lines (full log: ${x.log}) ---`, x.tail.trimEnd().split('\n').slice(-30).join('\n'));
-    if (r.modifiedDuringRun.length) L.push('', `WARNING: running the checks changed files in ${r.modifiedDuringRun.join(', ')}. Review them (G14) before the gate.`);
+    // Compact on purpose: passing checks take one line in total; only failures get their output.
+    const passed = r.results.filter((x) => x.status === 'PASSED');
+    const L = [formatScope(r.plan), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
+    if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
+    for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
+    if (r.modifiedDuringRun.length) L.push('', `WARNING: running the checks changed files in ${r.modifiedDuringRun.join(', ')}. Review them (G14).`);
     if (r.gate) L.push('', formatGate(r.gate));
     out({ ...r, plan: undefined }, L.join('\n'));
+    // A full run exits with the gate verdict, so one call both validates and answers "may the browser start?".
+    if (r.gate && !o.units) process.exit(r.gate.result === 'OPEN' ? 0 : r.gate.result === 'BLOCKED' ? 2 : 1);
     const s = new Set(r.results.map((x) => x.status));
     process.exit(s.has('FAILED') ? 1 : s.has('BLOCKED') ? 2 : 0);
   }

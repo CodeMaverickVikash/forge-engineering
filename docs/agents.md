@@ -14,7 +14,7 @@ FORGE ships 26 specialist agents. The orchestrator (`/forge`) selects the smalle
 | Engineering | `forge-backend-engineer` | implementer | main model | 60 | `forge-backend-engineering`, `forge-code-comments` | Services, endpoints, jobs and CLIs in any stack, with tests. |
 | Quality | `forge-browser-qa` | inherits all (minus Agent) | main model | 45 | `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. |
 | Product | `forge-business-analyst` | read-only | Sonnet | 30 | `forge-business-analysis`, `forge-requirements-engineering` | Business rules, workflows and edge cases from code into a spec. |
-| Quality | `forge-code-reviewer` | read-only | main model | 30 | `forge-code-review`, `forge-code-comments` | Independent review of the uncommitted diff against the spec, with a verdict. |
+| Quality | `forge-code-reviewer` | read-only | main model | 30 | `forge-code-review` | Independent review of the uncommitted diff against the spec, with a verdict. |
 | Engineering | `forge-database-engineer` | implementer | main model | 60 | `forge-database-engineering`, `forge-code-comments` | Schemas, safe migrations, indexes and queries, SQL or NoSQL. |
 | Engineering | `forge-devops-engineer` | implementer | main model | 60 | `forge-devops-cloud`, `forge-code-comments` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. |
 | Delivery | `forge-dx-engineer` | implementer | Sonnet | 40 | `forge-documentation`, `forge-devops-cloud`, `forge-code-comments` | Removes setup and workflow friction (scripts, task runners, dev containers). |
@@ -31,6 +31,6 @@ FORGE ships 26 specialist agents. The orchestrator (`/forge`) selects the smalle
 | Quality | `forge-security-engineer` | read-only | main model | 40 | `forge-security-engineering` | Threat model and OWASP review of auth, input, secrets and dependencies. |
 | Intelligence | `forge-skill-scout` | read-only | Sonnet | 40 | `forge-skill-discovery` | Finds license-verified free open-source skills for capability gaps; never installs. |
 | Delivery | `forge-sre` | read-only | Sonnet | 30 | `forge-deployment-readiness` | Reviews observability, SLOs, resilience and runbooks into a readiness scorecard. |
-| Delivery | `forge-tech-writer` | implementer | Sonnet | 40 | `forge-documentation`, `forge-code-comments` | Updates README, API docs, ADRs, changelog and runbooks to match a change. |
+| Delivery | `forge-tech-writer` | implementer | Sonnet | 40 | `forge-documentation` | Updates README, API docs, ADRs, changelog and runbooks to match a change. |
 | Quality | `forge-test-automation-engineer` | implementer | main model | 60 | `forge-test-automation`, `forge-code-comments` | Deterministic unit, integration, E2E and regression tests; flake triage. |
 | Product | `forge-ux-designer` | read-only | Sonnet | 30 | `forge-ui-ux-engineering` | Buildable UX spec (journeys, layout, states, microcopy); writes no code. |

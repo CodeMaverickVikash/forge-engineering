@@ -10,9 +10,9 @@ user-invocable: false
 
 ## 0. Preconditions: the pre-browser gate
 
-`<FORGE_HOME>` is the `forge` skill directory, a sibling of this skill (`../forge/`). Browser and device verification come **after** static checks and automated tests. Before your first browser call, confirm that the work order says the gate is OPEN, or run the command it gives you: `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>`, which exits 0 when OPEN. If the gate is CLOSED or BLOCKED, stop and return `STATUS: blocked` with the gate output. Never verify code whose checks are failing or stale.
+You verify only code whose static checks and tests passed. The work order states the gate is OPEN; if unsure, run `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>` (`<FORGE_HOME>` = the sibling `forge` skill). Exit 0 means OPEN. On anything else, return `STATUS: blocked` with its output. The exception is bug reproduction before a fix exists.
 
-Native mobile apps (React Native, Expo, Flutter, Android, iOS) are verified on an emulator, simulator or device: follow [references/device-verification.md](references/device-verification.md). Use browser tools only for the parts that really run in a browser (e.g. Expo web).
+Native apps (React Native, Expo, Flutter, Android, iOS) are verified on an emulator, simulator or device ([references/device-verification.md](references/device-verification.md)); browser tools cover only what really runs in a browser.
 
 ## 1. Discover capabilities (never assume)
 
@@ -58,20 +58,18 @@ When an issue is caused by the change, hand it back with evidence: steps, expect
 
 ## Evidence
 
-Screenshots are mandatory whenever a browser or device run happened and capture works.
-- **Folder:** `.forge/tasks/<slug>/evidence/`. Create it with `validation-gate.mjs evidence --task <slug> --init`; the subfolders are `screenshots/`, `playwright/`, `traces/`, `network/` and `reports/`.
-- **Saving:** Chrome DevTools `take_screenshot` can write there directly (`filePath`). The Playwright MCP writes to its own output folder, so copy the file in afterwards. Project-suite traces and reports already under `test-results/` or `playwright-report/` are cited where they are, not copied.
-- **What to capture:**
-  - the final state of each affected journey;
-  - the success and error states the acceptance criteria name;
-  - one per viewport for layout changes;
-  - the "after" of each fixed issue;
-  - the "before", when a pre-change screenshot was taken (bug reproduction, UI audit).
+Mandatory when capture works. Save screenshots of the implemented behavior, not the homepage:
+- each affected journey's final state;
+- the success and error states the acceptance criteria name;
+- one per viewport for layout changes;
+- the "after" of each fixed issue;
+- a "before", only when one was taken.
 
-  Not the homepage unless it is the change.
-- **Names** say what the image shows: `after-checkout-error-390x844.png`.
-- **Index:** add one line per file to `evidence/index.md`: ``- `screenshots/<file>`: <what it demonstrates> — <page/workflow> — <viewport>``.
-- **Check:** before you report, run `validation-gate.mjs evidence --task <slug>`. It must exit 0, and your report cites only the links it printed. A screenshot shows what was on screen. Never present it as proof that the backend processed something correctly.
+Where and how:
+- **Folder:** `.forge/tasks/<slug>/evidence/{screenshots,network,traces,playwright,reports}` (`validation-gate.mjs evidence --task <slug> --init`).
+- **Capturing:** DevTools `take_screenshot` writes there directly via `filePath`. Copy Playwright MCP output in. Cite project-suite reports and traces where they are.
+- **Names** describe the content (`after-checkout-error-390x844.png`), with one line each in `evidence/index.md`: file — what it shows — page/workflow — viewport.
+- **Check:** `validation-gate.mjs evidence --task <slug>` must exit 0; cite only the links it prints. A screenshot never proves backend correctness.
 
 ## Efficiency budget
 

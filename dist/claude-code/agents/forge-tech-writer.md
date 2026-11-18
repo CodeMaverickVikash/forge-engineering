@@ -8,7 +8,6 @@ effort: medium
 color: blue
 skills:
   - forge-documentation
-  - forge-code-comments
 hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit"

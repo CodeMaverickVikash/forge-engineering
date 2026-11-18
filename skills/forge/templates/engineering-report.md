@@ -12,53 +12,38 @@
 
 **Implementation:**
 - <features / fixes completed>
-- Applications affected: <Web / Backend-API / Mobile / Shared packages, with unit paths>
+- Applications affected: <Web / Backend-API / Mobile / Shared, with unit paths>
 - Files changed: <path — summary> (from `git diff --stat`)
 - Architecture decisions: <decisions with one-line rationale, or "none">
 
 **Validation summary:**
-| Application | Type check | Lint | Tests | Build |
-|---|---|---|---|---|
-| <Web: apps/web> | PASSED / FAILED / PRE-EXISTING / BLOCKED / NOT RUN / UNAVAILABLE / N/A | <status> | <status> | <status> |
-| <Backend/API: …> | <status> | <status> | <status> | <status> |
-| <Mobile: …> | <status> | <status> | <status> | <status> |
-| <Shared packages: …> | <status> | <status> | <status> | <status> |
+<the per-application table exactly as `validation-gate.mjs final` printed it (Application | Type check | Lint | Tests | Build)>
 
-Commands: `<exact command>` → <key output line> (one per check, from `validation-gate.mjs` output; drop rows for applications not in scope)
-Validation cycles: <n>; re-runs limited to <what a fix made stale>. Pre-browser gate: OPEN at cycle <n> | CLOSED | BLOCKED (<why>). Final gate after the last edit: OPEN | <state>.
+Commands: `<command>` → <key output line> (one per check). Cycles: <n>. Pre-browser gate: OPEN at cycle <n> | BLOCKED (<why>). Final check: READY | NOT READY (<why>).
 
 | Gate | Command / method | Status | Evidence |
 |------|------------------|--------|----------|
-| <G1 tests> | `<cmd>` | PASSED / FAILED / PRE-EXISTING / BLOCKED / NOT RUN / UNAVAILABLE / N/A | <key output line> |
+| <only gates the table above does not cover: G2, G6–G15 as applicable> | `<cmd>` | PASSED / FAILED / PRE-EXISTING / BLOCKED / NOT RUN / UNAVAILABLE / N/A | <key output line> |
 
-**Browser & device verification:** (N/A, with the reason, when nothing browser- or device-visible changed)
+**Browser & device verification:** <"N/A — <reason>" on one line when nothing browser- or device-visible changed; otherwise:>
 | Area | Tool | Result |
 |---|---|---|
-| Web workflows | Playwright (project suite / MCP) | PASSED / FAILED / BLOCKED / UNAVAILABLE / N/A |
-| Browser runtime | Chrome DevTools MCP | <status: console, network, runtime findings> |
+| Web workflows | Playwright (project suite / MCP) | <status, journeys and viewports> |
+| Browser runtime | Chrome DevTools MCP | <status: console, network, runtime> |
 | API integration | API tests / browser network | <status> |
-| Responsive UI | Playwright / DevTools (viewports) | <status> |
 | Native mobile | Emulator / simulator / device (platform, OS) | <status> |
-- Journeys: <journey — viewport — PASSED/FAILED>; retests: <what was re-run after fixes>
 - Verdict: browser-verified | implemented, not browser-verified (<limitation>)
 
-**Evidence:** (from `validation-gate.mjs evidence --task <slug>`; only files that exist)
-- <link as printed>: <what it demonstrates> — <page/workflow> — <viewport>
-- Before/after: <before link> → <after link>: <the visual change> (only when both exist)
+**Evidence:** <"none" when no browser or device run happened; otherwise the links `validation-gate.mjs final` printed, each with what it demonstrates, the page or workflow, and the viewport; before → after pairs only when both exist>
 
-**Issues found and resolved:**
-- <issue> — root cause: <file:line / cause> — fix: <what changed> — retest: <command or journey → result> — evidence: <link or "none">
+**Issues found and resolved:** <"none", or per issue: description — root cause — fix — retest result — evidence link>
 
-**Remaining issues and blockers:**
-- Pre-existing (not caused by this change): <…> or "none"
-- Unresolved implementation issues: <last error and what was tried> or "none"
-- Environment blockers: <what is missing and how to enable it> or "none"
-- Checks not executed: <check — NOT RUN / UNAVAILABLE — reason> or "none"
+**Remaining issues and blockers:** <"none", or the applicable groups: pre-existing; unresolved (last error, what was tried); environment blockers (how to enable); checks not executed (reason)>
 
 **Assumptions:** <assumptions made, or "none">
 
 **Remaining work:** <only genuinely incomplete items, or "none">
 
-**Completion status:** VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED — <one line: why, naming any limitation or blocker>
+**Completion status:** VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED — <one line: why>
 
 **Git status:** Branch `<branch>`; <N> files modified, <N> added, <N> deleted (uncommitted). No commit, push, or pull request was created.

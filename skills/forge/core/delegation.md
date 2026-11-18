@@ -28,7 +28,7 @@ Re-verifying the whole change after every fix was the biggest cost in measured r
 - **Continue the same verifier** when the host can (Claude Code: `SendMessage` to its agent ID). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
 - **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
 - **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
-- **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, across every affected app, and nothing that still passes for the current code. Then `gate` must be OPEN again **before** the browser retest.
+- **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. It must exit 0 (gate OPEN) **before** the browser retest.
 - **Minor findings and nits** never start a new round. Batch them into the fix wave and let the delta re-review confirm them.
 - **Full re-verification only** when the delta is large (more than about a third of the original change), touches files the earlier round never saw, or changes a contract.
 

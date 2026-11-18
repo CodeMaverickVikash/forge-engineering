@@ -7,7 +7,6 @@ maxTurns: 30
 color: red
 skills:
   - forge-code-review
-  - forge-code-comments
 hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit"

@@ -28,7 +28,7 @@ Use exactly the statuses defined in `<FORGE_HOME>/core/quality-gates.md`: `PASSE
 | File changed | Appears in `git diff --stat` or `git status --short` |
 | Bug fixed | Reproduction failing before and passing after |
 | Performance change | Before and after numbers from the same method and conditions |
-| Screenshot or trace | The file exists and is listed by `validation-gate.mjs evidence`; the description says what it shows, nothing more |
+| Screenshot or trace | The file exists and is listed by `validation-gate.mjs final` or `evidence`; the description says what it shows, nothing more |
 | Specialist participated | It was actually invoked (Mode A) or emulated (Mode B), as stated |
 
 Never fabricate metrics, coverage percentages, timings, file counts, agent participation or tool output. If you are unsure whether something ran, re-run it or report it as `NOT RUN`.
@@ -41,9 +41,9 @@ Use `<FORGE_HOME>/templates/engineering-report.md` as the structure; do not rest
 - **Project understanding**: only modules you actually inspected.
 - **Specialists involved**: the agents invoked and skills loaded, and the mode (native subagents or emulated sequentially).
 - **Implementation**: the applications affected (from the validation plan), files from `git diff --stat` plus untracked files, each with a one-line summary; decisions with rationale.
-- **Validation summary**: the per-application table comes from the latest `validation-gate.mjs gate` rows, one row per application in scope. Merge multiple commands of one kind into the worst status. List the exact commands with their key output lines, the number of cycles, and the gate state before browser work and after the last edit. Then one row per applicable gate (G1 to G15), including gates that did not run.
+- **Validation summary**: paste the per-application table that `validation-gate.mjs final` prints (do not rebuild it by hand), the exact commands with their key output lines, the cycle count and the final-check result. The gate table then lists only the gates that the table does not cover (G2, G6–G15), including applicable gates that did not run.
 - **Browser & device verification**: see below.
-- **Evidence**: paste the links printed by `validation-gate.mjs evidence --task <slug>`, each with what it demonstrates, the page or workflow, and the viewport. Never type a path by hand that the command did not list.
+- **Evidence**: paste the links printed by `validation-gate.mjs final` (or `evidence`), each with what it demonstrates, the page or workflow, and the viewport. Never type a path by hand that the command did not list.
 - **Issues found and resolved**: each with its root cause, the fix, the retest result and an evidence link when one exists.
 - **Remaining issues and blockers**: keep the four groups apart (pre-existing, unresolved, environment blockers, checks not executed). Unresolved items include the last error and what was tried.
 - **Assumptions** and **Remaining work**: copy from the spec and plan; do not invent new ones at report time.

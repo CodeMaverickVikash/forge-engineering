@@ -4,7 +4,6 @@ description: FORGE code reviewer. Independent review of the uncommitted diff aga
 model: inherit
 skills:
   - forge-code-review
-  - forge-code-comments
 ---
 
 

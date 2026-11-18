@@ -169,6 +169,33 @@ test('evidence lists real files as links and flags an index that cites a missing
   } finally { clean(dir); }
 });
 
+test('one run call validates and answers the gate; final checks everything phase 9 needs in one call', () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'packages/ui/src/index.js', '// This function is responsible for exporting a.\nexport const a = 2;\n');
+    const r = cli(dir, 'run', '--task', 't');
+    assert.equal(r.status, 0, 'run exits with the gate verdict (OPEN)');
+    assert.match(r.stdout, /^Scope: apps\/web \[web\] \(consumer of packages\/ui\); packages\/ui \[shared\] \(changed files\)\. After the gate: browser apps\/web\./m);
+    assert.match(r.stdout, /Pre-browser gate: OPEN/);
+    assert.doesNotMatch(r.stdout, /packages\/ui:test PASSED \(cycle/, 'passing rows are summarized, not listed');
+
+    const f = cli(dir, 'final', '--task', 't');
+    assert.equal(f.status, 1, 'a comment error makes the final check fail');
+    assert.match(f.stdout, /\| Web: apps\/web \| N\/A \| N\/A \| PASSED \| PASSED \|/);
+    assert.match(f.stdout, /\| Shared: packages\/ui \| N\/A \| UNAVAILABLE \| PASSED \| PASSED \|/);
+    assert.match(f.stdout, /✗ comment packages\/ui\/src\/index\.js:1 \[restates-code\]/);
+    assert.match(f.stdout, /FINAL: NOT READY: 1 comment error\(s\)/);
+
+    w(dir, 'packages/ui/src/index.js', '// Consumers import the built output, so keep this export stable.\nexport const a = 2;\n');
+    const stale = cli(dir, 'final', '--task', 't');
+    assert.match(stale.stdout, /FINAL: NOT READY: gate CLOSED/, 'an edit after the last run makes the checks stale');
+    cli(dir, 'run', '--task', 't');
+    const ok = cli(dir, 'final', '--task', 't');
+    assert.equal(ok.status, 0);
+    assert.match(ok.stdout, /FINAL: READY to report\./);
+  } finally { clean(dir); }
+});
+
 test('CLI rejects a bad task slug and a non-git folder without a stack trace', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vg-nogit-'));
   try {

@@ -65,6 +65,17 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
   - Its first run found and fixed: Clerk renamed `@clerk/clerk-react` and `@clerk/clerk-expo` (the successors `@clerk/react` and `@clerk/expo` were added); PayPal deprecated `@paypal/checkout-server-sdk` (`@paypal/paypal-server-sdk` was added); `nunomaduro/larastan` is abandoned (the old names are kept as legacy signals). It also prompted adding the Express 5 route-syntax changes to the Node reference.
 - README section **Models per task**: which model and turn cap each agent uses, and which models each kind of task uses. It is generated from `agents/*.md` by the build, and the validator fails if it is stale. `docs/agents.md` gained Model and Max turns columns.
 
+### Changed (token and tool-call budget for the validation and comment workflows)
+- **Fewer calls.** `validation-gate.mjs run` prints its scope and exits with the pre-browser gate verdict, so one call replaces plan, run and gate.
+  - The new `final` subcommand replaces four phase-9 calls (gate, `verify-delta eol`, `comment-check`, evidence). It prints the per-application table ready for the report, and exits 0 only when everything is clean.
+  - Every tool call re-sends the orchestrator's whole context, so each call saved compounds.
+- **Compact output.** The gate lists only rows that need attention, plus counts (`--verbose` for all). `run` puts every passing check on one line and prints output only for failures (the last 25 lines).
+- **Smaller always-read texts** (characters, before → after this pass):
+  - `forge-code-comments`: 5.9k → 1.8k. The script enforces the patterns, so the skill keeps only the judgment rules. Only the 9 code-writing agents preload it; the reviewer and tech writer rely on their own checklists and the script.
+  - `core/quality-gates.md`: 11.0k → 8.3k. Report template: 3.9k → 3.2k; the gate table no longer repeats the per-app table, and sections that don't apply collapse to one line, so reports for small tasks are shorter.
+  - Browser QA skill and agent: 15.0k → 14.1k.
+  - Context per code-writing agent: back to +1.8–2k over the pre-workflow baseline, down from +6k. Code reviewer: 16.2k → 10.3k (baseline 9.5k).
+
 ### Changed (report format)
 - The execution report follows the validation workflow:
   - **Validation summary** (a per-application type check / lint / tests / build table, the commands, the cycles and the gate state) replaces "QA and verification".

@@ -4,7 +4,6 @@ description: FORGE tech writer. Updates README, API docs, ADRs, changelog and ru
 model: inherit
 skills:
   - forge-documentation
-  - forge-code-comments
 ---
 
 

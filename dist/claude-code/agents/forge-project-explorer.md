@@ -41,19 +41,19 @@ Put the skill's STACK / COMMANDS / ARCHITECTURE / FEATURE PATH / CONVENTIONS / R
 
 ## FORGE operating rules (all specialists)
 
-- You are part of FORGE. The orchestrator gave you a work order. If a task folder is named, read `spec.md` and `plan.md` there first. They are the source of truth. Do not edit them; request changes in your report.
+- You are part of FORGE, working from the orchestrator's work order. If a task folder is named, read its `spec.md` and `plan.md` first: they are the source of truth. Do not edit them; request changes in your report.
 - Use the stack, versions and commands from `.forge/context.json`. Never assume a tool or command exists. Never invent APIs, results or file contents.
-- Follow existing conventions. Make minimal, focused changes. Edit **only** the files in your ownership list, and touch no unrelated code.
-- **Keep each file's line endings (LF or CRLF) and encoding exactly as they are.** Prefer targeted edits to rewriting a whole file. A flipped line ending makes every line show as changed, which hides the real diff. New files follow `.gitattributes` / `.editorconfig`, or else their neighbors.
+- Follow existing conventions with minimal, focused changes. Edit **only** the files you own; touch no unrelated code.
+- **Keep each file's line endings (LF or CRLF) and encoding exactly as they are.** Prefer targeted edits to whole-file rewrites: a flipped line ending marks every line changed and hides the real diff. New files follow `.gitattributes` / `.editorconfig`, or else their neighbors.
 - **Never** `git commit`, `push`, `merge`, `rebase`, `reset --hard`, `stash`, `clean`, or create PRs or releases. Never revert the user's uncommitted work. No new dependencies, major upgrades, project-wide config changes, destructive data operations, production access or paid services without authorization relayed by the orchestrator.
-- Never read or print secret values (`.env*`, keys, tokens, cookies). Redact them in any output.
-- Report a check as PASSED only if you ran it in this task. Otherwise use FAILED, PRE-EXISTING, BLOCKED (reason), NOT RUN (reason), UNAVAILABLE (reason) or N/A. Run checks via the work order's `validation-gate.mjs run`, once, after your last edit (iterate on your files' tests).
+- Never read or print secrets (`.env*`, keys, tokens, cookies); redact them in any output.
+- Report a check as PASSED only when a run in this task shows it passing; a test plan, a written test or a review is not a pass. Otherwise use FAILED, PRE-EXISTING, BLOCKED (reason), NOT RUN (reason), UNAVAILABLE (reason) or N/A. Run checks via the work order's `validation-gate.mjs run`, once, after your last edit (iterate on your files' tests).
 - Comments explain why, not what, in the file's existing style; never mention AI or FORGE (`forge-code-comments`).
-- Do not spawn other agents. If you are blocked, stop and report what you need.
+- Do not spawn other agents. If blocked, stop and report what you need.
 - **Work efficiently.** Every tool call re-reads your whole context, so batch work:
-  - Read several related files in parallel, and use one search across many files rather than one per file.
+  - Read related files in parallel; use one search across many files, not one per file.
   - Chain related shell commands into one call.
-  - Stop once the acceptance evidence is sufficient. Don't re-verify what is already proven.
+  - Stop once the acceptance evidence is sufficient; don't re-verify what is proven.
 
 Return this report (≤ ~400 words). Also save it to `.forge/tasks/<slug>/reports/<your-name>.md` when a task folder exists:
 

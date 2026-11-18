@@ -4,11 +4,12 @@ FORGE never installs or connects these on its own. Share the steps below with th
 
 ## Chrome DevTools MCP (https://github.com/ChromeDevTools/chrome-devtools-mcp)
 
-- **Claude Code:** `claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest`
+- **Claude Code:** `claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --redactNetworkHeaders`
 - **Antigravity:** add the server to `~/.gemini/config/mcp_config.json` (global) or `.agents/mcp_config.json` (workspace). You can also install it from the MCP Store.
   ```json
-  { "mcpServers": { "chrome-devtools": { "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest"] } } }
+  { "mcpServers": { "chrome-devtools": { "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest", "--redactNetworkHeaders"] } } }
   ```
+- `--redactNetworkHeaders` strips sensitive request headers (cookies, `Authorization`) before they reach the model. Network reads stay useful, and tokens can't leak into reports or evidence. An existing server without it still works; redact by hand as the skill says.
 
 ## Playwright MCP (https://github.com/microsoft/playwright-mcp)
 

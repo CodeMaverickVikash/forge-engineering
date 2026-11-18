@@ -34,6 +34,11 @@ export function isGitRepo(root) {
 }
 
 /** Changed + untracked files relative to root, excluding the .forge workspace. */
+// Output that browser tools write into the project on every action or test run: Playwright MCP snapshots,
+// console logs and screenshots, and Playwright Test results. Untracked, they are never source; counting them
+// made every passed check stale after browser QA and re-ran all suites.
+export const TOOL_OUTPUT_RE =/(^|\/)(\.playwright-mcp|test-results|playwright-report|blob-report)\//;
+
 export function changedFiles(root) {
   const out = git(root, ['status', '--porcelain=v1', '-z', '-uall', '--', '.']).toString();
   const parts = out.split('\0');
@@ -42,7 +47,7 @@ export function changedFiles(root) {
     const entry = parts[i];
     if (!entry) continue;
     const xy = entry.slice(0, 2);
-    files.push(entry.slice(3));
+    if (!(xy === '??' && TOOL_OUTPUT_RE.test(entry.slice(3)))) files.push(entry.slice(3));
     if (xy[0] === 'R' || xy[0] === 'C') i++; // -z rename/copy: next field is the source path
   }
   return [...new Set(files)].filter((f) => !f.startsWith('.forge/')).sort();

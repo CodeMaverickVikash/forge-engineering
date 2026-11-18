@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, formatPlan, resolveCommand } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, formatPlan, formatScope, resolveCommand } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -139,6 +139,61 @@ test('a failing check closes the gate until fixed or recorded as PRE-EXISTING wi
     await assert.rejects(mark(dir, 't', { unit: 'packages/ui', check: 'test', status: 'PASSED', reason: 'ok' }), /evidence/);
     await mark(dir, 't', { unit: 'packages/ui', check: 'test', status: 'PRE-EXISTING', reason: 'fails identically on the baseline (FAIL marker)' });
     assert.equal((await gate(dir, 't')).result, 'OPEN');
+  } finally { clean(dir); }
+});
+
+test('a check that fails in two cycles asks for Opus root-cause analysis; the first failure does not', async () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'packages/ui/FAIL', '1');
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    const first = (await run(dir, 't')).gate.rows.find((x) => x.unit === 'packages/ui' && x.check === 'test');
+    assert.equal(first.state, 'FAILED');
+    assert.equal(first.escalate, undefined, 'one failure is routine: the owner fixes it on its own model');
+    w(dir, 'packages/ui/src/index.js', 'export const a = 3;\n'); // an attempted fix that did not hold
+    const second = (await run(dir, 't')).gate.rows.find((x) => x.unit === 'packages/ui' && x.check === 'test');
+    assert.equal(second.escalate, true);
+    assert.match(second.hint, /failed in 2 cycles.*Opus/);
+  } finally { clean(dir); }
+});
+
+test('browser tool artifacts in the project do not make passed checks stale', async () => {
+  // Playwright MCP writes page snapshots, console logs and screenshots to ./.playwright-mcp/ after every action.
+  // In a project that does not gitignore it, those files used to change the fingerprint, so the gate went STALE
+  // after browser QA and every suite ran again before `final`.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vg-'));
+  try {
+    w(dir, 'package.json', JSON.stringify({ name: 'single', scripts: { test: 'node ok.js' } }));
+    w(dir, 'ok.js', OK_JS); w(dir, 'src/a.js', 'export const a = 1;\n');
+    const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', ...a], { cwd: dir, stdio: 'pipe' });
+    g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'base');
+    w(dir, 'src/a.js', 'export const a = 2;\n');
+    assert.equal((await run(dir, 't')).gate.result, 'OPEN');
+    w(dir, '.playwright-mcp/page-2026-11-18T10-59-14-043Z.yml', '- main [ref=e2]\n');
+    w(dir, '.playwright-mcp/console-2026-11-18T10-59-13-859Z.log', 'error\n');
+    w(dir, 'test-results/journey/trace.zip', 'x');
+    w(dir, 'playwright-report/index.html', '<html></html>');
+    const after = await gate(dir, 't');
+    assert.equal(after.result, 'OPEN', 'tool output is not a code change');
+    assert.ok(!after.rows.some((r) => r.state === 'STALE'));
+    w(dir, 'src/a.js', 'export const a = 3;\n');
+    assert.equal((await gate(dir, 't')).result, 'CLOSED', 'a real edit still makes the result stale');
+  } finally { clean(dir); }
+});
+
+test('the scope line names an Opus escalation only when a critical workflow changed', async () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    assert.equal((await plan(dir)).escalation, null);
+    w(dir, 'services/api/auth/session.js', 'module.exports = 2;\n');
+    const p = await plan(dir);
+    assert.deepEqual(p.escalation.areas, { auth: ['services/api/auth/session.js'] });
+    assert.match(formatPlan(p), /Opus escalation: auth \(1 file\)/);
+    assert.match(formatScope(p), /Opus escalation/);
+    assert.doesNotMatch(formatScope(p, { orchestrator: false }), /Opus/, 'implementers cannot launch agents, so their --units runs skip the line');
+    const units = cli(dir, 'run', '--task', 't', '--units', 'services/api');
+    assert.doesNotMatch(units.stdout, /Opus escalation/);
   } finally { clean(dir); }
 });
 

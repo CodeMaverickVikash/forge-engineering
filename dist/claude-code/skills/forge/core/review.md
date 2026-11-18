@@ -56,7 +56,7 @@ Use the script's `suggestedTeam`, adjusted by what you saw. Each role maps to a 
 | Performance Engineer | `forge-performance-engineer` | queries, hot paths, rendering, network-heavy changes |
 | UI/UX Reviewer | `forge-accessibility-specialist` + `forge-browser-qa` (+ `forge-ux-designer` for flows) | frontend changes |
 
-For a small diff (under about 100 changed lines, one area), 2 reviewers are enough: `forge-code-reviewer` plus the area specialist. Launch the whole team **in one message**, so they run in parallel.
+For a small diff (under about 100 changed lines, one area), 2 reviewers are enough: `forge-code-reviewer` plus the area specialist. Launch the whole team **in one message**, so they run in parallel. When the JSON has an `escalation` (auth, payment or database files changed), launch the roles it lists with `model: "opus"` ([model escalation](delegation.md#model-escalation)).
 
 ### Review work order
 

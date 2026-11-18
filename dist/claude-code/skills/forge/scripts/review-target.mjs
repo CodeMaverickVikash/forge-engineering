@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { TOOL_OUTPUT_RE } from './verify-delta.mjs';
 
 export const LOCK_MAX_AGE_MS = 3 * 3600 * 1000;
 const GIT_CFG = ['-c', 'core.quotepath=false'];
@@ -141,8 +142,10 @@ function nameStatus(out) {
 
 // ---------- classification ----------
 
+const DATABASE_RE = /(^|\/)(migrations?|migrate|alembic|flyway|liquibase|db\/migrate|prisma)(\/|$)|\.sql$|schema\.prisma$|(^|\/)V\d+__.*\.sql$|models?\.(py|rb)$|entity|\.entity\.ts$/i;
+
 const CLASSES = [
-  ['database', /(^|\/)(migrations?|migrate|alembic|flyway|liquibase|db\/migrate|prisma)(\/|$)|\.sql$|schema\.prisma$|(^|\/)V\d+__.*\.sql$|models?\.(py|rb)$|entity|\.entity\.ts$/i],
+  ['database', DATABASE_RE],
   ['frontend', /\.(tsx|jsx|vue|svelte|astro|css|scss|sass|less|html)$|(^|\/)(components|pages|app|public|styles|views|layouts|ui)\//i],
   ['mobile', /(^|\/)(android|ios)\/|\.(kt|swift|dart)$|app\.json$|eas\.json$/i],
   ['security', /auth|login|logout|session|token|jwt|oauth|password|permission|rbac|acl|policy|middleware|crypto|secret|csrf|cors|\.env/i],
@@ -162,6 +165,48 @@ export function classify(files) {
     for (const h of hits) (by[h] ||= []).push(f);
   }
   return by;
+}
+
+// Workflows where a wrong verdict is expensive and hard to catch later. Matched on whole path words
+// (camelCase split first), so `author.ts` or `console.ts` never count as auth.
+const CRITICAL = [
+  ['auth', /(^|[/_.-])(auth|authn|authz|authenticat\w*|authoriz\w*|login|logout|sign-?in|sign-?up|sessions?|jwt|oauth\w*|oidc|sso|saml|passwords?|permissions?|rbac|acl|roles?|csrf|token)([/_.-]|$)/i],
+  ['payment', /(^|[/_.-])(payments?|billing|checkout|stripe|paypal|braintree|razorpay|adyen|invoices?|refunds?|payouts?|charges?|subscriptions?|wallets?)([/_.-]|$)/i],
+  // Schema and migrations only: an ORM model or entity edit without a migration is ordinary logic.
+  ['database', /(^|\/)(migrations?|migrate|alembic|flyway|liquibase|prisma)(\/|$)|\.sql$|schema\.(prisma|rb|sql)$|structure\.sql$/i],
+];
+const NOT_LOGIC_RE = /\.(md|mdx|rst|txt|png|jpe?g|gif|svg|webp|ico|css|scss|sass|less)$|(^|\/)docs\//i;
+
+/** Changed files grouped by critical workflow: auth (authentication/authorization), payment, database schema. */
+export function criticalAreas(files) {
+  const out = {};
+  for (const f of files) {
+    if (NOT_LOGIC_RE.test(f)) continue;
+    const words = f.replace(/([a-z0-9])([A-Z])/g, '$1-$2');
+    for (const [k, re] of CRITICAL) if (re.test(words)) (out[k] ||= []).push(f);
+  }
+  return out;
+}
+
+/**
+ * Model escalation for a change set (core/delegation.md#model-escalation). The independent review of any
+ * critical workflow runs on Opus. Auth and payment also move test design and the security review up, because
+ * a missed edge case there is a breach or lost money. A schema change keeps its tests on Sonnet: the database
+ * engineer already runs on the main model and migrations are verified by running them.
+ * Returns null when nothing critical changed, so routine work stays on Sonnet.
+ */
+export function escalation(files) {
+  const areas = criticalAreas(files);
+  if (!Object.keys(areas).length) return null;
+  const roles = ['forge-code-reviewer'];
+  if (areas.auth || areas.payment) roles.push('forge-security-engineer', 'forge-test-automation-engineer');
+  return { model: 'opus', areas, roles };
+}
+
+export function formatEscalation(e) {
+  if (!e) return 'Opus escalation: none (no auth, payment or database files changed); review and test roles stay on their default models.';
+  const areas = Object.entries(e.areas).map(([k, v]) => `${k} (${v.length} file${v.length > 1 ? 's' : ''})`).join(', ');
+  return `Opus escalation: ${areas} changed. Launch ${e.roles.join(', ')} with model opus, unless one already runs on a model at least as capable (core/delegation.md#model-escalation).`;
 }
 
 export const SMALL_DIFF_LINES = 100;
@@ -207,7 +252,7 @@ export function reviewTarget(root, { prUrl = null, network = true } = {}) {
   const local = inRepo ? {
     staged: nameStatus(git(root, 'diff', '--cached', '--name-status')).filter((f) => !f.path.startsWith('.forge/')),
     unstaged: nameStatus(git(root, 'diff', '--name-status')).filter((f) => !f.path.startsWith('.forge/')),
-    untracked: lines(git(root, 'ls-files', '--others', '--exclude-standard')).filter((f) => !f.startsWith('.forge/')),
+    untracked: lines(git(root, 'ls-files', '--others', '--exclude-standard')).filter((f) => !f.startsWith('.forge/') && !TOOL_OUTPUT_RE.test(f)),
   } : { staged: [], unstaged: [], untracked: [] };
   const localPresent = local.staged.length + local.unstaged.length + local.untracked.length > 0;
   const out = { mode: prUrl ? 'pr' : 'branch', repository: repoName, inGitRepo: inRepo, currentBranch: current, hasCommits, local, localChanges: localPresent ? 'Present' : 'Not present', limitations: [] };
@@ -272,6 +317,7 @@ export function reviewTarget(root, { prUrl = null, network = true } = {}) {
       : lineCounts(root, out.mergeBase, local.untracked);
     out.totalChangedLines = Object.values(out.changedLines).reduce((a, b) => a + b, 0);
     out.suggestedTeam = suggestTeam(out.areas, out.changedLines);
+    out.escalation = escalation(out.changedFiles);
   }
   return out;
 }
@@ -313,6 +359,7 @@ function main() {
     `Local changes: ${t.localChanges} (staged ${t.local.staged.length}, unstaged ${t.local.unstaged.length}, untracked ${t.local.untracked.length})`,
     t.areas ? `Areas: ${Object.entries(t.areas).map(([k, v]) => `${k} ${v.length}`).join(', ')}` : null,
     t.suggestedTeam ? `Suggested reviewers: ${t.suggestedTeam.join(', ')}` : null,
+    t.changedFiles ? formatEscalation(t.escalation) : null,
     ...t.limitations.map((l) => `LIMITATION: ${l}`),
   ].filter(Boolean).join('\n'));
 }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { parsePrUrl, findPrUrl, reviewTarget, classify, suggestTeam, setLock, readLock, lockPath } from '../../skills/forge/scripts/review-target.mjs';
+import { parsePrUrl, findPrUrl, reviewTarget, classify, suggestTeam, setLock, readLock, lockPath, criticalAreas, escalation, formatEscalation } from '../../skills/forge/scripts/review-target.mjs';
 import { decide, forbiddenOperation, activeReviewRoot } from '../../skills/forge/scripts/git-guard.mjs';
 
 // Throwaway repositories in the OS temp dir (test scaffolding only; deleted after each test).
@@ -100,6 +100,30 @@ test('team selection follows the changed areas', () => {
   for (const a of ['forge-code-reviewer', 'forge-accessibility-specialist', 'forge-browser-qa']) assert.ok(ui.includes(a), a);
   assert.ok(suggestTeam(classify(['package-lock.json'])).includes('forge-security-engineer'));
   assert.ok(suggestTeam(classify(['api/routes/orders.py', 'models/order.py'])).includes('forge-architect'));
+});
+
+test('Opus escalation only for critical auth, payment and database workflows', () => {
+  const crit = criticalAreas([
+    'src/auth/session.ts', 'src/services/AuthService.ts', 'app/hooks/useSignIn.ts', 'api/permissions.py',
+    'src/billing/stripeWebhook.ts', 'app/checkout/page.tsx', 'db/migrations/003_orders.sql', 'prisma/schema.prisma',
+  ]);
+  assert.deepEqual(crit.auth, ['src/auth/session.ts', 'src/services/AuthService.ts', 'app/hooks/useSignIn.ts', 'api/permissions.py']);
+  assert.deepEqual(crit.payment, ['src/billing/stripeWebhook.ts', 'app/checkout/page.tsx']);
+  assert.deepEqual(crit.database, ['db/migrations/003_orders.sql', 'prisma/schema.prisma']);
+
+  // Routine work and look-alike names stay on the default model: an ORM model or entity edit without a
+  // migration is ordinary logic, and a TypeScript type guard is not an auth guard.
+  const routine = ['src/components/Card.tsx', 'src/author.ts', 'src/console.ts', 'src/utils/tokenizer.ts', 'src/utils/typeGuards.ts',
+    'app/models.py', 'src/order.entity.ts', 'docs/auth.md', 'styles/checkout.css', 'README.md'];
+  assert.deepEqual(criticalAreas(routine), {});
+  assert.equal(escalation(routine), null);
+  assert.match(formatEscalation(null), /none/);
+
+  assert.deepEqual(escalation(['db/migrations/1.sql']).roles, ['forge-code-reviewer'], 'schema changes escalate the review, not test writing');
+  const pay = escalation(['src/payments/refund.ts']);
+  assert.equal(pay.model, 'opus');
+  assert.deepEqual(pay.roles, ['forge-code-reviewer', 'forge-security-engineer', 'forge-test-automation-engineer'], 'auth and payment also escalate the security review and test design');
+  assert.match(formatEscalation(pay), /payment \(1 file\).*model opus/);
 });
 
 test('review lock: guard blocks source edits during a review, allows .forge/, expires', () => {

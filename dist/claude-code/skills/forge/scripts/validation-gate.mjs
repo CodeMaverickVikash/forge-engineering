@@ -39,6 +39,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { changedFiles, isGitRepo, eolCheck } from './verify-delta.mjs';
 import { check as checkComments } from './comment-check.mjs';
+import { escalation, formatEscalation } from './review-target.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DETECTOR = path.join(HERE, '..', '..', 'forge-project-exploration', 'scripts', 'detect-stack.mjs');
@@ -242,7 +243,7 @@ export async function plan(root, { units: only = null, ctx = null } = {}) {
     if (e.kinds.includes('mobile')) next.device.push(e.unit);
     if (e.kinds.includes('backend') && !e.kinds.includes('web')) next.api.push(e.unit);
   }
-  return { git, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], entries, next, units: U };
+  return { git, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], escalation: escalation(relevant), entries, next, units: U };
 }
 
 function fingerprints(root, p) {
@@ -291,6 +292,11 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
         const state = (last.status === 'PASSED' || last.status === 'PRE-EXISTING') && stale ? 'STALE' : last.status;
         Object.assign(row, { state, cycle: last.cycle, reason: state === 'STALE' ? `files in scope changed since cycle ${last.cycle}` : last.reason, log: last.log });
         if (state === 'FAILED' && all.some((r) => r.cycle === 'baseline' && r.unit === e.unit && r.check === c.key && r.status === 'FAILED')) row.hint = 'also failed on the baseline: if it is the same failure, mark it PRE-EXISTING';
+        else if (state === 'FAILED') {
+          // A second failing cycle means the first diagnosis and fix did not hold: the policy trigger for Opus.
+          const failedCycles = new Set(ledger.filter((r) => r.unit === e.unit && r.check === c.key && r.status === 'FAILED').map((r) => r.cycle));
+          if (failedCycles.size >= 2) Object.assign(row, { escalate: true, hint: `failed in ${failedCycles.size} cycles: move the root-cause analysis to Opus before the next fix (core/delegation.md#model-escalation)` });
+        }
       }
       if (c.deferrable && (row.state === 'MISSING' || row.state === 'STALE')) {
         if (!final) Object.assign(row, { state: 'DEFERRED', reason: 'runs once before the final check: `run --build`' });
@@ -454,6 +460,7 @@ export function formatPlan(p) {
   if (p.contractFiles.length) L.push(`API contract changed (${p.contractFiles.join(', ')}): G6 \`contract\` check, plus its web/mobile consumers.`);
   if (p.migrationFiles.length) L.push(`Migration or schema changed (${p.migrationFiles.join(', ')}): G12 \`migration\` check.`);
   if (p.unowned.length) L.push(`Changed outside any unit (nothing to run): ${p.unowned.slice(0, 8).join(', ')}${p.unowned.length > 8 ? ', …' : ''}`);
+  if (p.escalation) L.push(formatEscalation(p.escalation));
   const n = p.next; const parts = [];
   if (n.browser.length) parts.push(`browser verification (${n.browser.join(', ')})`);
   if (n.device.length) parts.push(`emulator/device verification (${n.device.join(', ')})`);
@@ -462,13 +469,16 @@ export function formatPlan(p) {
   return L.join('\n');
 }
 
-/** One line of scope: what is validated, why, and which verification follows the gate. */
-export function formatScope(p) {
+/**
+ * One line of scope: what is validated, why, and which verification follows the gate. The escalation line is
+ * for the orchestrator only (`orchestrator: false` for implementers' `--units` runs, who cannot launch agents).
+ */
+export function formatScope(p, { orchestrator = true } = {}) {
   if (!p.entries.length) return p.docsOnly ? 'Scope: documentation only; no checks needed.' : 'Scope: no changed code.';
   const units = p.entries.map((e) => `${e.unit} [${e.kinds.join('+') || 'shared'}] (${e.reasons.join('; ')})`).join('; ');
   const n = p.next; const next = [n.browser.length && `browser ${n.browser.join(', ')}`, n.device.length && `device ${n.device.join(', ')}`, n.api.length && `API-level ${n.api.join(', ')}`].filter(Boolean).join('; ');
   const flags = [p.contractFiles.length && 'G6 contract check (mark)', p.migrationFiles.length && 'G12 migration check (mark)', p.serializeTests.length && `tests serialized: ${p.serializeTests.join(', ')}`].filter(Boolean);
-  return `Scope: ${units}. After the gate: ${next || 'no browser or device verification'}.${flags.length ? ` ${flags.join('; ')}.` : ''}`;
+  return `Scope: ${units}. After the gate: ${next || 'no browser or device verification'}.${flags.length ? ` ${flags.join('; ')}.` : ''}${orchestrator && p.escalation ? `\n${formatEscalation(p.escalation)}` : ''}`;
 }
 
 const VERDICT = {
@@ -566,7 +576,7 @@ async function main() {
     const r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15 });
     // Compact on purpose: passing checks take one line in total; only failures get their output.
     const passed = r.results.filter((x) => x.status === 'PASSED');
-    const L = [formatScope(r.plan), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
+    const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
     if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
     for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
     if (r.deferred.length) L.push(`DEFERRED until the final check: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --build\` once, right before \`final\`.`);

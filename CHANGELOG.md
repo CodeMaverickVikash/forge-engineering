@@ -4,7 +4,16 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+- **Adaptive model selection for testing and QA.** Testing roles start on Sonnet and move up to Opus only on a defined trigger (`core/delegation.md` "Model escalation"). The triggers that depend only on changed files or check results are enforced in scripts:
+  - `review-target.mjs` and the orchestrator's `V run` print an `Opus escalation:` line when auth, authorization, payment or database schema files changed, naming the roles to launch with `model: "opus"`. Any of them escalates the code review. Auth and payment also escalate the security review and test design. Look-alike paths (`author.ts`, `typeGuards.ts`, ORM models without a migration, docs, styles) don't count, and implementers' `--units` runs omit the line.
+  - `V gate` marks a check that failed in two cycles (`escalate: true`, hint `failed in 2 cycles`) so the root-cause analysis moves to Opus before the next fix.
+  - Never lowers a model: a role already on a model at least as capable stays there. When Opus is unavailable, the run continues and the report says so.
+  - Every agent's rules now say that a test plan, a written test or a review is not a pass; only the output of a run decides it. Model cost never reduces test coverage.
+
 ### Changed (performance)
+- **Browser QA no longer re-runs every check suite.** Playwright MCP writes a snapshot, console log or screenshot to `./.playwright-mcp/` after each action. In a project that doesn't gitignore that folder, the files changed the gate's fingerprint, so every passed check went STALE after browser QA and all suites ran again before `final`. Untracked Playwright output (`.playwright-mcp/`, `test-results/`, `playwright-report/`, `blob-report/`) no longer counts as a changed file for the gate, delta retests, line-ending and comment checks, or review scope. Tracked files in those folders still count. Regression tests: `validation-gate.test.mjs`, `verify-delta.test.mjs`.
+- The recommended Chrome DevTools MCP setup adds `--redactNetworkHeaders`, so cookies and `Authorization` headers never reach the model.
 - **The project's own package manager runs the checks.** Workspace members without their own lockfile used to fall back to `npm run …`, even in a pnpm monorepo. They now inherit the manager from the nearest ancestor (lockfile, `packageManager`, or `pnpm-workspace.yaml`), so a pnpm workspace runs `pnpm typecheck` / `pnpm lint` / `pnpm test`. A member's own lockfile still wins. When the declared manager isn't installed on the machine, `validation-gate.mjs` runs the same package.json script with `npm run` instead of failing as BLOCKED.
 - The e2e runner no longer overwrites the recorded results when the `claude` CLI cannot start (set `CLAUDE_BIN`).
 - **Fixes from a live benchmark (2026-11-18).** `code-question` passed. `bug-fix`, `architecture-analysis` and `new-feature` failed, at about the previous costs ($0.54 / $0.63 / $1.87):

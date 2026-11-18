@@ -197,7 +197,8 @@ export function catalogs() {
       '| Analysis or audit | Architect and security engineer on your main model. Project explorer or QA lead on Sonnet when the codebase needs them |', '',
       'Notes:',
       '- **Max turns** is a cap that stops a runaway agent. It is set well above what real runs need, and an agent that hits it is reported as partial, never as done.',
-      '- **Antigravity:** all agents use `inherit`, because Antigravity accepts only `inherit`, `flash` or `pro`. The Sonnet split applies to Claude Code only.',
+      '- **Escalation to Opus:** testing and QA start on Sonnet. The orchestrator runs the code review on Opus when auth, payment or database schema files changed (for auth and payment, also the security engineer and test automation engineer), and moves root-cause analysis to Opus when a check fails in two cycles or the failure spans services, concurrency or architecture. Pass or fail always comes from real test and tool output, never from a model\'s plan or review. Rules: [core/delegation.md](skills/forge/core/delegation.md#model-escalation).',
+      '- **Antigravity:** all agents use `inherit`, because Antigravity accepts only `inherit`, `flash` or `pro`. The Sonnet split and Opus escalation apply to Claude Code only; elsewhere the report records the escalation as unavailable.',
       '- **To change a model**, edit the `model:` line in `agents/<name>.md` (`inherit`, `sonnet`, `opus`, `haiku`, `fable` or a full model ID). Then run `node scripts/build.mjs` and reinstall with `scripts/install.sh --target claude` (or `install.ps1`). This table regenerates itself.',
       '- The full agent catalog, with access level and preloaded skills, is in [docs/agents.md](docs/agents.md).',
       END);

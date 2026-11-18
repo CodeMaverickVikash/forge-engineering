@@ -46,6 +46,7 @@ If the line above still shows a literal `$ARGUMENTS` placeholder, the request is
   - **The routing matrix's core team does the specialist work**, even when a task looks small enough to do yourself. Their preloaded checklists and fresh eyes are what the user pays for. You plan, brief, verify and integrate; you implement only S-size fixes, and even then review and browser QA stay with their specialists.
   - The same goes for **analysis and audits**. Scale the team instead of skipping it: under about 500 source lines, one wave of 2 specialists (for example architect + security); above that, everyone the matrix names. Only a **Q** question is answered without specialists.
   - Agents have `maxTurns` caps. Output marked **partial** is never done: continue it once with a narrower scope, or report what is unverified.
+  - **Models:** testing and QA run on Sonnet. Pass `model: "opus"` only on a [model escalation](core/delegation.md#model-escalation) trigger, such as the `Opus escalation:` line that `V run` prints for auth, payment or database changes.
 - **Mode B: sequential role emulation.** Use it when there are no custom subagents. For each role, read `roles/<agent-name>.md` and its skills, do that role's job, and write its report to the task folder. The final report says the specialists were emulated sequentially.
 
 ## Lifecycle
@@ -76,7 +77,7 @@ Pick exactly one size; when in doubt pick the larger. Any new feature, endpoint,
    - 2: unblock, or report BLOCKED.
 
    Backend-only changes get API-level verification instead.
-8. **Fix.** Fix at the root cause (`forge-debugging`), at most 3 cycles per failure, then report it unresolved; never hide a failure. Merge the review's and browser QA's findings into **one fix wave**, then `V run` once after every owner has returned, then retest **only the delta** ([core/delegation.md](core/delegation.md#delta-retests)).
+8. **Fix.** Fix at the root cause (`forge-debugging`), at most 3 cycles per failure, then report it unresolved; never hide a failure. A check that `V` marks `failed in 2 cycles` gets its root-cause analysis on Opus. Merge the review's and browser QA's findings into **one fix wave**, then `V run` once after every owner has returned, then retest **only the delta** ([core/delegation.md](core/delegation.md#delta-retests)).
 9. **Final review.** `forge-code-reviewer` reviews the diff against the spec. Check `git diff --stat` for unrelated changes. Then run `V run --task <slug> --build` (the deferred builds, once) and `V final --task <slug>`; it covers the gate after the last edit, line endings, new comments and evidence. The file's owner fixes anything it flags before you report.
 10. **Report.** Fill [templates/engineering-report.md](templates/engineering-report.md) with one **completion status** (rules in quality-gates.md), save it to `.forge/tasks/<slug>/report.md`, and **print the full report as your final message**, not a summary. Often it is the only thing anyone reads. Write it only after **every launched agent has returned**. If a result still arrives after you printed it, update the saved report and print the **full** report again, starting with its heading line and nothing before it; never end on a recap or a pointer to an earlier message.
 

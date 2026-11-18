@@ -60,6 +60,20 @@ test('delta shows only changes made after the snapshot, and ignores .forge/', ()
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('untracked browser tool output is not a changed file; tracked files in those folders still are', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vd-'));
+  try {
+    const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', ...a], { cwd: dir, stdio: 'pipe' });
+    const w = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
+    w('test-results/fixture.json', '{}\n');
+    g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'base');
+    w('.playwright-mcp/page-1.yml', 'x\n'); w('apps/web/.playwright-mcp/page-2.png', 'x');
+    w('apps/web/test-results/run/trace.zip', 'x'); w('playwright-report/index.html', 'x'); w('blob-report/r.zip', 'x');
+    w('src/app.js', 'x\n'); w('test-results/fixture.json', '{"edited":true}\n');
+    assert.deepEqual(changedFiles(dir), ['src/app.js', 'test-results/fixture.json']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('eol flags flipped and mixed line endings and exits 1', () => {
   const dir = repo();
   try {

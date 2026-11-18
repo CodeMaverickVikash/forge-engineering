@@ -16,6 +16,7 @@ VERIFY WITH: node "<FORGE_HOME>/scripts/validation-gate.mjs" run --task <slug> -
 GATE:        (browser QA and device verification only) pre-browser gate OPEN at cycle <n>;
              re-check: node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>
 EVIDENCE:    (browser QA only) .forge/tasks/<slug>/evidence/  (index.md + validation-gate.mjs evidence)
+MODEL:       (only when escalated) opus: <trigger from Model escalation below>; otherwise omit
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
@@ -48,6 +49,21 @@ Re-verifying the whole change after every fix was the biggest cost in measured r
 - **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. Start it only after every owner of the fix wave has returned. It must exit 0 (gate OPEN) **before** the browser retest.
 - **Minor findings and nits** never start a new round. Batch them into the fix wave and let the delta re-review confirm them.
 - **Full re-verification only** when the delta is large (more than about a third of the original change), touches files the earlier round never saw, or changes a contract.
+
+## Model escalation
+
+Testing and QA start on Sonnet: test automation, manual QA, browser QA (Playwright, Chrome DevTools), API and regression checks, and routine bug reproduction. Move a role up to **Opus** only when one of these triggers is present, and name the trigger in the work order:
+- **Critical workflow changed.** `V run` and `review-target.mjs` print an `Opus escalation:` line when auth, authorization, payment or database schema files changed. Launch the roles it lists with `model: "opus"`: the code reviewer always, plus the security and test automation engineers for auth or payment.
+- **Root cause not found.** `V gate` hints `failed in 2 cycles`, or a Sonnet verifier returns `blocked` or "root cause unknown" after its re-brief. Move the investigation (`forge-debugging`) to Opus before the next fix attempt.
+- **The failure spans services or apps**, or involves race conditions, concurrency, or an architectural defect.
+- **A security vulnerability** needs deeper investigation than the first pass gave it.
+- **High-risk independent review**: an L-size change, or a review whose verdict gates auth, money or data.
+
+Rules:
+- **How:** Claude Code takes `model: "opus"` on the Agent call. The agent's file stays unchanged, and SendMessage continuations keep their model. Never lower a model: a role on `inherit` whose main model is already at least as capable as Opus stays there.
+- **Opus unavailable** (Antigravity, Mode B, or an account or host without it): continue with the available model and the same tools. Put the limitation in the report: `Opus escalation unavailable: <role>, <trigger>, <reason>`.
+- **Models never decide pass/fail.** A check passes only on the output of a run in this task: a test runner, Playwright, DevTools, curl or `V`. A test plan, a written test or an approving review is not evidence, on any model.
+- **Never trade coverage for model cost.** Size the test scope by risk. A cheaper model may change who runs a check, never whether it runs.
 
 ## Turn caps
 

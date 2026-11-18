@@ -169,7 +169,7 @@ function detectCommands(unitAbs, unitFiles, techIds, pm) {
     const pj = readJson(path.join(unitAbs, 'package.json')) || {};
     for (const s of Object.keys(pj.scripts || {})) { const c = scriptCategory(s); if (c) add(c, run(s), `package.json#scripts.${s}`); }
     const has = (c) => cmds.some((x) => x.category === c);
-    if (!has('typecheck') && techIds.has('typescript') && unitFiles.has('tsconfig.json')) add('typecheck', 'npx tsc --noEmit', 'inferred: tsconfig.json + typescript dependency');
+    if (!has('typecheck') && techIds.has('typescript') && unitFiles.has('tsconfig.json')) add('typecheck', pm === 'pnpm' ? 'pnpm exec tsc --noEmit' : 'npx tsc --noEmit', 'inferred: tsconfig.json + typescript dependency');
   }
   if (unitFiles.has('composer.json')) {
     const cj = readJson(path.join(unitAbs, 'composer.json')) || {};
@@ -229,6 +229,16 @@ export function analyze(root, opts = {}) {
   const unitFiles = new Map(sortedUnits.map((u) => [u, []]));
   for (const f of files) { const u = owner(f); if (u !== null) unitFiles.get(u).push(u ? f.slice(u.length + 1) : f); }
   const units = [];
+  // Workspace members rarely carry their own lockfile: they use the manager declared at the root or
+  // the nearest ancestor (pnpm-lock.yaml, packageManager, pnpm-workspace.yaml). Units are sorted
+  // shortest first, so an ancestor is always resolved before its members.
+  const pmOf = new Map();
+  const inheritedPm = (u) => {
+    let best = null;
+    for (const [a, pm] of pmOf) if (a !== u && inUnit(u, a) && (best === null || a.length > best.length)) best = a;
+    if (best !== null) return pmOf.get(best);
+    return files.includes('pnpm-workspace.yaml') ? 'pnpm' : null;
+  };
   for (const u of sortedUnits) {
     const rel = unitFiles.get(u) || []; const relSet = new Set(rel);
     const uAbs = path.join(root, u);
@@ -237,8 +247,10 @@ export function analyze(root, opts = {}) {
     const technologies = detectTechnologies(rel, uDirs, deps);
     const techIds = new Set(technologies.map((t) => t.id));
     const lock = Object.entries(LOCKFILES).filter(([f]) => relSet.has(f)).map(([, pm]) => pm);
-    let pm = lock.find((p) => ['pnpm', 'yarn', 'bun', 'npm'].includes(p)) || (relSet.has('package.json') ? 'npm' : null);
+    let pm = lock.find((p) => ['pnpm', 'yarn', 'bun', 'npm'].includes(p)) || null;
     if (relSet.has('package.json')) { const pj = readJson(path.join(uAbs, 'package.json')) || {}; if (typeof pj.packageManager === 'string') pm = pj.packageManager.split('@')[0]; }
+    if (!pm && relSet.has('package.json')) pm = inheritedPm(u) || 'npm';
+    if (pm && ['pnpm', 'yarn', 'bun', 'npm'].includes(pm)) pmOf.set(u, pm);
     const manifests = rel.filter((f) => !f.includes('/') && (MANIFESTS.includes(f) || MANIFEST_PATTERNS.some((re) => re.test(f))));
     units.push({ path: u || '.', manifests, packageManagers: [...new Set([pm, ...lock].filter(Boolean))], technologies, commands: detectCommands(uAbs, relSet, techIds, pm || 'npm') });
   }

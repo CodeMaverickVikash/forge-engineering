@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, formatPlan } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, formatPlan, resolveCommand } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -95,6 +95,17 @@ test('run executes each check once, the gate opens, and only checks whose files 
     assert.equal(r3.cycle, 3, 'a run that executed nothing does not count as a cycle');
     assert.equal(r3.gate.result, 'OPEN');
   } finally { clean(dir); }
+});
+
+test("scripts run with the project's package manager, falling back to npm only when it is not installed", () => {
+  const script = (command, name) => ({ command, source: `package.json#scripts.${name}` });
+  const only = (...bins) => (b) => bins.includes(b);
+  assert.equal(resolveCommand(script('pnpm typecheck', 'typecheck'), only('pnpm', 'npm')), 'pnpm typecheck');
+  assert.equal(resolveCommand(script('pnpm typecheck', 'typecheck'), only('npm')), 'npm run typecheck');
+  assert.equal(resolveCommand(script('yarn test', 'test'), only('npm')), 'npm run test');
+  assert.equal(resolveCommand(script('bun run build', 'build'), only('npm')), 'npm run build');
+  assert.equal(resolveCommand(script('npm run lint', 'lint'), only()), 'npm run lint');
+  assert.equal(resolveCommand({ command: 'pnpm exec tsc --noEmit', source: 'inferred: tsconfig.json' }, only('npm')), 'pnpm exec tsc --noEmit', 'only package.json scripts fall back');
 });
 
 test('a native shell nested in a JS app is not that app\'s consumer, so a JS change never requires its native build', async () => {

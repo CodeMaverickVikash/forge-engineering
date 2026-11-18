@@ -5,6 +5,13 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
 ## [Unreleased]
 
 ### Changed (performance)
+- **The project's own package manager runs the checks.** Workspace members without their own lockfile used to fall back to `npm run …`, even in a pnpm monorepo. They now inherit the manager from the nearest ancestor (lockfile, `packageManager`, or `pnpm-workspace.yaml`), so a pnpm workspace runs `pnpm typecheck` / `pnpm lint` / `pnpm test`. A member's own lockfile still wins. When the declared manager isn't installed on the machine, `validation-gate.mjs` runs the same package.json script with `npm run` instead of failing as BLOCKED.
+- The e2e runner no longer overwrites the recorded results when the `claude` CLI cannot start (set `CLAUDE_BIN`).
+- **Fixes from a live benchmark (2026-11-18).** `code-question` passed. `bug-fix`, `architecture-analysis` and `new-feature` failed, at about the previous costs ($0.54 / $0.63 / $1.87):
+  - Browser QA could start before the gate was checked. Browser QA now runs `validation-gate.mjs gate` as its first command on every pass, and the S-size path spells out "`V run` until OPEN → review + browser QA".
+  - Browser QA counted Playwright console listeners as DevTools evidence. They no longer count: one DevTools console and network read per pass is required when the MCP is connected.
+  - Reports used non-FORGE status words (`COMPLETE`, `DONE_WITH_CONCERNS`). `V final` now prints the four valid completion statuses right before the report is written.
+  - The e2e runner flagged `git commit` written inside a heredoc report as a git attempt. It now checks only executed text (`tests/e2e/command-text.mjs`).
 - **No repeated check suites.** In a measured TruArt run (web + mobile), the checks took about 32 minutes of run time: about 7.5 minutes of baseline and about 8 minutes of a gate cycle that was already stale went to waste, and the first browser pass hit its turn cap.
   - `validation-gate.mjs run` now **defers builds** that type check or tests already cover (`DEFERRED`, not blocking the browser). `run --build` runs them once before `final`, which requires them. Builds still run every cycle when consumers import their output or when the build is the unit's only compile step.
   - A **native shell nested in a JS app** (React Native `android/app` reaching `../../node_modules`) is no longer treated as that app's consumer, so a JS-only change no longer requires a Gradle test and build.

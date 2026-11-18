@@ -14,7 +14,7 @@ const ids = (unit) => new Set(unit.technologies.map((t) => t.id));
 const cmd = (unit, category) => unit.commands.filter((c) => c.category === category).map((c) => c.command);
 
 const EXPECT = {
-  'nextjs-app': { tech: ['typescript', 'nextjs', 'tailwind', 'prisma', 'nextauth', 'stripe', 'vitest', 'playwright', 'eslint', 'github-actions'], pm: 'pnpm', test: 'pnpm test', typecheck: 'npx tsc --noEmit', ref: 'forge-frontend-engineering/references/react-nextjs.md' },
+  'nextjs-app': { tech: ['typescript', 'nextjs', 'tailwind', 'prisma', 'nextauth', 'stripe', 'vitest', 'playwright', 'eslint', 'github-actions'], pm: 'pnpm', test: 'pnpm test', typecheck: 'pnpm exec tsc --noEmit', ref: 'forge-frontend-engineering/references/react-nextjs.md' },
   'python-fastapi': { tech: ['python', 'fastapi', 'sqlalchemy', 'alembic', 'postgres', 'pytest', 'ruff', 'docker'], pm: 'uv', test: 'uv run pytest', ref: 'forge-backend-engineering/references/python.md' },
   'expo-app': { tech: ['expo', 'react-native', 'typescript', 'clerk', 'jest', 'testing-library'], pm: 'npm', test: 'npm run test', ref: 'forge-mobile-engineering/references/react-native-expo.md' },
   'spring-boot-app': { tech: ['java', 'spring-boot', 'jpa', 'flyway', 'postgres', 'spring-security', 'junit'], test: './mvnw test', ref: 'forge-backend-engineering/references/java-spring.md' },
@@ -73,6 +73,28 @@ test('monorepo: detects multiple units with their own stacks', () => {
     assert.ok(ids(byPath['services/inventory']).has('chi'));
     assert.ok(ids(byPath['services/orders']).has('fastapi'));
     assert.ok(!ids(byPath['.']).has('nextjs'), 'root unit must not absorb sub-unit technologies');
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('workspace members use the root package manager, not a default npm', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-pm-'));
+  const put = (f, s) => { fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.writeFileSync(path.join(tmp, f), s); };
+  try {
+    put('package.json', JSON.stringify({ name: 'mono', private: true, scripts: { test: 'turbo test' } }));
+    put('pnpm-lock.yaml', "lockfileVersion: '9.0'\n");
+    put('pnpm-workspace.yaml', "packages:\n  - 'apps/*'\n");
+    put('apps/web/package.json', JSON.stringify({ name: 'web', scripts: { test: 'vitest run', typecheck: 'tsc --noEmit' } }));
+    put('apps/legacy/package.json', JSON.stringify({ name: 'legacy', scripts: { test: 'jest' } }));
+    put('apps/legacy/package-lock.json', '{}');
+    const byPath = Object.fromEntries(analyze(tmp).units.map((u) => [u.path, u]));
+    assert.deepEqual(cmd(byPath['apps/web'], 'test'), ['pnpm test'], 'a member with no lockfile inherits pnpm from the root');
+    assert.deepEqual(cmd(byPath['apps/web'], 'typecheck'), ['pnpm typecheck']);
+    assert.deepEqual(cmd(byPath['apps/legacy'], 'test'), ['npm run test'], "a member's own lockfile still wins");
+
+    // No lockfile yet: pnpm-workspace.yaml alone declares pnpm.
+    fs.rmSync(path.join(tmp, 'pnpm-lock.yaml'));
+    const again = Object.fromEntries(analyze(tmp).units.map((u) => [u.path, u]));
+    assert.deepEqual(cmd(again['apps/web'], 'test'), ['pnpm test']);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });
 

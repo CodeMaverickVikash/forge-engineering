@@ -327,8 +327,26 @@ function killTree(child) {
   } catch { /* already gone */ }
 }
 
+const toolCache = new Map();
+const hasTool = (bin) => {
+  if (!toolCache.has(bin)) toolCache.set(bin, spawnSync(`${bin} --version`, { shell: true, stdio: 'ignore', windowsHide: true }).status === 0);
+  return toolCache.get(bin);
+};
+
+/**
+ * The project's own package manager runs its scripts (`pnpm typecheck` in a pnpm workspace). Only when that
+ * manager is not installed here does a package.json script fall back to `npm run`, which executes the same
+ * script from the same package.json.
+ */
+export function resolveCommand(check, available = hasTool) {
+  const m = check.command.match(/^(pnpm|yarn|bun)(?: run)? (\S+)$/);
+  const script = (check.source || '').match(/^package\.json#scripts\.(.+)$/)?.[1];
+  if (m && script === m[2] && !available(m[1]) && available('npm')) return `npm run ${script}`;
+  return check.command;
+}
+
 function execCheck(root, task, unit, check, cycle, timeoutMin) {
-  const command = check.command.replace(/^npx (?!--no-install\b)/, 'npx --no-install '); // never download a tool
+  const command = resolveCommand(check).replace(/^npx (?!--no-install\b)/, 'npx --no-install '); // never download a tool
   const log = path.join(evidenceDir(root, task), 'reports', 'validation', `c${cycle}-${slugUnit(unit)}-${check.key.replace('#', '-')}.log`);
   fs.mkdirSync(path.dirname(log), { recursive: true });
   return new Promise((resolve) => {
@@ -532,6 +550,7 @@ async function main() {
       if (f.evidence.unindexed.length) L.push(`- not described in index.md: ${f.evidence.unindexed.join(', ')}`);
     } else L.push('Evidence: none (no browser or device run recorded).');
     L.push(f.ready ? 'FINAL: READY to report.' : `FINAL: NOT READY: ${f.problems.join('; ')}.`);
+    L.push('Completion status: exactly one of VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED (rules in quality-gates.md). Words such as DONE, COMPLETE or DONE_WITH_CONCERNS are not valid.');
     out(f, L.join('\n'));
     process.exit(f.ready ? 0 : f.problems.length === 1 && f.gate.result === 'BLOCKED' ? 2 : 1);
   }

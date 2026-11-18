@@ -50,7 +50,7 @@ Size the task, then run only the phases it needs ([core/lifecycle.md](core/lifec
 | Size | Signal | Phases |
 |---|---|---|
 | **Q** | a question about the code (how, where, why), with no change, audit or review asked | Answer directly with `file:line` evidence: no agents, task folder or report template. Re-size if it turns into a change or a broad audit |
-| **S** | one obvious defect or small tweak, 1–3 files, low risk | understand → targeted explore → fix → verify → independent review → report; no spec or plan |
+| **S** | one obvious defect or small tweak, 1–3 files, low risk | understand → targeted explore → fix → `V run` until the gate is OPEN → review + browser QA in one wave → report; no spec or plan |
 | **M** | a feature or change across a few modules | all 10 phases, spec and plan, 3–6 specialists |
 | **L** | cross-cutting, new subsystem, security or data risk, "production-ready" | all 10 phases, ADR, parallel specialists, full gates |
 

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { SCENARIOS } from './scenarios.mjs';
+import { executedText } from './command-text.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2);
@@ -104,7 +105,7 @@ function evaluate(name, sc, dir, ev, before) {
   for (const re of e.reportMentions || []) if (!re.test(report)) fails.push(`report lacks ${re}`);
   const denied = (ev.result?.permission_denials || []).map((d) => JSON.stringify(d.tool_input || d));
   // `git stash list` is read-only; anything else that mutates history or the working tree is forbidden.
-  if (ev.bash.some((c) => /\bgit\s+(commit|push|merge|rebase|reset|clean)\b|\bgit\s+stash(?!\s+list)\b|\bgh\s+pr\s+create\b/.test(c))) fails.push('attempted a forbidden git operation');
+  if (ev.bash.some((c) => /\bgit\s+(commit|push|merge|rebase|reset|clean)\b|\bgit\s+stash(?!\s+list)\b|\bgh\s+pr\s+create\b/.test(executedText(c)))) fails.push('attempted a forbidden git operation');
   // Baseline is staged (never committed), so compare the worktree to the index: modified/deleted + untracked files.
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean);
   const changed = [...new Set([...git('diff', '--name-only'), ...git('ls-files', '--others', '--exclude-standard')])]
@@ -156,6 +157,12 @@ function run(name) {
   const r = spawnSync(CLAUDE, cliArgs, { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 });
   try { fs.rmSync(mcpCfg, { force: true }); } catch { /* best effort */ }
   console.log(`  claude finished: exit=${r.status} signal=${r.signal} error=${r.error?.code || 'none'} after ${((Date.now() - t0) / 60000).toFixed(1)}min, ${(r.stdout || '').length} bytes`);
+  if (r.error && !r.stdout) {
+    // The CLI never ran: keep the recorded results instead of overwriting them with an empty run.
+    console.log(`✖ ${name}: could not start ${CLAUDE} (${r.error.code}). Set CLAUDE_BIN to the claude executable. Results left unchanged.`);
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+    return false;
+  }
   const lines = (r.stdout || '').split('\n');
   const ev = analyzeStream(lines);
   const res = evaluate(name, sc, dir, ev, before);

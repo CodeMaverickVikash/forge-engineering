@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter, serializeFrontmatter } from './lib/frontmatter.mjs';
+import { validateProfile, renderPlatformDoc, supports } from '../skills/forge/scripts/platform.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
@@ -21,9 +22,23 @@ const META = {
   keywords: ['engineering', 'multi-agent', 'orchestration', 'qa', 'code-review', 'playwright', 'devtools']
 };
 
-// Fields each host understands. Everything else is stripped by the adapter.
-const ANTIGRAVITY_SKILL_FIELDS = ['name', 'description'];
-const ANTIGRAVITY_AGENT_FIELDS = ['name', 'description', 'model', 'skills'];
+/**
+ * A host's profile (adapters/<host>/platform.json): the adapter contract. The build reads every host-specific
+ * decision from it (frontmatter fields, agent models, hooks) and refuses to build from an invalid one.
+ */
+export function loadProfile(host) {
+  const p = JSON.parse(fs.readFileSync(path.join(ROOT, 'adapters', host, 'platform.json'), 'utf8'));
+  const problems = validateProfile(p);
+  if (problems.length) throw new Error(`adapters/${host}/platform.json breaks the platform contract: ${problems.join('; ')}`);
+  return p;
+}
+const pick = (data, fields) => (fields === 'all' ? { ...data } : Object.fromEntries(fields.filter((k) => data[k] !== undefined).map((k) => [k, data[k]])));
+
+// The orchestrator's view of its host: the profile itself (read by the scripts) and a one-page summary.
+function writePlatform(dir, profile) {
+  write(path.join(dir, 'skills', 'forge', 'platform.json'), JSON.stringify(profile, null, 2) + '\n');
+  write(path.join(dir, 'skills', 'forge', 'core', 'platform.md'), renderPlatformDoc(profile));
+}
 
 function listSkills() {
   return fs.readdirSync(path.join(ROOT, 'skills'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
@@ -69,16 +84,20 @@ const withGuard = (text, scope) => text.replace(/^(---\n[\s\S]*?\n)(---\n)/, (m,
 
 function buildClaude(out, skills, agents) {
   const dir = path.join(out, 'claude-code');
-  for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), s === 'forge' ? (t) => withGuard(norm(t), 'skill') : undefined);
-  write(path.join(dir, 'hooks', 'hooks.json'), JSON.stringify({
+  const profile = loadProfile('claude-code');
+  const guard = supports(profile, 'gitGuardHook');
+  for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), s === 'forge' && guard ? (t) => withGuard(norm(t), 'skill') : undefined);
+  if (guard) write(path.join(dir, 'hooks', 'hooks.json'), JSON.stringify({
     description: 'FORGE git guard: blocks commit, push, merge, rebase, history rewrites and PR creation by FORGE agents and during /forge turns. Other sessions are unaffected.',
     hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: guardCommand('plugin'), timeout: 10 }] }] }
   }, null, 2) + '\n');
   for (const a of agents) {
     const fm = loadAgent(a);
-    write(path.join(dir, 'agents', `${a}.md`), withGuard(serializeFrontmatter(fm.data, fm.order) + '\n', 'agent') + withFooter(fm.body));
+    const head = serializeFrontmatter(pick(fm.data, profile.frontmatter.agent), fm.order) + '\n';
+    write(path.join(dir, 'agents', `${a}.md`), (guard ? withGuard(head, 'agent') : head) + withFooter(fm.body));
     write(path.join(dir, 'skills', 'forge', 'roles', `${a}.md`), roleFile(fm));
   }
+  writePlatform(dir, profile);
   write(path.join(dir, 'skills', 'forge', 'VERSION'), `${VERSION}\n`);
   buildEvals(path.join(dir, 'evals'));
   write(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({
@@ -105,23 +124,24 @@ function buildEvals(dst) {
 
 function buildAntigravity(out, skills, agents) {
   const dir = path.join(out, 'antigravity');
+  const profile = loadProfile('antigravity');
+  const fmCfg = profile.frontmatter;
   const skillTransform = (text) => {
     const fm = parseFrontmatter(norm(text));
-    const data = {};
-    for (const k of ANTIGRAVITY_SKILL_FIELDS) if (fm.data[k] !== undefined) data[k] = fm.data[k];
-    // Keep /forge as the only slash entry point: hide specialist skills from the slash menu (Antigravity CLI field).
-    if (fm.data.name !== 'forge') data['disable-slash-command'] = true;
+    const data = pick(fm.data, fmCfg.skill);
+    // Keep /forge as the only slash entry point: hide specialist skills from the slash menu.
+    if (fm.data.name !== 'forge') Object.assign(data, fmCfg.hideSpecialist);
     return serializeFrontmatter(data) + '\n' + fm.body;
   };
   for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), skillTransform);
   for (const a of agents) {
     const fm = loadAgent(a);
-    const data = {};
-    for (const k of ANTIGRAVITY_AGENT_FIELDS) if (fm.data[k] !== undefined) data[k] = fm.data[k];
-    data.model = 'inherit'; // Antigravity accepts inherit | flash | pro; tool names differ from Claude Code, so `tools` is omitted (inherit).
-    write(path.join(dir, 'agents', `${a}.md`), serializeFrontmatter(data, ANTIGRAVITY_AGENT_FIELDS) + '\n' + withFooter(fm.body));
+    const data = pick(fm.data, fmCfg.agent);
+    if (fmCfg.agentModel !== 'source') data.model = fmCfg.agentModel;
+    write(path.join(dir, 'agents', `${a}.md`), serializeFrontmatter(data, fmCfg.agent) + '\n' + withFooter(fm.body));
     write(path.join(dir, 'skills', 'forge', 'roles', `${a}.md`), roleFile(fm));
   }
+  writePlatform(dir, profile);
   write(path.join(dir, 'skills', 'forge', 'VERSION'), `${VERSION}\n`);
   write(path.join(dir, 'plugin.json'), JSON.stringify({ name: META.name, version: VERSION, description: META.description }, null, 2) + '\n');
   write(path.join(dir, 'workflows', 'forge.md'), [

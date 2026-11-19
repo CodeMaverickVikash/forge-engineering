@@ -1,0 +1,35 @@
+{
+  "platform": "antigravity",
+  "displayName": "Google Antigravity",
+  "verification": "docs-only",
+  "sources": "antigravity.google/docs (skills, subagents, rules, workflows, mcp, permissions, plugins), researched 2026-11-17. Not run live by FORGE.",
+  "models": { "standard": "inherit", "strong": "inherit" },
+  "frontmatter": { "skill": ["name", "description"], "agent": ["name", "description", "model", "skills"], "agentModel": "inherit", "hideSpecialist": { "disable-slash-command": true } },
+  "capabilities": {
+    "entryCommand": { "status": "supported", "native": "the `/forge` skill in the App and CLI; in the IDE, the legacy `/forge` workflow, because skills are not documented as slash-invocable there" },
+    "requestArguments": { "status": "unverified", "fallback": "treat the message that invoked `/forge` as the request" },
+    "skillDir": { "status": "unverified", "fallback": "the folder of the forge SKILL.md you loaded: `.agents/skills/forge/` in the workspace, else `~/.gemini/config/skills/forge/`" },
+    "subagents": { "status": "supported", "native": "`invoke_subagent` with the agent's name (App and CLI). The IDE does not document custom subagents, so use Mode B there" },
+    "parallelSubagents": { "status": "supported", "native": "several `invoke_subagent` calls in one step (App and CLI)" },
+    "foregroundWait": { "status": "unverified", "fallback": "wait for every subagent's result and every long command before ending the turn; never end it with work pending" },
+    "continueSubagent": { "status": "unverified", "fallback": "launch a fresh verifier with its previous report and only the delta" },
+    "perCallModel": { "status": "unsupported", "native": "agent frontmatter accepts `model: inherit | flash | pro`, not a model per delegation", "fallback": "every agent runs on the session model; record a model escalation as unavailable in the report" },
+    "toolRestriction": { "status": "unsupported", "fallback": "`tools` is omitted because tool names differ and an unknown one can hang the agent; read-only roles follow their instructions, and the host's permission rules still apply" },
+    "gitGuardHook": { "status": "unsupported", "fallback": "the no-commit rules are instructions only; recommend a host deny rule such as `command(regex:git (commit|push|merge|rebase))` (docs/security.md)" },
+    "preApprovedScripts": { "status": "unsupported", "fallback": "the host's command rules decide; if prompts slow the run, ask the user to allow `node <FORGE_HOME>/scripts/*`" },
+    "userQuestion": { "status": "supported", "native": "ask in chat and wait for the reply" },
+    "deferredTools": { "status": "unverified", "fallback": "call MCP tools directly by name" },
+    "browserTools": { "status": "supported", "native": "the built-in browser subagent, plus MCP servers from `~/.gemini/config/mcp_config.json` or `.agents/mcp_config.json`" },
+    "backgroundCommands": { "status": "unverified", "fallback": "run long suites in the foreground" }
+  },
+  "requiredConfig": [
+    "Install with `scripts/install.sh --target antigravity` (or `install.ps1 -Target antigravity`) into `~/.gemini/config/` or `<project>/.agents/`.",
+    "Optional, for Playwright and DevTools: MCP servers in `mcp_config.json` (docs/installation.md)."
+  ],
+  "limitations": [
+    "Never exercised live by FORGE: the formats are checked against the documentation only (docs/testing.md has the manual procedure).",
+    "No enforced tool allow-lists, git guard or pre-approved scripts: the rules are instructions, backed by the host's own permission system.",
+    "Every agent inherits the session model, so the standard/strong split and model escalation do not apply.",
+    "The IDE does not document custom subagents or skill slash commands: FORGE uses Mode B and the legacy workflow there."
+  ]
+}

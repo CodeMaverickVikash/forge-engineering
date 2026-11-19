@@ -4,24 +4,27 @@
 //   node validation-gate.mjs plan --task <slug> [--units a,b] [--json]
 //       Map the changed files to the project's units (apps and packages from the stack detector), add the
 //       consumers of changed shared packages, and list each unit's type check, lint, test and build command.
-//   node validation-gate.mjs run --task <slug> [--units a,b] [--checks lint,test] [--all] [--baseline] [--build]
+//   node validation-gate.mjs run --task <slug> [--units a,b] [--checks lint,test] [--all] [--baseline] [--full]
 //                                [--base <ref>] [--jobs N] [--timeout <min>] [--json]
 //       --base <ref> (branch work: "test this branch", "did it break anything"): the scope also covers what the
 //       branch committed since it forked from <ref>. Stored for the task, so later run/gate/final keep it.
 //       Run only the plan's checks that are not already passing for the current code (missing, stale, failed
-//       or blocked). Builds are DEFERRED (not run, not blocking the pre-browser gate) when type check or tests
-//       cover the unit and no consumer imports its output; --build runs them once, right before `final`.
+//       or blocked). A production build that type check or tests already cover, and whose output no consumer
+//       imports, is left to the user: never run, never required, and `final` prints its command. A build that
+//       feeds a consumer or is the unit's only compile step still runs every cycle.
 //       Tests: a unit with its own changed files whose test script is a plain vitest/jest call runs only the
-//       related tests (`--changed` / `--changedSince`) in fix cycles; --build runs the full suite once, and the
-//       final gate accepts only that. Consumers, root config changes and other runners always run in full.
+//       related tests (`--changed` / `--changedSince`, traced through the module graph), and `final` accepts
+//       that, except for a unit that changed auth, payment or schema files: --full (alias --build) runs its
+//       full suite once before `final`. Consumers of a changed package, root config changes and other runners
+//       always run in full. A unit whose own and upstream changes are only tests needs no browser or device
+//       verification.
 //       Up to --jobs checks run at once, longest first (by the task's recorded durations). A unit's package.json
 //       checks run side by side; other toolchains (Maven, Gradle, dotnet) keep type check → lint → tests; builds
 //       run last. Tests of units that share a database run one at a time; a shared package with prebuilt output
 //       is built before its consumers. One run per task at a time: a second run waits for the first, then runs
 //       only what is still needed (exit 3 if it waited an hour). Progress lines go to stderr as checks end.
 //       Each result goes to .forge/tasks/<slug>/validation/ledger.jsonl, each full log to
-//       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs checks that still pass (never builds:
-//       only --build runs those). A build that rewrites a tracked non-code file (a sitemap's lastmod) is reported,
+//       .forge/tasks/<slug>/evidence/reports/validation/. --all re-runs checks that still pass. A build that rewrites a tracked non-code file (a sitemap's lastmod) is reported,
 //       and that file does not make other checks stale. --baseline records
 //       pre-change results (use --units, since nothing has changed yet); the gate ignores them.
 //       It prints the scope and ends with the gate verdict; without --units it exits like `gate`, so one
@@ -33,6 +36,8 @@
 //       Pre-browser completion gate (compact: only rows that need attention; --verbose lists all). Exit 0 = OPEN (every required check passed for the code as it is now),
 //       1 = CLOSED (a check failed, is missing, or went stale because its files changed since it passed),
 //       2 = BLOCKED (only environment blockers remain).
+//   node validation-gate.mjs ports --ports 3000,5173 [--host localhost] [--json]
+//       Which local ports accept connections (dev servers, API, database), in one call on any OS.
 //   node validation-gate.mjs evidence --task <slug> [--init] [--json]
 //       List the task's evidence as clickable links: screenshots and traces in .playwright-mcp/<slug>/
 //       (screenshots/{before,after,responsive,workflows}, git-ignored), the rest in .forge/tasks/<slug>/evidence/.
@@ -46,6 +51,7 @@
 // Common: --root <dir> (default: cwd). It writes only inside .forge/ and runs no git command that changes the repo.
 
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -54,6 +60,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { changedFiles, isGitRepo, eolCheck, TOOL_OUTPUT_RE } from './verify-delta.mjs';
 import { check as checkComments } from './comment-check.mjs';
 import { escalation } from './review-target.mjs';
+import { loadPlatform, strongTier } from './platform.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DETECTOR = path.join(HERE, '..', '..', 'forge-project-exploration', 'scripts', 'detect-stack.mjs');
@@ -144,7 +151,7 @@ function ownerOf(units, file) {
 /**
  * The command that runs only the tests related to the changed files, for a test script that is a plain vitest
  * or jest call (anything chained, piped or wrapped, like `turbo test`, always runs in full). Fix cycles use it;
- * the full suite runs once with `run --build`, and the final gate accepts only that.
+ * the full suite runs once with `run --full`, and the final gate accepts only that.
  */
 export function affectedCommand(c, base = null) {
   const m = (c.body || '').trim().match(/^(vitest|jest)((?:\s+[^\s&|;<>`$()]+)*)$/);
@@ -255,6 +262,8 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
 
   const entries = [];
   const gitBase = base;
+  const esc = escalation(relevant);
+  const critical = new Set(Object.values(esc?.areas ?? {}).flat());
   for (const a of affected.values()) {
     if (wanted && !wanted.has(a.unit.path)) continue;
     const u = a.unit; const checks = [];
@@ -279,13 +288,18 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
         else if (DEPLOY_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', required: false, reason: 'script deploys or publishes; needs user authorization' });
         else if (MUTATE_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'script modifies files (--fix/--write); run a check-only equivalent and record it with mark' });
         else if (WATCH_RE.test(c.body)) Object.assign(base, { status: 'NOT RUN', reason: 'watch-mode script; run a one-shot equivalent and record it with mark' });
-        else if (name === 'test' && ownChanges && git) { const cmd = affectedCommand(c, gitBase); if (cmd) Object.assign(base, { affected: cmd, ...(upstreamChanged && { affectedNeedsProof: true }) }); }
+        else if (name === 'test' && ownChanges && git) {
+          const cmd = affectedCommand(c, gitBase);
+          // Related tests are enough for the final gate, except where a miss is costly: auth, payment, schema.
+          if (cmd) Object.assign(base, { affected: cmd, ...(upstreamChanged && { affectedNeedsProof: true }), ...(a.own.some((f) => critical.has(f)) && { fullAtFinal: true }) });
+        }
         checks.push(base);
       });
     }
     if (a.own.some((f) => contractFiles.includes(f))) checks.push({ key: 'contract', column: 'extra', manual: true, required: true, status: 'PENDING', reason: 'G6: API contract changed; validate schema, status codes, error shapes and backward compatibility, then mark' });
     if (a.own.some((f) => migrationFiles.includes(f))) checks.push({ key: 'migration', column: 'extra', manual: true, required: true, status: 'PENDING', reason: 'G12: migration or schema changed; apply and roll back on a local database and run the DB-backed tests, then mark' });
-    entries.push({ unit: u.path, kinds: u.kinds, reasons: a.reasons, files: a.own, database: u.database, upstream: [...u.deps].filter((d) => affected.has(d)), checks });
+    const ownRuntime = a.own.some((f) => !TEST_RE.test(f)) || !!broad.length || a.reasons.some((r) => r !== 'changed files' && !r.startsWith('consumer of'));
+    entries.push({ unit: u.path, kinds: u.kinds, reasons: a.reasons, files: a.own, database: u.database, upstream: [...u.deps].filter((d) => affected.has(d)), closure: [...upstreamClosure(U, u)].filter((d) => affected.has(d)), ownRuntime, checks });
   }
   entries.sort((x, y) => x.unit.localeCompare(y.unit));
   for (const e of entries) {
@@ -295,24 +309,28 @@ export async function plan(root, { units: only = null, ctx = null, base = null }
   // Drop any ordering edge that closes a cycle, so the runner can never deadlock.
   const reaches = (from, to, seen = new Set()) => from === to || (!seen.has(from) && seen.add(from) && (entries.find((x) => x.unit === from)?.after || []).some((d) => reaches(d, to, seen)));
   for (const e of entries) e.after = e.after.filter((d) => !reaches(d, e.unit));
-  // Builds are the slowest checks and the browser runs on the dev server, so a build waits for the final
-  // check (`run --build`) when type check or tests already cover the unit before the browser. It still runs
-  // up front when consumers import its output, or when it is the unit's only compile step.
+  // A production build re-proves what type check, lint and tests already proved, and it was the slowest
+  // check (a mobile build took ~3 minutes), so it is left to the user. It still runs when consumers import its
+  // output, or when it is the unit's only compile step.
   for (const e of entries) {
     const covered = e.checks.some((c) => (c.column === 'typecheck' || c.column === 'test') && c.required);
     const feedsConsumers = entries.some((x) => x.after.includes(e.unit));
-    for (const c of e.checks) if (c.column === 'build' && c.required && covered && !feedsConsumers) c.deferrable = true;
+    for (const c of e.checks) if (c.column === 'build' && c.status === 'PENDING' && covered && !feedsConsumers) Object.assign(c, { status: 'N/A', required: false, userBuild: true, reason: USER_BUILD });
   }
   const dbUnits = entries.filter((e) => e.database && e.checks.some((c) => c.column === 'test' && c.status === 'PENDING')).map((e) => e.unit);
   const next = { browser: [], device: [], api: [] };
-  for (const e of entries) {
+  // Browser and device verification follow runtime impact: a unit whose own and upstream changes are only
+  // tests has nothing new to see in a browser.
+  for (const e of entries) e.runtime = e.ownRuntime || e.closure.some((d) => entries.find((x) => x.unit === d)?.ownRuntime);
+  for (const e of entries.filter((x) => x.runtime)) {
     if (e.kinds.includes('web')) next.browser.push(e.unit);
     if (e.kinds.includes('mobile')) next.device.push(e.unit);
     if (e.kinds.includes('backend') && !e.kinds.includes('web')) next.api.push(e.unit);
   }
-  return { git, base, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], escalation: escalation(relevant), entries, next, units: U };
+  return { git, base, changed: changed.length, docsOnly: changed.length > 0 && !relevant.length, broad, unowned, contractFiles, migrationFiles, serializeTests: dbUnits.length > 1 ? dbUnits : [], escalation: esc, entries, next, units: U };
 }
 
+const USER_BUILD = 'left to the user: type check, lint and tests cover it';
 const hashOf = (root, f) => { try { return sha(fs.readFileSync(path.join(root, f))); } catch { return 'deleted'; } };
 
 /** Non-code files a build of this task rewrote (path → hash it left), from the ledger. */
@@ -349,6 +367,26 @@ function fingerprints(root, p, task = null, { upstreamOnly = false } = {}) {
   return out;
 }
 
+const headOf = (root) => { const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
+
+/**
+ * Full passes recorded by the project's other tasks, keyed by unit, check and code fingerprint, for this HEAD
+ * only. Same commit plus identical changed files is the same code, so the result still holds: a measured
+ * run spent 266 s re-running a baseline that the previous task had already passed on that exact tree.
+ */
+function otherTaskPasses(root, task, head) {
+  const out = new Map();
+  if (!head) return out;
+  let tasks = [];
+  try { tasks = fs.readdirSync(path.join(root, '.forge', 'tasks')).filter((t) => t !== task); } catch { return out; }
+  for (const t of tasks) {
+    for (const r of readLedger(root, t)) {
+      if (r.head === head && r.status === 'PASSED' && r.source === 'runner' && !r.scope && r.fingerprint) out.set(`${r.unit}\0${r.check}\0${r.fingerprint}`, { task: t, cycle: r.cycle, log: r.log });
+    }
+  }
+  return out;
+}
+
 export function readLedger(root, task) {
   return readText(ledgerFile(root, task)).split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 }
@@ -370,29 +408,28 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
     for (const c of e.checks) {
       const row = { unit: e.unit, check: c.key, column: c.column, command: c.command ?? null, required: c.required };
       const last = ledger.filter((r) => r.unit === e.unit && r.check === c.key).at(-1);
-      if (!c.required && !last) Object.assign(row, { state: c.status, reason: c.reason });
+      if (c.userBuild) Object.assign(row, { state: 'N/A', reason: c.reason, userBuild: true });
+      else if (!c.required && !last) Object.assign(row, { state: c.status, reason: c.reason });
       else if (!last) Object.assign(row, { state: c.status === 'NOT RUN' ? 'NOT RUN' : 'MISSING', reason: c.reason ?? 'not run for the current code' });
       else {
         const stale = p.git && last.fingerprint && last.fingerprint !== fps[e.unit];
         const state = (last.status === 'PASSED' || last.status === 'PRE-EXISTING') && stale ? 'STALE' : last.status;
         Object.assign(row, { state, cycle: last.cycle, reason: state === 'STALE' ? `files in scope changed since cycle ${last.cycle}` : last.reason, log: last.log });
-        // A pass of only the related tests opens the pre-browser gate; the final gate needs the full suite.
+        // A pass of the related tests (the runner traces them through the module graph) is enough, except
+        // where the unit changed auth, payment or schema files: there the final gate needs the full suite.
         if (last.scope === 'affected' && state === 'PASSED') {
-          if (final) Object.assign(row, { state: 'MISSING', reason: 'only the tests related to the change ran', hint: 'run `run --task <slug> --build` for the full suite' });
-          else row.affected = true;
+          if (final && c.fullAtFinal) Object.assign(row, { state: 'MISSING', reason: 'auth, payment or schema changed: only the related tests ran', hint: 'run `run --task <slug> --full` for the full suite' });
+          else if (c.fullAtFinal) row.affected = true;
+          else row.reason = 'related tests (dependency-traced)';
         }
         if (state === 'FAILED' && all.some((r) => r.cycle === 'baseline' && r.unit === e.unit && r.check === c.key && r.status === 'FAILED')) row.hint = 'also failed on the baseline: if it is the same failure, mark it PRE-EXISTING';
         else if (state === 'FAILED') {
           // A second failing cycle means the first diagnosis and fix did not hold: the policy trigger for Opus.
           const failedCycles = new Set(ledger.filter((r) => r.unit === e.unit && r.check === c.key && r.status === 'FAILED').map((r) => r.cycle));
-          if (failedCycles.size >= 2) Object.assign(row, { escalate: true, hint: `failed in ${failedCycles.size} cycles: move the root-cause analysis to Opus before the next fix (core/delegation.md#model-escalation)` });
+          if (failedCycles.size >= 2) Object.assign(row, { escalate: true, hint: `failed in ${failedCycles.size} cycles: move the root-cause analysis to the strong model tier before the next fix (core/delegation.md#model-escalation)` });
         }
       }
-      if (c.deferrable && (row.state === 'MISSING' || row.state === 'STALE')) {
-        if (!final) Object.assign(row, { state: 'DEFERRED', reason: 'runs once before the final check: `run --build`' });
-        else row.hint = 'run `run --task <slug> --build`';
-      }
-      row.blocking = c.required && row.state !== 'DEFERRED' && !OK.has(row.state);
+      row.blocking = c.required && !OK.has(row.state);
       rows.push(row);
     }
   }
@@ -525,11 +562,11 @@ export async function run(root, task, opts = {}) {
   try { return await runLocked(root, task, opts); } finally { release(); }
 }
 
-async function runLocked(root, task, { units = null, checks = null, all = false, baseline = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null, onProgress = null } = {}) {
+async function runLocked(root, task, { units = null, checks = null, all = false, baseline = false, full = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null, onProgress = null } = {}) {
   const p = await plan(root, { units, ctx, base: taskBase(root, task, base) });
-  // Builds run only on --build: --all re-runs checks, and a mobile build alone took ~3 minutes per cycle.
-  const withBuilds = build;
-  const before = baseline ? null : await gate(root, task, { p, final: withBuilds });
+  // --build is the old name of --full, from when this pass also ran the production builds.
+  const fullPass = full || build;
+  const before = baseline ? null : await gate(root, task, { p, final: fullPass });
   const fresh = new Set((before?.rows || []).filter((r) => OK.has(r.state)).map((r) => `${r.unit}\0${r.check}`));
   const prior = readLedger(root, task);
   const cycle = baseline ? 'baseline' : 1 + Math.max(0, ...prior.map((r) => (typeof r.cycle === 'number' ? r.cycle : 0)));
@@ -537,7 +574,17 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const upFps = fingerprints(root, p, task, { upstreamOnly: true });
   // A full pass that already saw the upstream packages exactly as they are now: only the unit's own changes are new.
   const provenUpstream = (unit, key) => prior.some((r) => r.unit === unit && r.check === key && r.source === 'runner' && r.status === 'PASSED' && !r.scope && r.cycle !== 'baseline' && r.upstream === upFps[unit]);
-  const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => !c.manual && c.status === 'PENDING' && (withBuilds || !c.deferrable) && (!checks || checks.includes(c.key.split('#')[0])) && (all || baseline || !fresh.has(`${e.unit}\0${c.key}`))) })).filter((w) => w.todo.length);
+  const head = p.git ? headOf(root) : null;
+  const elsewhere = all ? new Map() : otherTaskPasses(root, task, head);
+  const reused = [];
+  const work = p.entries.map((e) => ({ e, todo: e.checks.filter((c) => {
+    if (c.manual || c.status !== 'PENDING' || (checks && !checks.includes(c.key.split('#')[0])) || (!all && !baseline && fresh.has(`${e.unit}\0${c.key}`))) return false;
+    const hit = elsewhere.get(`${e.unit}\0${c.key}\0${fps[e.unit]}`);
+    if (!hit) return true;
+    const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: c.command, status: 'PASSED', reason: `reused: task ${hit.task} cycle ${hit.cycle} passed on the same commit and files`, durationMs: 0, log: hit.log, fingerprint: fps[e.unit], head, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', reusedFrom: hit.task };
+    append(root, task, rec); reused.push(rec);
+    return false;
+  }) })).filter((w) => w.todo.length);
   const width = jobs > 0 ? jobs : Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2)));
   // Test runners already use every core, so at most half the slots run suites; 4 at once on 8 cores timed out.
   const slot = limiter(width, { test: Math.max(1, Math.floor(width / 2)) });
@@ -553,8 +600,8 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   const runCheck = (e, c, { alone = false } = {}) => {
     const timed = () => slot(async () => {
       const pre = c.column === 'build' ? nonCodeState(root) : null;
-      // Fix cycles run only the tests related to the change; `--build` (before final) runs the full suite once.
-      const affectedRun = !!c.affected && !withBuilds && !baseline && (!c.affectedNeedsProof || provenUpstream(e.unit, c.key));
+      // Fix cycles run only the tests related to the change; `--full` (before final) runs the full suite once.
+      const affectedRun = !!c.affected && !fullPass && !baseline && (!c.affectedNeedsProof || provenUpstream(e.unit, c.key));
       const r = await execCheck(root, task, e.unit, affectedRun ? { ...c, command: c.affected, source: '' } : c, cycle, timeout);
       // A test that times out while other suites load the machine is not a verdict yet: re-run it alone once the
       // batch ends. A measured cycle reported admin tests FAILED ("Test timed out in 5000ms"); alone they passed.
@@ -563,7 +610,7 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
         onProgress?.(`  … ${e.unit}:${c.key} timed out under load; re-running it alone after the batch`);
         return;
       }
-      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: alone && r.status === 'PASSED' ? 'passed when re-run alone after timing out under load' : r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', ...(affectedRun && { scope: 'affected' }) };
+      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: alone && r.status === 'PASSED' ? 'passed when re-run alone after timing out under load' : r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, head, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', ...(affectedRun && { scope: 'affected' }) };
       if (pre) {
         const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
         if (Object.keys(wrote).length) rec.wrote = wrote;
@@ -591,17 +638,14 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
   for (const { e, c } of retryAlone) await runCheck(e, c, { alone: true });
   const after = fingerprints(root, p, task);
   const modified = Object.keys(fps).filter((u) => fps[u] !== after[u] && p.entries.some((e) => e.unit === u));
-  const g = baseline ? null : await gate(root, task, { ctx, final: withBuilds });
+  const g = baseline ? null : await gate(root, task, { ctx, final: fullPass });
   const skipped = p.entries.flatMap((e) => e.checks.filter((c) => c.status === 'PENDING' && !c.manual && fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`));
-  const deferred = withBuilds ? [] : [
-    ...p.entries.flatMap((e) => e.checks.filter((c) => c.deferrable && !fresh.has(`${e.unit}\0${c.key}`)).map((c) => `${e.unit}:${c.key}`)),
-    ...(g?.rows ?? []).filter((r) => r.affected).map((r) => `${r.unit}:${r.check} (full suite)`),
-  ];
+  const deferred = fullPass ? [] : (g?.rows ?? []).filter((r) => r.affected).map((r) => `${r.unit}:${r.check}`);
   const sideEffects = results.flatMap((x) => Object.keys(x.wrote || {}).map((f) => ({ check: `${x.unit}:${x.check}`, file: f })));
   // New-comment errors surface here, where the author still owns the file. Found only by `final`, a fix
   // landed after the gate and browser QA, so it made checks and screenshots stale.
   const commentErrors = baseline ? [] : checkComments(root).findings.filter((c) => c.level === 'error' && (!units || units.some((u) => u === '.' || c.file.startsWith(u.replace(/\/$/, '') + '/'))));
-  return { cycle, plan: p, results, skipped, deferred, final: withBuilds, modifiedDuringRun: modified, sideEffects, commentErrors, gate: g };
+  return { cycle, plan: p, results, reused, skipped, deferred, final: fullPass, modifiedDuringRun: modified, sideEffects, commentErrors, gate: g };
 }
 
 export async function mark(root, task, { unit, check, status, reason, ctx = null }) {
@@ -696,7 +740,7 @@ export function shotBudget(screenshots) {
   ].filter(Boolean);
 }
 
-const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`${c.deferrable ? ' (deferred to `run --build`)' : ''}` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
+const cell = (c) => (c ? (c.status === 'PENDING' ? `\`${c.command}\`` : `${c.status}${c.reason ? ` (${c.reason})` : ''}`) : 'N/A');
 
 export function formatPlan(p) {
   const L = [`FORGE validation plan: ${p.changed} changed file(s), ${p.entries.length} affected unit(s)`];
@@ -707,7 +751,7 @@ export function formatPlan(p) {
     const col = (k) => e.checks.filter((c) => c.column === k).map(cell).join('<br>') || 'N/A';
     L.push(`| ${e.unit} | ${e.kinds.join('+') || 'shared/other'} | ${e.reasons.join('; ')} | ${col('typecheck')} | ${col('lint')} | ${col('test')} | ${col('build')} | ${e.checks.filter((c) => c.manual).map((c) => c.key).join(', ') || '-'} |`);
   }
-  L.push('', 'Schedule: longest checks first, in parallel; builds last in each unit; each check once per cycle.');
+  L.push('', 'Schedule: longest checks first, in parallel; required builds last in each unit; each check once per cycle.');
   if (p.serializeTests.length) L.push(`Serialized: tests of ${p.serializeTests.join(', ')} (shared database).`);
   for (const e of p.entries) if (e.after.length) L.push(`Ordered: ${e.after.join(', ')} build(s) before ${e.unit} (consumes built output).`);
   if (p.broad.length) L.push(`Broad impact: root config changed (${p.broad.join(', ')}), so every unit is in scope.`);
@@ -728,13 +772,13 @@ export function formatPlan(p) {
  * verify routine changes. It runs when the user asked for a review, or when auth, payment or schema files
  * changed, and then only on those files, on Opus.
  */
-export function formatReviewDecision(p) {
+export function formatReviewDecision(p, platform = loadPlatform()) {
   const e = p.escalation;
   if (!e) return 'Code review: not required (no auth, payment or schema change). Run forge-code-reviewer only if the user asked for a review.';
   const files = [...new Set(Object.values(e.areas).flat())];
   const list = files.slice(0, 8).join(', ') + (files.length > 8 ? ', …' : '');
   const areas = Object.entries(e.areas).map(([k, v]) => `${k} (${v.length})`).join(', ');
-  return `Code review: required for ${areas}, on these files only: ${list}. Launch ${e.roles.join(', ')} with model opus (core/delegation.md#model-escalation).`;
+  return `Code review: required for ${areas}, on these files only: ${list}. ${strongTier(platform, e.roles)} (core/delegation.md#model-escalation).`;
 }
 
 /**
@@ -763,11 +807,11 @@ export function formatGate(g, { verbose = false, final = false } = {}) {
   const counts = {}; for (const r of g.rows) counts[r.state] = (counts[r.state] || 0) + 1;
   const summary = g.rows.length ? `Checks: ${Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ')}.` : g.docsOnly ? 'Only documentation changed.' : 'No changed code to validate.';
   const running = g.running ? [`A validation run for this task is in progress (pid ${g.running.pid}, started ${g.running.startedAt}): rows may change when it ends. Wait for it; never start a second run.`] : [];
-  return [...L, ...running, summary, final ? `Final gate (builds included): ${g.result}` : `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
+  return [...L, ...running, summary, final ? `Final gate (full test suites): ${g.result}` : `Pre-browser gate: ${VERDICT[g.result]}`].join('\n');
 }
 
 const KIND = (kinds) => (kinds.includes('mobile') ? 'Mobile' : kinds.includes('web') ? 'Web' : kinds.includes('backend') ? 'Backend/API' : 'Shared');
-const RANK = ['FAILED', 'BLOCKED', 'STALE', 'MISSING', 'DEFERRED', 'NOT RUN', 'PRE-EXISTING', 'UNAVAILABLE', 'PASSED', 'N/A'];
+const RANK = ['FAILED', 'BLOCKED', 'STALE', 'MISSING', 'NOT RUN', 'PRE-EXISTING', 'UNAVAILABLE', 'PASSED', 'N/A'];
 
 /** The report's per-application table: the worst status per column for each unit. */
 export function appTable(g) {
@@ -827,11 +871,26 @@ export function visualCheck(root, task, g, ev) {
   return null;
 }
 
+/**
+ * Which local ports accept connections (dev servers, API, database). One call, any OS: a measured run spent
+ * 8 tool calls on netstat and Get-NetTCPConnection variants, half of them stopped by permission prompts.
+ */
+export function portStatus(ports, host = 'localhost', timeoutMs = 800) {
+  const probe = (port) => new Promise((resolve) => {
+    const sock = net.createConnection({ port, host });
+    const done = (listening) => { sock.destroy(); resolve({ port, listening }); };
+    sock.setTimeout(timeoutMs, () => done(false));
+    sock.once('connect', () => done(true));
+    sock.once('error', () => done(false));
+  });
+  return Promise.all(ports.map(probe));
+}
+
 function parseArgs(argv) {
   const o = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--json', '--all', '--baseline', '--build', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
+    if (['--json', '--all', '--baseline', '--full', '--build', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
     else if (a.startsWith('--')) o[a.slice(2)] = argv[++i];
     else o._.push(a);
   }
@@ -842,7 +901,14 @@ async function main() {
   const o = parseArgs(process.argv.slice(2));
   const cmd = o._[0]; const root = path.resolve(o.root ?? '.');
   const list = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : null);
-  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] (--help lists every option)';
+  const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] | ports --ports 3000,5173 (--help lists every option)';
+  if (cmd === 'ports') {
+    const ports = (o.ports || '').split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0 && n < 65536);
+    if (!ports.length) { console.error('usage: validation-gate.mjs ports --ports 3000,5173 [--host localhost] [--json]'); process.exit(2); }
+    const st = await portStatus(ports, o.host || 'localhost');
+    console.log(o.json ? JSON.stringify(st) : st.map((x) => `${x.port}: ${x.listening ? 'listening' : 'free'}`).join('\n'));
+    process.exit(0);
+  }
   if (!['plan', 'run', 'mark', 'gate', 'evidence', 'final'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
   if (cmd !== 'evidence' && !isGitRepo(root) && !o.units) {
     console.error(`UNAVAILABLE: ${root} is not a git repository, so changed files and staleness cannot be tracked (pass --units to validate named units)`);
@@ -864,6 +930,8 @@ async function main() {
       for (const b of f.evidence.budget) L.push(`- over the screenshot budget: ${b}. The answer's table shows the most useful ${MAX_VISUAL_ROWS}.`);
     } else L.push('Evidence: none (no browser or device run recorded).');
     if (f.evidence.visual) L.push('', 'Paste this into the answer as is (every link points to a file that exists):', f.evidence.visual, '');
+    const builds = f.gate.rows.filter((r) => r.userBuild && r.command).map((r) => `\`${r.command}\` (${r.unit})`);
+    if (builds.length) L.push(`Production build: not run by FORGE (type check, lint and tests cover it). Tell the user to run ${builds.join(', ')} before release; it does not lower the completion status.`);
     L.push(f.ready ? 'FINAL: READY to report.' : `FINAL: NOT READY: ${f.problems.join('; ')}.`);
     L.push('Completion status: exactly one of VERIFIED | VERIFIED WITH LIMITATIONS | BLOCKED | FAILED (rules in quality-gates.md). Words such as DONE, COMPLETE or DONE_WITH_CONCERNS are not valid.', 'Save the full report to report.md; answer the user per templates/final-response.md (their outcome, screenshots above for UI work, the **Status:** line), not with the report.');
     out(f, L.join('\n'));
@@ -885,17 +953,17 @@ async function main() {
     const onWait = (held) => progress(`Waiting for the validation run already in progress for this task (pid ${held.pid}, started ${held.startedAt}). Afterwards only the checks still needed run.`);
     let r;
     try {
-      r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, build: o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15, onProgress: progress, onWait });
+      r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, full: o.full || o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15, onProgress: progress, onWait });
     } catch (e) {
       if (e.code !== 'BUSY') throw e;
       console.error(`BUSY: ${e.message}`); process.exit(3);
     }
     // Compact on purpose: passing checks take one line in total; only failures get their output.
     const passed = r.results.filter((x) => x.status === 'PASSED');
-    const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}.`];
+    const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}${r.reused.length ? `, ${r.reused.length} reused from another task on the same commit and files (${r.reused.map((x) => `${x.unit}:${x.check} ← ${x.reusedFrom}`).join(', ')})` : ''}.`];
     if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
     for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
-    if (r.deferred.length) L.push(`DEFERRED until the final check: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --build\` once, right before \`final\`.`);
+    if (r.deferred.length) L.push(`Related tests only so far: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --full\` once, right before \`final\`, for the full suites.`);
     if (r.sideEffects.length) {
       const files = [...new Set(r.sideEffects.map((x) => x.file))].join(' ');
       L.push('', `Build side effect: ${r.sideEffects.map((x) => `${x.check} rewrote ${x.file}`).join(', ')}. Not a code change, so no check went stale. If it should not ship: git checkout -- ${files}`);

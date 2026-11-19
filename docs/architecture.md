@@ -37,13 +37,28 @@
                                    or <project>/.claude/             or <project>/.agents/
 ```
 
+## Platform contract (core ↔ adapters)
+
+FORGE is the decision layer: the core decides what to build, who does it, what to verify and how to report. The host (Claude Code, Antigravity, a future one) supplies execution: the model, file edits, the terminal, subagents, MCP tools and its permission system. FORGE adds no runtime of its own and never bypasses the host's permissions.
+
+The boundary between them is a **host profile**, `adapters/<host>/platform.json`, checked by `skills/forge/scripts/platform.mjs` (`validateProfile`):
+- It declares **every capability the core relies on** (`CAPABILITIES`: entry command, request arguments, subagents, parallel subagents, foreground waits, continuing a subagent, per-call model choice, tool allow-lists, the git-guard hook, pre-approved scripts, asking the user, deferred tools, browser tools, background commands). Each is `supported` with its native form, or `unsupported` / `unverified` with a fallback. An undeclared or unknown capability fails `validate.mjs`.
+- It also states the standard and strong model tiers, which frontmatter fields the host reads, the required configuration, the limitations, and whether it was verified `live` or only against the `docs`.
+- **The build reads every host decision from it.** That covers frontmatter fields, agent models, the specialist-hiding field and whether hooks ship. Each install gets `skills/forge/platform.json` and a generated `core/platform.md`.
+- **The orchestrator reads `core/platform.md` first.** The shared instructions name capabilities ("continue the same verifier", "the strong tier"), never one host's tools.
+- **The scripts read `platform.json`.** A model escalation then prints the host's native model, or "record the escalation as unavailable" where the host can't choose a model per delegation. With no valid profile they fall back to neutral wording; they never assume a capability.
+
+Approvals and safety stay central: the rules are in the shared core (`core/safety.md` and the operating rules appended to every agent), and the skill installer refuses to run without the user's approving words. Hosts differ only in how much is *enforced* on top: the git-guard hook and tool allow-lists exist where the profile says `supported`, and elsewhere the profile names the fallback.
+
+**Adding a host:** write `adapters/<host>/platform.json`, add a `buildX()` in `scripts/build.mjs` that applies it, and add an install target. The core needs no change; `tests/unit/platform-contract.test.mjs` checks that every adapter ships the same core.
+
 ### Orchestrator (the `forge` skill)
 
 It runs in the **main conversation**, not as a subagent, for three reasons: it keeps the user's context, it can spawn specialists (both hosts let the main agent delegate), and it owns the final outcome. Its `SKILL.md` stays under 100 lines and links to `core/*.md`, which are loaded only when the phase needs them.
 
 **Operating modes**
 
-- **Mode A (native subagents).** Claude Code uses the `Agent` tool; the Antigravity App and CLI use `invoke_subagent`. Independent specialists run in parallel. The routing matrix's core team does the specialist work, even on small-looking tasks; the orchestrator plans, briefs, verifies and integrates, and implements directly only S-size fixes. Browser QA always goes to `forge-browser-qa` and the final review to `forge-code-reviewer`.
+- **Mode A (native subagents).** The host's delegation tool, as `core/platform.md` names it (Claude Code: `Agent`; Antigravity App and CLI: `invoke_subagent`). Independent specialists run in parallel. The routing matrix's core team does the specialist work, even on small-looking tasks; the orchestrator plans, briefs, verifies and integrates, and implements directly only S-size fixes. Browser QA always goes to `forge-browser-qa` and the final review to `forge-code-reviewer`.
 - **Mode B (sequential role emulation).** For hosts without custom subagents, the orchestrator reads `roles/<agent>.md` and performs each role in turn. The final report states that the roles were emulated.
 
 ### Specialists (agents)

@@ -4,6 +4,8 @@ Researched against the official docs on 2026-11-17: code.claude.com/docs (Claude
 
 ## Capability matrix
 
+The machine-readable source of truth is each host's profile: [`adapters/claude-code/platform.json`](../adapters/claude-code/platform.json) and [`adapters/antigravity/platform.json`](../adapters/antigravity/platform.json). Installs carry it as `skills/forge/platform.json` and `core/platform.md`. The table below summarizes it.
+
 | Capability | Claude Code | Antigravity App / CLI | Antigravity IDE |
 |---|---|---|---|
 | Entry point | `/forge` skill (bare name via installer; `/forge:forge` as a plugin) | `/forge` skill | Skill slash-invocation **not documented**, so the installer also adds a legacy `/forge` **workflow** (workflows are deprecated but still run; a same-named skill takes precedence) |

@@ -21,7 +21,7 @@ Agent names or counts, orchestration steps, phases, model or skill choices, skil
 
 ## Verification, briefly
 
-One or two sentences that support the result: what proves it works ("checked with automated tests and in the browser: the counter now drops when a task is done") or what limits that. Give test counts, commands or logs only when a failure or blocker needs explaining. Never claim verification that did not happen.
+One or two sentences that support the result: what proves it works ("checked with automated tests and in the browser: the counter now drops when a task is done") or what limits that. Give test counts, commands or logs only when a failure or blocker needs explaining. Never claim verification that did not happen. When `final` prints a `Production build:` line, end this part with one short sentence giving that command ("FORGE didn't run the production build; run `pnpm --filter web build` before release."). It does not lower the status.
 
 ## Visual Results (UI, browser and device work)
 

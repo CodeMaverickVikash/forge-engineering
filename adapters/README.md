@@ -1,6 +1,6 @@
 # Platform adapters
 
-The adapters are intentionally thin. They **transform metadata only**, and every instruction body is shared. They are implemented in [`scripts/build.mjs`](../scripts/build.mjs) (`buildClaude`, `buildAntigravity`), and their output is committed in `dist/` so installing doesn't need Node.js.
+The adapters are intentionally thin. They **transform metadata only**, and every instruction body is shared. Each adapter's contract with the core is its host profile, `<host>/platform.json`: the capabilities it supports, the ones it doesn't (with fallbacks), its model tiers, frontmatter fields, required configuration and limitations. The build reads it and `validate.mjs` checks it (see the [architecture](../docs/architecture.md#platform-contract-core--adapters)). They are implemented in [`scripts/build.mjs`](../scripts/build.mjs) (`buildClaude`, `buildAntigravity`), and their output is committed in `dist/` so installing doesn't need Node.js.
 
 | Concern | `claude-code` adapter → `dist/claude-code/` | `antigravity` adapter → `dist/antigravity/` |
 |---|---|---|
@@ -13,6 +13,6 @@ The adapters are intentionally thin. They **transform metadata only**, and every
 | Eval cases | `evals/` (from `evals/`, each with its fixture project in `files/`) | — |
 | Install targets | `~/.claude/` or `<project>/.claude/` | `~/.gemini/config/` or `<project>/.agents/` |
 
-To support another host that reads Agent Skills (for example Codex or Gemini CLI), add a `buildX()` function that copies `skills/` and maps agents to that host's subagent format. If the host has no subagents, ship only `roles/` and Mode B covers it. Then add an install target in `scripts/install.sh` and `install.ps1`.
+To support another host that reads Agent Skills (for example Codex or Gemini CLI), write its `platform.json`, add a `buildX()` function that copies `skills/` and maps agents to that host's subagent format. If the host has no subagents, ship only `roles/` and Mode B covers it. Then add an install target in `scripts/install.sh` and `install.ps1`.
 
 `claude-code/` and `antigravity/` in this folder contain host-specific notes only.

@@ -63,22 +63,23 @@ test('run executes each check once, the gate opens, and only checks whose files 
     const r1 = await run(dir, 't', { jobs: 2 });
     assert.deepEqual(r1.results.map((x) => `${x.unit}:${x.check}:${x.status}`).sort(),
       ['apps/web:test:PASSED', 'packages/ui:build:PASSED', 'packages/ui:test:PASSED'],
-      "the app's build waits for the final check; the package's runs now because its consumer imports the output");
-    assert.deepEqual(r1.deferred, ['apps/web:build']);
+      "the app's production build is left to the user; the package's runs because its consumer imports the output");
+    assert.deepEqual(r1.deferred, []);
     assert.ok(r1.results.every((x) => fs.existsSync(path.join(dir, x.log))), 'every check leaves its full log as evidence');
     assert.equal(r1.gate.result, 'OPEN');
-    const deferredRow = r1.gate.rows.find((x) => x.unit === 'apps/web' && x.check === 'build');
-    assert.equal(deferredRow.state, 'DEFERRED');
-    assert.equal(deferredRow.blocking, false, 'a deferred build never blocks the browser');
-    assert.equal((await gate(dir, 't', { final: true })).result, 'CLOSED', 'the final gate requires the build');
+    const buildRow = r1.gate.rows.find((x) => x.unit === 'apps/web' && x.check === 'build');
+    assert.equal(buildRow.state, 'N/A');
+    assert.equal(buildRow.userBuild, true, 'the production build is the user\'s, with its command kept for the answer');
+    assert.equal(buildRow.blocking, false);
+    assert.equal((await gate(dir, 't', { final: true })).result, 'OPEN', 'the final gate never requires a build that type check or tests cover');
     assert.equal(cli(dir, 'gate', '--task', 't').status, 0);
 
     const r2 = await run(dir, 't');
     assert.equal(r2.results.length, 0, 'checks already passing for the current code are not re-run');
     assert.equal(r2.skipped.length, 3);
 
-    const rb = await run(dir, 't', { build: true });
-    assert.deepEqual(rb.results.map((x) => `${x.unit}:${x.check}`), ['apps/web:build'], '--build runs only what was deferred');
+    const rb = await run(dir, 't', { full: true });
+    assert.deepEqual(rb.results, [], '--full never runs a production build left to the user');
     assert.equal(rb.gate.result, 'OPEN');
 
     w(dir, 'apps/web/page.js', 'export default 2;\n'); // only the web app changes
@@ -92,7 +93,7 @@ test('run executes each check once, the gate opens, and only checks whose files 
 
     const r3 = await run(dir, 't');
     assert.deepEqual(r3.results.map((x) => `${x.unit}:${x.check}`).sort(), ['apps/web:lint', 'apps/web:test']);
-    assert.equal(r3.cycle, 3, 'a run that executed nothing does not count as a cycle');
+    assert.equal(r3.cycle, 2, 'a run that executed nothing does not count as a cycle');
     assert.equal(r3.gate.result, 'OPEN');
   } finally { clean(dir); }
 });
@@ -153,7 +154,7 @@ test('a check that fails in two cycles asks for Opus root-cause analysis; the fi
     w(dir, 'packages/ui/src/index.js', 'export const a = 3;\n'); // an attempted fix that did not hold
     const second = (await run(dir, 't')).gate.rows.find((x) => x.unit === 'packages/ui' && x.check === 'test');
     assert.equal(second.escalate, true);
-    assert.match(second.hint, /failed in 2 cycles.*Opus/);
+    assert.match(second.hint, /failed in 2 cycles.*strong model tier/);
   } finally { clean(dir); }
 });
 
@@ -191,7 +192,7 @@ test('code review is required only for auth, payment or schema changes, scoped t
     w(dir, 'services/api/auth/session.js', 'module.exports = 2;\n');
     const p = await plan(dir);
     assert.deepEqual(p.escalation.areas, { auth: ['services/api/auth/session.js'] });
-    assert.match(formatPlan(p), /Code review: required for auth \(1\), on these files only: services\/api\/auth\/session\.js\. Launch forge-code-reviewer.*model opus/);
+    assert.match(formatPlan(p), /Code review: required for auth \(1\), on these files only: services\/api\/auth\/session\.js\. Launch forge-code-reviewer, forge-security-engineer, forge-test-automation-engineer on the strong model tier \(core\/platform\.md names it\) \(core\/delegation\.md#model-escalation\)\.\n/, 'one sentence, one period');
     assert.doesNotMatch(formatScope(p, { orchestrator: false }), /Code review/, 'implementers cannot launch agents, so their --units runs skip the line');
     const units = cli(dir, 'run', '--task', 't', '--units', 'services/api');
     assert.doesNotMatch(units.stdout, /Code review/);
@@ -216,9 +217,9 @@ test('--base adds what the branch committed, is kept for the task, and is valida
   } finally { clean(dir); }
 });
 
-test('--all re-runs checks without builds; a build that rewrites a tracked file does not stale other checks', async () => {
-  // The measured run: `--all` rebuilt mobile (173s) and web every cycle, and the web build rewrote the
-  // sitemap's lastmod, which made every web check stale and cost a full extra cycle.
+test('a production build covered by tests never runs; a build that rewrites a tracked file does not stale other checks', async () => {
+  // Measured runs: `--all` rebuilt mobile (173s) and web every cycle, and the web build rewrote the sitemap's
+  // lastmod, which made every web check stale and cost a full extra cycle. Builds that tests cover are the user's.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vg-'));
   try {
     const stamp = "require('fs').writeFileSync('public/sitemap.xml', '<lastmod>' + Date.now() + '</lastmod>\\n')\n";
@@ -227,9 +228,14 @@ test('--all re-runs checks without builds; a build that rewrites a tracked file 
     const g = (...a) => execFileSync('git', ['-c', 'core.autocrlf=false', ...a], { cwd: dir, stdio: 'pipe' });
     g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'base');
     w(dir, 'src/a.js', '2\n');
-    const all = await run(dir, 't', { all: true });
-    assert.ok(!all.results.some((x) => x.column === 'build'), '--all never runs builds');
-    const built = await run(dir, 't', { build: true });
+    for (const opts of [{ all: true }, { full: true }, { build: true }]) {
+      const r = await run(dir, 't', opts);
+      assert.ok(!r.results.some((x) => x.column === 'build'), `${JSON.stringify(opts)} never runs a build that tests cover`);
+    }
+    // The build as the only compile step (no type check, no tests) still runs every cycle.
+    w(dir, 'package.json', JSON.stringify({ name: 'site', scripts: { build: 'node stamp.js' } }));
+    g('add', 'package.json'); g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'build only');
+    const built = await run(dir, 't');
     assert.deepEqual(built.sideEffects, [{ check: '.:build', file: 'public/sitemap.xml' }]);
     assert.deepEqual(built.modifiedDuringRun, [], 'a build output is not an edit made during the run');
     assert.equal(built.gate.result, 'OPEN');
@@ -313,21 +319,22 @@ test('one run call validates and answers the gate; final checks everything phase
     assert.match(r.stdout, /^Scope: apps\/web \[web\] \(consumer of packages\/ui\); packages\/ui \[shared\] \(changed files\)\. After the gate: browser apps\/web\./m);
     assert.match(r.stdout, /Pre-browser gate: OPEN/);
     assert.doesNotMatch(r.stdout, /packages\/ui:test PASSED \(cycle/, 'passing rows are summarized, not listed');
-    assert.match(r.stdout, /DEFERRED until the final check: apps\/web:build\. Run `run --task t --build`/);
+    assert.doesNotMatch(r.stdout, /DEFERRED|apps\/web:build/, 'no build is pending or deferred');
     assert.match(r.stdout, /✗ comment packages\/ui\/src\/index\.js:1 \[restates-code\][\s\S]*Fix these comments now/, 'comment errors surface in the author\'s run, not first in final');
     const other = await run(dir, 't', { units: ['apps/web'], checks: ['test'] });
     assert.deepEqual(other.commentErrors, [], "an implementer's run shows only its own units' comments");
 
     const pending = cli(dir, 'final', '--task', 't');
-    assert.match(pending.stdout, /✗ apps\/web:build MISSING .*run `run --task <slug> --build`/, 'the final check requires the deferred build');
+    assert.doesNotMatch(pending.stdout, /apps\/web:build (MISSING|STALE)/, 'the final check never requires the production build');
+    assert.match(pending.stdout, /Production build: not run by FORGE .*`npm run build` \(apps\/web\)/, 'final hands the build command to the user');
     const b = cli(dir, 'run', '--task', 't', '--build');
     assert.equal(b.status, 0);
-    assert.match(b.stdout, /ran 1 check\(s\), 3 already passing/, '--build runs only the deferred build');
-    assert.match(b.stdout, /Final gate \(builds included\): OPEN/);
+    assert.match(b.stdout, /ran 0 check\(s\), 3 already passing/, '--build (old name of --full) runs no build');
+    assert.match(b.stdout, /Final gate \(full test suites\): OPEN/);
 
     const f = cli(dir, 'final', '--task', 't');
     assert.equal(f.status, 1, 'a comment error makes the final check fail');
-    assert.match(f.stdout, /\| Web: apps\/web \| N\/A \| N\/A \| PASSED \| PASSED \|/);
+    assert.match(f.stdout, /\| Web: apps\/web \| N\/A \| N\/A \| PASSED \| N\/A \|/);
     assert.match(f.stdout, /\| Shared: packages\/ui \| N\/A \| UNAVAILABLE \| PASSED \| PASSED \|/);
     assert.match(f.stdout, /✗ comment packages\/ui\/src\/index\.js:1 \[restates-code\]/);
     assert.match(f.stdout, /FINAL: NOT READY: 1 comment error\(s\)/);
@@ -347,6 +354,21 @@ test('one run call validates and answers the gate; final checks everything phase
     assert.equal(ok.status, 0);
     assert.match(ok.stdout, /### Visual Results[\s\S]*\| board \| \[View board\]\(\.playwright-mcp\/t\/screenshots\/after\/board\.png\) \|/);
     assert.match(ok.stdout, /FINAL: READY to report\./);
+  } finally { clean(dir); }
+});
+
+test('a test-only change needs no browser or device verification; a runtime change does', async () => {
+  const dir = monorepo();
+  try {
+    w(dir, 'apps/web/page.test.js', 'test("x", () => {});\n');
+    const p = await plan(dir);
+    assert.deepEqual(p.next.browser, [], 'nothing new to see in a browser');
+    const g = await gate(dir, 't');
+    const ev = evidence(dir, 't');
+    assert.equal(visualCheck(dir, 't', g, ev), null, 'no screenshot is required');
+    assert.equal(devtoolsCheck(dir, 't', g, ev), null);
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    assert.deepEqual((await plan(dir)).next.browser, ['apps/web'], 'a changed upstream package is runtime impact for its web consumer');
   } finally { clean(dir); }
 });
 
@@ -372,16 +394,25 @@ function solo(ms) {
 const interval = (r) => ({ check: r.check, end: Date.parse(r.at), start: Date.parse(r.at) - r.durationMs });
 const ledgerRows = (dir, cycle) => fs.readFileSync(path.join(dir, '.forge/tasks/t/validation/ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter((r) => r.cycle === cycle && r.unit === 'packages/solo');
 
-test("a unit's package.json checks run side by side and its build runs last", async () => {
+test("a unit's package.json checks run side by side; its production build is left to the user", async () => {
   const dir = solo({ typecheck: 1500, lint: 1500, test: 1500, build: 0 });
   try {
     w(dir, 'packages/solo/src/a.js', 'export const a = 2;\n');
-    const r = await run(dir, 't', { jobs: 4, build: true });
-    assert.deepEqual(r.results.filter((x) => x.unit === 'packages/solo').map((x) => x.status), ['PASSED', 'PASSED', 'PASSED', 'PASSED']);
-    const rows = ledgerRows(dir, r.cycle).map(interval);
-    const checks = rows.filter((x) => x.check !== 'build');
+    const r = await run(dir, 't', { jobs: 4, full: true });
+    assert.deepEqual(r.results.filter((x) => x.unit === 'packages/solo').map((x) => `${x.check}:${x.status}`).sort(), ['lint:PASSED', 'test:PASSED', 'typecheck:PASSED']);
+    const checks = ledgerRows(dir, r.cycle).map(interval);
     assert.ok(Math.max(...checks.map((x) => x.start)) < Math.min(...checks.map((x) => x.end)), 'type check, lint and tests overlap instead of queueing');
-    assert.ok(rows.find((x) => x.check === 'build').start >= Math.max(...checks.map((x) => x.end)) - 50, 'the build starts after the other checks end');
+  } finally { clean(dir); }
+});
+
+test('a build that is the unit\'s only compile step still runs, after its other checks', async () => {
+  const dir = solo({ lint: 1500, build: 0 });
+  try {
+    w(dir, 'packages/solo/src/a.js', 'export const a = 2;\n');
+    const r = await run(dir, 't', { jobs: 4 });
+    assert.deepEqual(r.results.filter((x) => x.unit === 'packages/solo').map((x) => `${x.check}:${x.status}`).sort(), ['build:PASSED', 'lint:PASSED']);
+    const rows = ledgerRows(dir, r.cycle).map(interval);
+    assert.ok(rows.find((x) => x.check === 'build').start >= rows.find((x) => x.check === 'lint').end - 50, 'the build starts after the other checks end');
   } finally { clean(dir); }
 });
 
@@ -464,23 +495,40 @@ const FAKE_VITEST = {
   'packages/lib/node_modules/.bin/vitest.cmd': '@node "%~dp0/../vitest/cli.js" %*\r\n',
 };
 
-test('fix cycles run only the related tests; the full suite runs once with --build and the final gate needs it', async () => {
+test('a low-risk change is final with its related tests; no full suite runs', async () => {
   const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
   const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
   process.env.FAKE_VITEST_LOG = log;
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
   try {
     w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    await run(dir, 't', { units: ['packages/lib'] });
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests']);
+    const row = (await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test');
+    assert.equal(row.state, 'PASSED', 'the runner traced the related tests through the module graph; that is enough here');
+    const again = await run(dir, 't', { units: ['packages/lib'], full: true });
+    assert.deepEqual(again.results, [], '--full has nothing to add for a low-risk change');
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests']);
+  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+});
+
+test('auth, payment or schema changes: fix cycles run the related tests; the final gate needs the full suite', async () => {
+  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/auth/session.js': 'export const a = 1;\n', ...FAKE_VITEST });
+  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
+  process.env.FAKE_VITEST_LOG = log;
+  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
+  try {
+    w(dir, 'packages/lib/src/auth/session.js', 'export const a = 2;\n');
     const r1 = await run(dir, 't', { units: ['packages/lib'] });
     assert.equal(r1.results[0].status, 'PASSED', r1.results[0].tail);
     assert.deepEqual(calls(), ['run --changed --passWithNoTests'], 'a fix cycle runs only the related tests');
     assert.equal((await gate(dir, 't')).result, 'OPEN', 'which is enough for the browser');
     const fin = await gate(dir, 't', { final: true });
-    assert.equal(fin.rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'MISSING', 'but not for the final gate');
+    assert.equal(fin.rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'MISSING', 'but not for the final gate of an auth change');
 
-    const full = await run(dir, 't', { units: ['packages/lib'], build: true });
+    const full = await run(dir, 't', { units: ['packages/lib'], full: true });
     assert.deepEqual(full.results.map((x) => `${x.check}:${x.status}`), ['test:PASSED']);
-    assert.deepEqual(calls().slice(1), ['run'], '--build runs the full suite once');
+    assert.deepEqual(calls().slice(1), ['run'], '--full runs the full suite once');
     assert.equal((await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'PASSED');
   } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
 });

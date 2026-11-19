@@ -82,8 +82,7 @@ Ask exactly one question:
 
 Options: **All recommended**, **Essential only**, **Select individually**, **None**.
 
-- **Claude Code:** the orchestrator asks from its main thread with `AskUserQuestion`. For "Select individually", ask a follow-up `AskUserQuestion` with `multiSelect: true` listing the candidates.
-- **Antigravity or other hosts:** ask in chat and wait for the reply.
+- The orchestrator asks from its main thread, the host's way (`core/platform.md` `userQuestion`). For "Select individually", a follow-up question lists the candidates to pick from.
 - **No response, or a headless or non-interactive run:** install nothing, record approval as `not yet received`, and continue with existing capabilities.
 - Approval covers **only this batch**. A later batch needs a new question.
 - **Subagents can never approve or install.** The scout returns a proposal; only the orchestrator asks and installs.

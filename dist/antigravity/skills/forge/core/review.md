@@ -4,7 +4,7 @@ Use this playbook when the request asks FORGE to **review a PR/MR or the current
 
 A whole-codebase audit ("review this app's security", "analyze the project") is not review mode. It is the analysis path in SKILL.md.
 
-**Review mode is read-only.** It never modifies reviewed files, fixes findings, stages, commits, pushes, opens PRs, approves or comments on the hosting platform, or creates external tickets. In Claude Code this is enforced: during the review lock, the git guard blocks Edit and Write outside `.forge/`, and it always blocks git writes and hosting-platform writes (`gh pr review|comment|merge`, `gh issue create`, write calls through `gh api`).
+**Review mode is read-only.** It never modifies reviewed files, fixes findings, stages, commits, pushes, opens PRs, approves or comments on the hosting platform, or creates external tickets. Where the host has the git-guard hook (platform.md `gitGuardHook`) this is enforced: during the review lock, the git guard blocks Edit and Write outside `.forge/`, and it always blocks git writes and hosting-platform writes (`gh pr review|comment|merge`, `gh issue create`, write calls through `gh api`).
 
 ## R1. Target and lock
 
@@ -56,7 +56,7 @@ Use the script's `suggestedTeam`, adjusted by what you saw. Each role maps to a 
 | Performance Engineer | `forge-performance-engineer` | queries, hot paths, rendering, network-heavy changes |
 | UI/UX Reviewer | `forge-accessibility-specialist` + `forge-browser-qa` (+ `forge-ux-designer` for flows) | frontend changes |
 
-For a small diff (under about 100 changed lines, one area), 2 reviewers are enough: `forge-code-reviewer` plus the area specialist. Launch the whole team **in one message**, so they run in parallel. When the JSON has an `escalation` (auth, payment or database files changed), launch the roles it lists with `model: "opus"` ([model escalation](delegation.md#model-escalation)).
+For a small diff (under about 100 changed lines, one area), 2 reviewers are enough: `forge-code-reviewer` plus the area specialist. Launch the whole team **in one message**, so they run in parallel. When the JSON has an `escalation` (auth, payment or database files changed), launch the roles it lists on the strong tier ([model escalation](delegation.md#model-escalation)).
 
 ### Review work order
 

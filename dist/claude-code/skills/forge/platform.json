@@ -1,0 +1,87 @@
+{
+  "platform": "claude-code",
+  "displayName": "Claude Code",
+  "verification": "live",
+  "sources": "code.claude.com/docs (skills, sub-agents, hooks, permissions, plugins); live headless /forge runs with Claude Code 2.1.327 (2026-11-19)",
+  "models": {
+    "standard": "sonnet",
+    "strong": "opus"
+  },
+  "frontmatter": {
+    "skill": "all",
+    "agent": "all",
+    "agentModel": "source",
+    "hideSpecialist": {}
+  },
+  "capabilities": {
+    "entryCommand": {
+      "status": "supported",
+      "native": "`/forge <request>`. The installer adds the standalone skill, so the command is bare; as a plugin it is `/forge:forge`"
+    },
+    "requestArguments": {
+      "status": "supported",
+      "native": "`$ARGUMENTS` in SKILL.md"
+    },
+    "skillDir": {
+      "status": "supported",
+      "native": "`${CLAUDE_SKILL_DIR}`, or the folder of the loaded SKILL.md"
+    },
+    "subagents": {
+      "status": "supported",
+      "native": "`Agent` tool with `subagent_type: forge-<role>` (a plugin install namespaces it: `forge:forge-<role>`)"
+    },
+    "parallelSubagents": {
+      "status": "supported",
+      "native": "several `Agent` calls in one message"
+    },
+    "foregroundWait": {
+      "status": "supported",
+      "native": "`Agent`, `Bash` and `PowerShell` calls without `run_in_background` block until they finish (`timeout` up to 600000 ms for commands)"
+    },
+    "continueSubagent": {
+      "status": "supported",
+      "native": "`SendMessage` to the agent's ID (load it with `ToolSearch` first if it is listed only by name)"
+    },
+    "perCallModel": {
+      "status": "supported",
+      "native": "`model: \"opus\"` or `\"sonnet\"` on the `Agent` call; the agent file stays unchanged"
+    },
+    "toolRestriction": {
+      "status": "supported",
+      "native": "`tools` / `disallowedTools` in agent frontmatter (read-only roles cannot edit)"
+    },
+    "gitGuardHook": {
+      "status": "supported",
+      "native": "`PreToolUse` hook running `scripts/git-guard.mjs` on FORGE agents and the /forge skill"
+    },
+    "preApprovedScripts": {
+      "status": "supported",
+      "native": "`allowed-tools` on the forge skill: reading `~/.claude/skills/forge*/**` and `node` on FORGE's own script folders. It holds only for the turn that ran `/forge`"
+    },
+    "userQuestion": {
+      "status": "supported",
+      "native": "`AskUserQuestion` from the main thread (`multiSelect: true` to pick several)"
+    },
+    "deferredTools": {
+      "status": "supported",
+      "native": "`ToolSearch` with `select:<tool>,<tool>` before calling a tool that is listed only by name"
+    },
+    "browserTools": {
+      "status": "supported",
+      "native": "Playwright MCP and Chrome DevTools MCP (`claude mcp add …`); each tool call follows the user's permission rules"
+    },
+    "backgroundCommands": {
+      "status": "supported",
+      "native": "`run_in_background: true`. The result arrives in a later turn, which no longer has the skill's pre-approvals, so FORGE never uses it for its own work"
+    }
+  },
+  "requiredConfig": [
+    "Install with `scripts/install.sh --target claude` (or `install.ps1 -Target claude`) for the bare `/forge` command.",
+    "Optional, for browser QA: the Playwright and Chrome DevTools MCP servers (see docs/installation.md)."
+  ],
+  "limitations": [
+    "A plugin install namespaces the command (`/forge:forge`) and the agents (`forge:forge-<role>`).",
+    "Skill pre-approvals end with the `/forge` turn. A turn started later (for example by a background notification) asks for permission again.",
+    "The git guard parses commands; a git alias or a script that runs git internally is not caught. Host deny rules add a layer (docs/security.md)."
+  ]
+}

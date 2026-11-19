@@ -18,8 +18,8 @@ Order, never skipped: **implement → static checks → tests → fix → pre-br
 
 One call does the whole cycle:
 - **Plans** from the detector's units and their real commands (package scripts, Makefile, Composer, toolchain defaults). Scope is the units with changed code plus the **consumers** of a changed shared package; a root config change puts every unit in scope; documentation-only changes need no checks. API contracts (G6) and migrations (G12) add manual checks.
-- **Runs** each affected app's type check, lint and tests, then its build, longest checks first and in parallel (package.json checks side by side; Maven, Gradle and dotnet checks in order). Tests that share a database run one at a time, a prebuilt package builds before its consumers, and only one run per task executes at a time.
-- **Defers builds** when type check or tests already cover the unit and no consumer imports its output. The row shows `DEFERRED` and does not block the browser, since the browser runs on the dev server. `V run --task <slug> --build` runs them once, right before `V final`, which requires them. A build that is the unit's only compile step, or that feeds a consumer, still runs every cycle.
+- **Runs** each affected app's type check, lint and tests, longest checks first and in parallel (package.json checks side by side; Maven, Gradle and dotnet checks in order). Tests that share a database run one at a time, a prebuilt package builds before its consumers, and only one run per task executes at a time.
+- **Leaves production builds to the user** when type check or tests already cover the unit and no consumer imports its output. The row is `N/A` and never blocks; `V final` prints the build command for the answer, and it does not lower the completion status. A build that is the unit's only compile step, or that feeds a consumer, still runs every cycle, last in its unit.
 - **Runs each check once.** It skips checks that already passed for the current code, so a fix re-runs only what it made stale or what failed.
 - **Never runs** scripts that deploy or publish (`NOT RUN`, needs authorization), or that rewrite files (`--fix`, `--write`) or watch. Run a check-only or one-shot equivalent and record it with `V mark --task <slug> --unit <u> --check <c> --status PASSED --reason "<command → key output>"`.
 - **Records** every result in `.forge/tasks/<slug>/validation/ledger.jsonl`, with logs under `evidence/reports/validation/`.
@@ -27,10 +27,10 @@ One call does the whole cycle:
 
 More options:
 - `--units a,b`: an implementer validates only its own apps.
-- `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there. Let it finish before any implementer starts; it skips deferred builds.
-- **Related tests in fix cycles.** A unit with its own changed files whose test script is a plain vitest or jest call runs only the related tests (`--changed` / `--changedSince`). That opens the pre-browser gate. Consumers of a changed package, root config changes and other runners always run the full suite.
-- `--build`: the deferred builds and full test suites, once, after the last fix. The final gate accepts only a full test run.
-- `--all`: when project policy or a broad change requires a full re-run of the checks. It never runs builds; only `--build` does.
+- `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there. Let it finish before any implementer starts.
+- **Related tests, scaled to risk.** A unit with its own changed files whose test script is a plain vitest or jest call runs only the related tests (`--changed` / `--changedSince`, which the runner traces through the module graph). That opens the pre-browser gate and, for a low-risk change, the final gate. A unit that changed auth, payment or schema files needs one full-suite pass before `final`. Consumers of a changed package, root config changes and other runners always run the full suite.
+- `--full` (old name `--build`): once, after the last fix. It runs the full suites the final gate still requires (auth, payment, schema), and nothing otherwise.
+- `--all`: when project policy or a broad change requires a full re-run of the checks.
 - `--base <ref>`: the task covers a branch ("test this branch", "did it break anything"). The scope adds what the branch committed since `<ref>`, so the API and shared packages it changed are checked in the same cycle. Pass it once; later runs, `gate` and `final` keep it.
 - `V mark … --status PRE-EXISTING|BLOCKED|NOT RUN`: also records the manual G6 and G12 checks. Confirm a `PRE-EXISTING` (the gate flags failures that also failed on the baseline) before marking it.
 - `V gate --task <slug>`: re-checks without running anything; `--verbose` lists every row.
@@ -56,7 +56,7 @@ If the host's command timeout is shorter than the suite, run it in the backgroun
 | G10m **Device verification** (emulator, simulator or device) | Any native mobile UI or behavior change |
 | G11 Responsive check (mobile / tablet / desktop viewports) | Layout or styling changes |
 | G12 Migration safety (up, down or rollback, data preservation) | Schema change |
-| G13 Independent code review, including comment quality | The user asked for a review, or `V run` prints `Code review: required` (auth, payment or schema files; review only those, on Opus). Otherwise N/A: tests, the gate, browser QA and `V final` (comments included) cover the change |
+| G13 Independent code review, including comment quality | The user asked for a review, or `V run` prints `Code review: required` (auth, payment or schema files; review only those, on the strong tier). Otherwise N/A: tests, the gate, browser QA and `V final` (comments included) cover the change |
 | G14 Scope check: `git diff --stat` shows only intended files | Always |
 | G15 Install provenance: every skill or tool installed in this task has a verified OSS license, a recorded user approval for its batch and an entry in `forge-skills.lock.json` | Any installation happened |
 

@@ -102,6 +102,13 @@ test('verify-install: a fresh project install is identical to the build; tamperi
     const ok = verifyTarget(t);
     assert.equal(ok.ok, true, ok.problems.join('; '));
     assert.equal(ok.info.guardBlocksCommit, true);
+    // FORGE pre-approves only its own files and scripts at their installed path; an unresolved token would
+    // leave every read of its rules and every gate run waiting for a permission prompt.
+    const skill = fs.readFileSync(path.join(project, '.claude', 'skills', 'forge', 'SKILL.md'), 'utf8');
+    const allowed = skill.match(/^allowed-tools: (.*)$/m)?.[1] ?? '';
+    const home = path.join(project, '.claude', 'skills', 'forge').replace(/\\/g, '/');
+    assert.ok(allowed.includes(`Bash(node "${home}/scripts/*)`) && allowed.includes(`PowerShell(node "${home}/../forge-project-exploration/scripts/*)`), allowed);
+    assert.doesNotMatch(allowed, /CLAUDE_PLUGIN_ROOT|Bash\(node \*|Bash\(\*\)/, 'only FORGE paths, never a bare wildcard');
     fs.appendFileSync(path.join(project, '.claude', 'agents', 'forge-sre.md'), 'tampered\n');
     fs.writeFileSync(path.join(project, '.claude', 'skills', 'forge', 'leftover.md'), 'x');
     const bad = verifyTarget(t);

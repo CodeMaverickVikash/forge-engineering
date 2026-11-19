@@ -17,7 +17,7 @@ GATE:        (browser QA and device verification only) pre-browser gate OPEN at 
              re-check: node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>
 EVIDENCE:    (browser QA only) screenshots: .playwright-mcp/<slug>/screenshots/{before,after,responsive,workflows}/
              index + session: .forge/tasks/<slug>/evidence/  (validation-gate.mjs evidence --init / evidence)
-MODEL:       (only when escalated) opus: <trigger from Model escalation below>; otherwise omit
+MODEL:       (only when escalated) strong tier: <trigger from Model escalation below>; otherwise omit
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
@@ -31,26 +31,26 @@ A measured run spent about 32 minutes of check time on one change: a baseline th
 - **Balanced implementation wave.** In a measured run, the web engineer got 7 MUST items plus every SHOULD in one large page. It took 16 min and 145 calls, read 10.4M cached tokens and still hit its turn cap; mobile finished in 4 min. Give each engineer at most about 6 items, and split the rest across engineers with disjoint files. Smaller contexts also cost fewer tokens per call.
 - **One fix wave per round.** Wait for every verifier of a wave (browser QA, and the code review when G13 requires it), merge their findings, and send each owner a single fix list. Each separate fix trickle costs a full gate cycle. **Balance the wave:** it ends when its slowest owner does. In a measured run, one engineer got 11 findings and took 11.5 min while the other two finished in 2–3 min. Give each owner at most about 6 findings, and split a longer list across engineers with disjoint files.
 - **The validation wave runs `V run --task <slug>` without `--units`.** Then everything the working tree changed, staged work included, is covered in one cycle, not discovered as MISSING in a second one.
-- **Builds and full test suites run once, at the end.** `V run` defers a build that type check or tests already cover (`DEFERRED`, not blocking the browser). In fix cycles it runs only the tests related to a unit's own changes (plain vitest or jest scripts); the full suite is deferred the same way. Run `V run --task <slug> --build` once, after the last fix and right before `V final`.
+- **Production builds are the user's; full test suites run once, at the end.** `V run` never runs a build that type check or tests already cover, and `V final` hands its command to the user. Never run a build by hand to "double-check". `V run` runs only the tests related to a unit's own changes (plain vitest or jest scripts, traced through the module graph), and that is final unless the unit changed auth, payment or schema files. Run `V run --task <slug> --full` once, after the last fix and right before `V final`; it runs a full suite only where one is still required.
 - **Branch work uses `--base <base branch>`, never `--all`, for coverage.** Without it the gate sees only uncommitted files and misses what the branch committed. `--all` re-runs passing checks and is never the way to widen scope.
 - **A build that rewrites a tracked file** (a sitemap's lastmod) is reported as a build side effect and does not stale other checks. Restore the file only if it should not ship.
 - **One `V run` per task at a time.** The runner holds a lock: a second run waits for the first, then runs only what is still needed. A run in the background prints a stderr line per finished check; read those, and never start a run to find out whether one is alive.
 - **No edits of your own once the gate is OPEN**, not even a comment reflow. In a measured run, one comment edit made 8 checks stale (the 140 s API suite among them) and stopped browser QA at its gate check. Put the edit in the next fix wave, or leave it for the report.
-- **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. It skips deferred builds. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
+- **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
 
 ## Browser QA scope
 
 The first browser pass in the measured run hit its 45-turn cap. It had 6 journeys across 2 viewports, 3 model types and 4 modes, plus account setup. Size every browser work order to fit:
 - **Before screenshots** (visual fixes and UI improvements only): the reproduction pass, before any edit, captures at most 3 screenshots into `screenshots/before/`: the screens the change touches. Write "at most 3 screenshots" in the work order; "3 journeys" produced 17 shots in a measured run. New features have no before.
 - **At most 4 journeys per pass, at one viewport.** Add a second viewport only for layout assertions (one `evaluate` per page). Rank journeys by risk. Put the rest in a second pass, or list them as NOT RUN with the reason.
-- **Give it the session:** the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
-- **Same verifier for retests** (SendMessage), with only the delta. Never relaunch a full pass after a fix.
+- **Give it the session:** check the servers once with `V ports --ports <app,api,db>` (never netstat or `Get-NetTCPConnection` loops), then pass the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
+- **Same verifier for retests** (platform.md `continueSubagent`), with only the delta. Never relaunch a full pass after a fix.
 
 ## Delta retests
 
 Re-verifying the whole change after every fix was the biggest cost in measured runs: three full browser passes and three full reviews for one feature. So a retest covers only what changed:
 - **Snapshot before every verification wave:** `node "<FORGE_HOME>/scripts/verify-delta.mjs" snapshot --task <slug>`. After the fix, `verify-delta.mjs delta --task <slug>` prints the fix delta.
-- **Continue the same verifier** when the host can (Claude Code: `SendMessage` to its agent ID). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
+- **Continue the same verifier** when the host can (platform.md `continueSubagent`). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
 - **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
 - **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
 - **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. Start it only after every owner of the fix wave has returned. It must exit 0 (gate OPEN) **before** the browser retest.
@@ -59,16 +59,16 @@ Re-verifying the whole change after every fix was the biggest cost in measured r
 
 ## Model escalation
 
-Testing and QA start on Sonnet: test automation, manual QA, browser QA (Playwright, Chrome DevTools), API and regression checks, and routine bug reproduction. Move a role up to **Opus** only when one of these triggers is present, and name the trigger in the work order:
-- **Critical workflow changed.** `V run` and `review-target.mjs` print an `Opus escalation:` line when auth, authorization, payment or database schema files changed. Launch the roles it lists with `model: "opus"`: the code reviewer always, plus the security and test automation engineers for auth or payment.
-- **Root cause not found.** `V gate` hints `failed in 2 cycles`, or a Sonnet verifier returns `blocked` or "root cause unknown" after its re-brief. Move the investigation (`forge-debugging`) to Opus before the next fix attempt.
+Testing and QA start on the **standard tier**: test automation, manual QA, browser QA (Playwright, Chrome DevTools), API and regression checks, and routine bug reproduction. Move a role up to the **strong tier** only when one of these triggers is present, and name the trigger in the work order. [platform.md](platform.md) names both tiers on this host:
+- **Critical workflow changed.** `V run` and `review-target.mjs` print a `Model escalation:` / `Code review: required` line when auth, authorization, payment or database schema files changed. Launch the roles it lists on the strong tier: the code reviewer always, plus the security and test automation engineers for auth or payment.
+- **Root cause not found.** `V gate` hints `failed in 2 cycles`, or a standard-tier verifier returns `blocked` or "root cause unknown" after its re-brief. Move the investigation (`forge-debugging`) to the strong tier before the next fix attempt.
 - **The failure spans services or apps**, or involves race conditions, concurrency, or an architectural defect.
 - **A security vulnerability** needs deeper investigation than the first pass gave it.
 - **High-risk independent review**: an L-size change, or a review whose verdict gates auth, money or data.
 
 Rules:
-- **How:** Claude Code takes `model: "opus"` on the Agent call. The agent's file stays unchanged, and SendMessage continuations keep their model. Never lower a model: a role on `inherit` whose main model is already at least as capable as Opus stays there.
-- **Opus unavailable** (Antigravity, Mode B, or an account or host without it): continue with the available model and the same tools. Put the limitation in the report: `Opus escalation unavailable: <role>, <trigger>, <reason>`.
+- **How:** platform.md `perCallModel` gives the native form; the agent's file stays unchanged, and continuations keep their model. Never lower a model: a role whose model is already at least as capable stays there.
+- **Strong tier unavailable** (`perCallModel` unsupported, Mode B, or an account without that model): continue with the available model and the same tools. Put the limitation in the report: `Model escalation unavailable: <role>, <trigger>, <reason>`.
 - **Models never decide pass/fail.** A check passes only on the output of a run in this task: a test runner, Playwright, DevTools, curl or `V`. A test plan, a written test or an approving review is not evidence, on any model.
 - **Never trade coverage for model cost.** Size the test scope by risk. A cheaper model may change who runs a check, never whether it runs.
 
@@ -92,7 +92,7 @@ GATE: (browser QA) pre-browser gate OPEN again at cycle <n> after the fix
 RETURN: Specialist Report; list each previous finding as resolved | still open | regressed
 ```
 
-Before you send it, take a new snapshot (`verify-delta.mjs snapshot --task <slug>`), so the next round's delta starts from what this round saw. Where the host supports it, send the retest to the **same** verifier (Claude Code: `SendMessage` to its agent ID). It already holds the context, so it needs only the delta.
+Before you send it, take a new snapshot (`verify-delta.mjs snapshot --task <slug>`), so the next round's delta starts from what this round saw. Where the host supports it (platform.md `continueSubagent`), send the retest to the **same** verifier. It already holds the context, so it needs only the delta.
 
 ## Specialist report (what they return)
 

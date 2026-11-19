@@ -120,10 +120,13 @@ test('Opus escalation only for critical auth, payment and database workflows', (
   assert.match(formatEscalation(null), /none/);
 
   assert.deepEqual(escalation(['db/migrations/1.sql']).roles, ['forge-code-reviewer'], 'schema changes escalate the review, not test writing');
-  const pay = escalation(['src/payments/refund.ts']);
-  assert.equal(pay.model, 'opus');
+  const claude = JSON.parse(fs.readFileSync(new URL('../../adapters/claude-code/platform.json', import.meta.url), 'utf8'));
+  const pay = escalation(['src/payments/refund.ts'], claude);
+  assert.equal(pay.tier, 'strong');
+  assert.equal(pay.model, 'opus', "Claude Code's strong tier");
   assert.deepEqual(pay.roles, ['forge-code-reviewer', 'forge-security-engineer', 'forge-test-automation-engineer'], 'auth and payment also escalate the security review and test design');
-  assert.match(formatEscalation(pay), /payment \(1 file\).*model opus/);
+  assert.match(formatEscalation(pay, claude), /payment \(1 file\).*model opus/);
+  assert.match(formatEscalation(pay, null), /strong model tier \(core\/platform\.md names it\)/, 'without a host profile the wording stays neutral');
 });
 
 test('review lock: guard blocks source edits during a review, allows .forge/, expires', () => {

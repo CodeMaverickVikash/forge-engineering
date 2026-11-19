@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadPlatform, strongTier, modelName } from './platform.mjs';
 import { TOOL_OUTPUT_RE } from './verify-delta.mjs';
 
 export const LOCK_MAX_AGE_MS = 3 * 3600 * 1000;
@@ -193,20 +194,20 @@ export function criticalAreas(files) {
  * critical workflow runs on Opus. Auth and payment also move test design and the security review up, because
  * a missed edge case there is a breach or lost money. A schema change keeps its tests on Sonnet: the database
  * engineer already runs on the main model and migrations are verified by running them.
- * Returns null when nothing critical changed, so routine work stays on Sonnet.
+ * Returns null when nothing critical changed, so routine work stays on the standard tier.
  */
-export function escalation(files) {
+export function escalation(files, platform = loadPlatform()) {
   const areas = criticalAreas(files);
   if (!Object.keys(areas).length) return null;
   const roles = ['forge-code-reviewer'];
   if (areas.auth || areas.payment) roles.push('forge-security-engineer', 'forge-test-automation-engineer');
-  return { model: 'opus', areas, roles };
+  return { tier: 'strong', model: modelName(platform, 'strong'), areas, roles };
 }
 
-export function formatEscalation(e) {
-  if (!e) return 'Opus escalation: none (no auth, payment or database files changed); review and test roles stay on their default models.';
+export function formatEscalation(e, platform = loadPlatform()) {
+  if (!e) return 'Model escalation: none (no auth, payment or database files changed); review and test roles stay on their default models.';
   const areas = Object.entries(e.areas).map(([k, v]) => `${k} (${v.length} file${v.length > 1 ? 's' : ''})`).join(', ');
-  return `Opus escalation: ${areas} changed. Launch ${e.roles.join(', ')} with model opus, unless one already runs on a model at least as capable (core/delegation.md#model-escalation).`;
+  return `Model escalation: ${areas} changed. ${strongTier(platform, e.roles)}, unless one already runs on a model at least as capable (core/delegation.md#model-escalation).`;
 }
 
 export const SMALL_DIFF_LINES = 100;

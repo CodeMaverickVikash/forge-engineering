@@ -11,6 +11,21 @@ FORGE is tested at four levels. Levels 1 to 3 are deterministic and free. Level 
 
 `./scripts/validate.sh` runs levels 1 to 3.
 
+### Middleware scenarios
+
+These map the architecture's guarantees to tests. **Simulated** tests use fixtures and fake profiles and run in level 2. **Live** tests run a real host in level 4. Antigravity has no live run yet (see the manual procedure below).
+
+| Scenario | What is checked | Where | Kind |
+|---|---|---|---|
+| A. Platform independence | Both builds ship byte-identical core files and role bodies; only `platform.json` / `core/platform.md` and frontmatter differ. The same change gets the same team and areas on both hosts | `platform-contract.test.mjs` | simulated |
+| B. Adapter failure | A missing, corrupt or contract-breaking profile is not trusted; scripts fall back to neutral wording and `platform.mjs` exits 2 UNAVAILABLE. Missing or stale installs are reported by `verify-install.mjs`; a missing toolchain is BLOCKED, not FAILED | `platform-contract`, `install`, `validation-gate` tests | simulated |
+| C. Capability detection | Undeclared, unknown or wrongly stated capabilities fail the contract; an unsupported per-call model prints "record the escalation as unavailable"; `core/platform.md` shows each fallback | `platform-contract.test.mjs` | simulated |
+| D. User approval | The skill installer refuses without approval, and for bad licenses, overwrites or `forge*` names; the skills CLI needs its own approval | `skill-discovery.test.mjs` | simulated |
+| E. Project isolation | Ledgers, evidence and knowledge live under each project's `.forge/`; a passing result is reused only within the same project, commit and files | `platform-contract.test.mjs`, `detect-stack.test.mjs` | simulated |
+| F. Engineering workflow | Bug fix and feature runs: team, implementation, gates, browser QA, honest answer, no git writes | `tests/e2e` (`bug-fix`, `new-feature`) | live (Claude Code) |
+| G. Security | The git guard blocks commits, pushes, PRs and hosting writes; review mode stays read-only; `.env` values are never read; FORGE pre-approves only its own scripts | `git-guard`, `review`, `detect-stack`, `install` tests | simulated |
+| H. Recovery | Failing checks close the gate until fixed or recorded; a timeout under load is re-run alone; a second run waits on the lock; stale results are re-run | `validation-gate.test.mjs` | simulated |
+
 ## Plugin evals with a baseline (`claude plugin eval`)
 
 `evals/` holds five graded cases in the official `claude plugin eval` format:

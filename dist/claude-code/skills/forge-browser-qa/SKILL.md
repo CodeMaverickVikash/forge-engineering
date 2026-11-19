@@ -22,7 +22,7 @@ Native apps (React Native, Expo, Flutter, Android, iOS) are verified on an emula
 | Chrome DevTools MCP | Tools such as `mcp__chrome-devtools__list_console_messages`, `list_network_requests`, `performance_start_trace` are in your tool list | Only source for DevTools evidence |
 | Antigravity built-in browser subagent | Host provides it | May drive journeys; still needs DevTools MCP for runtime evidence unless it exposes console and network |
 
-- **Deferred tools:** when MCP tools are listed only by name (the host loads them with `ToolSearch`), load **both** sets in your first call. Include at least `mcp__chrome-devtools__new_page`, `navigate_page`, `list_console_messages`, `list_network_requests`, `get_network_request` and `take_screenshot` next to the Playwright tools. A measured pass loaded only Playwright, never touched DevTools, and its "verified" claim did not hold.
+- **Deferred tools:** when MCP tools are listed only by name (the host loads them on demand: `core/platform.md` `deferredTools`), load **both** sets in your first call. Include at least `mcp__chrome-devtools__new_page`, `navigate_page`, `list_console_messages`, `list_network_requests`, `get_network_request` and `take_screenshot` next to the Playwright tools. A measured pass loaded only Playwright, never touched DevTools, and its "verified" claim did not hold.
 - **DevTools record:** after reading the console and network with the DevTools MCP, write `.forge/tasks/<slug>/evidence/devtools.md`: the pages, new console errors and warnings, and failed or suspicious requests (redacted). If the DevTools MCP is not connected, write `DevTools unavailable: <reason>` in `evidence/index.md` instead. `validation-gate.mjs final` requires one of the two for browser-visible changes.
 - Do **not** install a second browser-automation framework when one exists. If the project has no Playwright and no MCP, do not add `@playwright/test` without authorization. Report `UNAVAILABLE`.
 - If a capability is missing, say how to enable it (see `references/setup.md`) and continue with what is available.
@@ -77,7 +77,7 @@ Where and how:
 ## Efficiency budget
 
 Browser passes were the most expensive part of measured FORGE runs: up to 71 turns. Every call re-reads the whole context, so fewer, denser calls are faster and cheaper:
-- **Reuse the app URL from the work order.** Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
+- **Reuse the app URL from the work order.** Check ports with one `node "<FORGE_HOME>/scripts/validation-gate.mjs" ports --ports <list>` call. Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
 - **Prefer `browser_snapshot` / `take_snapshot`** (a text accessibility tree) for assertions. Screenshots are for evidence only: the list above, at most about 8 per pass (one per changed screen and state), never one per assertion. `validation-gate.mjs evidence` flags shots over budget.
 - **Batch checks.** Use one `browser_evaluate` / `evaluate_script` that returns several facts at once (text, counts, focus target, overflow), instead of one call per fact. Read the console and network once per page, after the journey.
 - **Never wait on a timeout.** In measured passes, `browser_run_code` was 55–65% of the wall time. Almost every call lasted about 30 s, Playwright's default timeout, however little it did.

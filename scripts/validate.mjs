@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './lib/frontmatter.mjs';
 import { build, catalogs, ROOT } from './build.mjs';
 import { checkReviewDates, knowledgeFiles } from './check-freshness.mjs';
+import { validateProfile } from '../skills/forge/scripts/platform.mjs';
 
 const errors = []; const warnings = []; const stats = {};
 const err = (where, msg) => errors.push(`${where}: ${msg}`);
@@ -36,10 +37,13 @@ function checkYamlSafety(where, fm) {
   }
 }
 
+// Written per host by the build (adapters/<host>/platform.json), so they exist only in dist/.
+const GENERATED = new Set([path.join(ROOT, 'skills', 'forge', 'core', 'platform.md')]);
+
 function checkLinks(file, text) {
   for (const m of text.matchAll(/\]\((?!https?:|mailto:|#)([^)\s]+?)(#[^)]*)?\)/g)) {
     const target = path.resolve(path.dirname(file), m[1]);
-    if (!fs.existsSync(target)) err(rel(file), `broken relative link: ${m[1]}`);
+    if (!fs.existsSync(target) && !GENERATED.has(target)) err(rel(file), `broken relative link: ${m[1]}`);
   }
 }
 
@@ -238,6 +242,15 @@ function snapshot(dir) {
   const out = {};
   (function rec(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) rec(p); else out[path.relative(dir, p).split(path.sep).join('/')] = fs.readFileSync(p).toString('base64'); } })(dir);
   return out;
+}
+
+// ---------------- platform profiles (adapter contract) ----------------
+for (const host of fs.readdirSync(path.join(ROOT, 'adapters'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
+  const f = path.join(ROOT, 'adapters', host, 'platform.json');
+  if (!fs.existsSync(f)) { err(`adapters/${host}`, 'no platform.json: every adapter declares its capabilities'); continue; }
+  let p; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { err(`adapters/${host}/platform.json`, `invalid JSON: ${e.message}`); continue; }
+  for (const problem of validateProfile(p)) err(`adapters/${host}/platform.json`, problem);
+  if (p.platform !== host) err(`adapters/${host}/platform.json`, `platform "${p.platform}" does not match its folder`);
 }
 
 // ---------------- report ----------------

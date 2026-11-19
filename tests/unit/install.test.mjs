@@ -109,8 +109,8 @@ test('verify-install: a fresh project install is identical to the build; tamperi
     const home = path.join(project, '.claude', 'skills', 'forge').replace(/\\/g, '/');
     assert.ok(allowed.includes(`Bash(node "${home}/scripts/*)`) && allowed.includes(`PowerShell(node "${home}/../forge-project-exploration/scripts/*)`), allowed);
     assert.doesNotMatch(allowed, /CLAUDE_PLUGIN_ROOT|Bash\(node \*|Bash\(\*\)/, 'only FORGE paths, never a bare wildcard');
-    const winHome = home.split('/').join('\\');
-    assert.ok(allowed.includes(`PowerShell(node "${winHome}\\scripts\\*)`), 'PowerShell also gets the Windows (backslash) form of the path');
+    // Probes on Claude Code showed no rule matches a PowerShell command with a backslash path, so none is emitted.
+    assert.doesNotMatch(allowed, /PowerShell\(node "?[A-Za-z]:\\/, 'no backslash forms: they never match');
     fs.appendFileSync(path.join(project, '.claude', 'agents', 'forge-sre.md'), 'tampered\n');
     fs.writeFileSync(path.join(project, '.claude', 'skills', 'forge', 'leftover.md'), 'x');
     const bad = verifyTarget(t);

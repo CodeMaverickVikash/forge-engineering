@@ -27,7 +27,7 @@ One call does the whole cycle:
 
 More options:
 - `--units a,b`: an implementer validates only its own apps.
-- `--baseline --units a,b`: before editing on M/L tasks, so regressions can be told apart from failures that were already there. Let it finish before any implementer starts.
+- `--baseline --units a,b`: before editing, only when red checks are expected (knowledge.md lists failing checks, or the task fixes one), so regressions can be told apart from failures that were already there. Let it finish before any implementer starts. Without a baseline, a failure confined to files the change never touched may be marked `PRE-EXISTING` with that as the reason.
 - **Related tests, scaled to risk.** A unit with its own changed files whose test script is a plain vitest or jest call runs only the related tests (`--changed` / `--changedSince`, which the runner traces through the module graph). That opens the pre-browser gate and, for a low-risk change, the final gate. A unit that changed auth, payment or schema files needs one full-suite pass before `final`. Consumers of a changed package, root config changes and other runners always run the full suite.
 - `--full` (old name `--build`): once, after the last fix. It runs the full suites the final gate still requires (auth, payment, schema), and nothing otherwise.
 - `--all`: when project policy or a broad change requires a full re-run of the checks.

@@ -697,7 +697,9 @@ export function evidence(root, task, { init = false } = {}) {
   const label = (f) => (f.startsWith(relRoot + '/') ? f.slice(relRoot.length + 1) : f.startsWith(vRoot + '/') ? f.slice(vRoot.length + 1) : f);
   const unindexed = files.filter((f) => !f.startsWith(`${relRoot}/reports/validation/`) && !citedFiles.has(f)).map(label);
   const link = (f) => `[${label(f)}](${encodeURI(f)})`;
-  const screenshots = files.filter((f) => IMAGE_RE.test(f) && /(^|\/)screenshots\//.test(f));
+  // Any image the browser pass saved counts, wherever it landed: a measured run lost two minutes and five
+  // permission prompts moving correct screenshots from .playwright-mcp/<slug>/ into screenshots/after/.
+  const screenshots = files.filter((f) => IMAGE_RE.test(f) && !/(^|\/)traces\//.test(f));
   return { dir: relRoot, visualDir: vRoot, absolute: dir, files: files.map(label), links: files.map(link), missing, unindexed, screenshots, screenshotsAbsolute: screenshots.map((f) => path.join(root, f)), index, budget: shotBudget(screenshots), visual: visualResults(root, screenshots, index) };
 }
 
@@ -723,7 +725,8 @@ export function visualResults(root, screenshots, index = '') {
   }).map((r, i) => ({ ...r, i })).sort((a, b) => a.rank - b.rank || a.i - b.i);
   const rows = ranked.slice(0, MAX_VISUAL_ROWS).map((r) => r.row);
   if (ranked.length > MAX_VISUAL_ROWS) {
-    const folder = screenshots[0].slice(0, screenshots[0].indexOf('/screenshots/') + '/screenshots/'.length);
+    const at = screenshots[0].indexOf('/screenshots/');
+    const folder = at >= 0 ? screenshots[0].slice(0, at + '/screenshots/'.length) : path.posix.dirname(screenshots[0]) + '/';
     rows.push(`| ${ranked.slice(MAX_VISUAL_ROWS).reduce((n, r) => n + r.files, 0)} more screenshot(s) | [Open the folder](${encodeURI(folder)}) |`);
   }
   return ['### Visual Results', '', '| What it shows | Screenshot |', '|---|---|', ...rows].join('\n');

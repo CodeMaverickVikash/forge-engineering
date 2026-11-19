@@ -21,6 +21,8 @@ MODEL:       (only when escalated) strong tier: <trigger from Model escalation b
 RETURN: Specialist Report (format below), max ~400 words
 ```
 
+Write `<FORGE_HOME>` out as the absolute path with forward slashes, exactly as you run `V` yourself. A measured browser pass guessed the path six ways (`~`, `$HOME`, `/c/…`, backslashes) and every guess hit a permission prompt.
+
 Implementers validate through the runner because it records every result. When their checks already passed for the final code, the validation wave reuses them instead of running them again. Never send a browser QA or device work order while the gate is CLOSED or BLOCKED. The one exception is a short pass before any edit: reproducing a bug, or capturing the before screenshots of a visual fix or UI improvement.
 
 ## Check budget (no repeated suites)
@@ -36,7 +38,7 @@ A measured run spent about 32 minutes of check time on one change: a baseline th
 - **A build that rewrites a tracked file** (a sitemap's lastmod) is reported as a build side effect and does not stale other checks. Restore the file only if it should not ship.
 - **One `V run` per task at a time.** The runner holds a lock: a second run waits for the first, then runs only what is still needed. A run in the background prints a stderr line per finished check; read those, and never start a run to find out whether one is alive.
 - **No edits of your own once the gate is OPEN**, not even a comment reflow. In a measured run, one comment edit made 8 checks stale (the 140 s API suite among them) and stopped browser QA at its gate check. Put the edit in the next fix wave, or leave it for the report.
-- **Baseline (M/L) runs to completion before the implementation wave starts**, in the foreground. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
+- **A baseline only when red checks are expected** (knowledge.md lists failing checks, or the task fixes one). It runs to completion before the implementation wave starts, in the foreground. A baseline that overlaps edits is unreliable: the runner warns, and you must not use it to mark PRE-EXISTING.
 
 ## Browser QA scope
 

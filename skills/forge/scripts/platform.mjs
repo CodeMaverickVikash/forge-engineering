@@ -81,8 +81,9 @@ export function preApprovalProblems(pre) {
  */
 export function allowedTools(p) {
   const pre = p.preApproved;
-  const win = (c) => (/^node "?\$\{CLAUDE_PLUGIN_ROOT\}\//.test(c) ? [`PowerShell(${c.replace(/\//g, '\\')})`] : []);
-  return [...(pre.read ?? []).map((r) => `Read(${r})`), ...pre.commands.flatMap((c) => [`Bash(${c})`, `PowerShell(${c})`, ...win(c)]), ...(pre.mcp ?? [])].join(', ');
+  // No backslash forms: probes on Claude Code showed no rule (single, doubled or quoted backslashes) ever
+  // matches a PowerShell command with a backslash path, so FORGE runs its scripts with forward slashes.
+  return [...(pre.read ?? []).map((r) => `Read(${r})`), ...pre.commands.flatMap((c) => [`Bash(${c})`, `PowerShell(${c})`]), ...(pre.mcp ?? [])].join(', ');
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));

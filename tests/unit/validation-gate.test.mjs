@@ -310,6 +310,18 @@ test('evidence lists real files as links and flags an index that cites a missing
   } finally { clean(dir); }
 });
 
+test('a screenshot saved anywhere in the task folder counts, so nothing has to be moved before final', () => {
+  // A measured run spent two minutes and five permission prompts moving screenshots into screenshots/after/.
+  const dir = monorepo();
+  try {
+    w(dir, '.playwright-mcp/t/j1-auto-picked-1440.png', 'png');
+    w(dir, '.playwright-mcp/t/traces/trace.png', 'png');
+    const ev = evidence(dir, 't');
+    assert.deepEqual(ev.screenshots, ['.playwright-mcp/t/j1-auto-picked-1440.png'], 'traces are not screenshots');
+    assert.match(ev.visual, /\[View j1 auto picked 1440\]\(\.playwright-mcp\/t\/j1-auto-picked-1440\.png\)/);
+  } finally { clean(dir); }
+});
+
 test('one run call validates and answers the gate; final checks everything phase 9 needs in one call', async () => {
   const dir = monorepo();
   try {

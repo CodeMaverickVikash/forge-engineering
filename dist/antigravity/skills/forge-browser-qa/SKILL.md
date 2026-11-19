@@ -11,7 +11,7 @@ disable-slash-command: true
 
 ## 0. Preconditions: the pre-browser gate
 
-You verify only code whose static checks and tests passed. **Your first command, every pass, retests included:** `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>` (`<FORGE_HOME>` = the sibling `forge` skill). It takes about a second, and it catches a work order sent before the checks ran. Exit 0 means OPEN. On anything else, return `STATUS: blocked` with its output and open no browser. The exception is a pass before any edit: bug reproduction, or the before screenshots of a visual fix or UI improvement.
+You verify only code whose static checks and tests passed. **Your first command, every pass, retests included:** `node "<FORGE_HOME>/scripts/validation-gate.mjs" gate --task <slug>`, exactly as the work order's GATE line writes it (`<FORGE_HOME>` = the sibling `forge` skill, as an absolute path with forward slashes; `~`, `$HOME`, `/c/…` and backslash forms hit a permission prompt). Run every command from the project root, as one plain command per call. Save screenshots straight to `.playwright-mcp/<slug>/screenshots/after/<name>.png` (the screenshot tool creates the folder), never move them afterwards. It takes about a second, and it catches a work order sent before the checks ran. Exit 0 means OPEN. On anything else, return `STATUS: blocked` with its output and open no browser. The exception is a pass before any edit: bug reproduction, or the before screenshots of a visual fix or UI improvement.
 
 Native apps (React Native, Expo, Flutter, Android, iOS) are verified on an emulator, simulator or device ([references/device-verification.md](references/device-verification.md)); browser tools cover only what really runs in a browser.
 

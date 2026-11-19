@@ -124,9 +124,38 @@ const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'npx', 'pnpx', '
 const DEPENDENCY_VERBS = new Set(['add', 'install', 'i', 'ci', 'remove', 'rm', 'uninstall', 'un', 'update', 'up', 'upgrade', 'publish', 'unpublish', 'link', 'unlink', 'require', 'get', 'deprecate', 'dist-tag', 'owner']);
 const DEPLOY_TOOLS = { eas: ['build', 'submit', 'update'], vercel: ['*'], netlify: ['deploy'], firebase: ['deploy'], wrangler: ['deploy', 'publish'], terraform: ['apply', 'destroy', 'import'], pulumi: ['up', 'destroy'], kubectl: ['apply', 'delete', 'create', 'replace', 'patch', 'rollout', 'scale'], helm: ['install', 'upgrade', 'uninstall', 'rollback'], fastlane: ['*'], fly: ['deploy'], flyctl: ['deploy'], heroku: ['*'], serverless: ['deploy'], sls: ['deploy'], docker: ['push'] };
 
+// Package-manager options that take a value, so `pnpm --filter web test` reads its subcommand as `test`.
+const PM_VALUE_FLAGS = new Set(['--filter', '-F', '-C', '--dir', '--prefix', '--workspace', '-w', '--cwd', '-p', '--package', '--project']);
+function subcommand(args) {
+  for (let i = 0; i < args.length; i++) {
+    if (PM_VALUE_FLAGS.has(args[i])) { i++; continue; }
+    if (!args[i].startsWith('-')) return [args[i].toLowerCase(), args.slice(i + 1)];
+  }
+  return [null, []];
+}
+
+// curl options whose value is not a URL (skipped), and options that send the request somewhere else (always ask).
+const CURL_VALUE_FLAGS = new Set(['-o', '--output', '-w', '--write-out', '-H', '--header', '-X', '--request', '-m', '--max-time', '--connect-timeout', '--retry', '-A', '--user-agent', '-d', '--data', '--data-raw', '--data-binary', '--data-urlencode', '-F', '--form', '-b', '--cookie', '-c', '--cookie-jar', '-e', '--referer', '-u', '--user']);
+const CURL_REDIRECT_FLAGS = /^(-x|--proxy|-K|--config|--connect-to|--resolve)$/;
+const LOCAL_HOST = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|0\.0\.0\.0)$/i;
+const isLocalUrl = (u) => LOCAL_HOST.test((String(u).match(/^(?:[a-z][\w+.-]*:\/\/)?(?:[^@/\s]*@)?(\[[^\]]*\]|[^/:?#\s]+)/i) || [])[1] ?? '');
+/** True when a curl call reaches anything but this machine: FORGE pre-approves curl only for local servers. */
+function remoteCurl(args) {
+  for (let i = 0; i < args.length; i++) {
+    const x = args[i];
+    if (CURL_REDIRECT_FLAGS.test(x)) return true;
+    if (x === '--url') { if (!isLocalUrl(args[++i])) return true; continue; }
+    if (CURL_VALUE_FLAGS.has(x)) { i++; continue; }
+    if (!x.startsWith('-') && !isLocalUrl(x)) return true;
+  }
+  return false;
+}
+
 /**
  * A command that needs the user's say-so even inside FORGE's pre-approved workflow: dependency changes,
- * publishing, deployments. Returns a short description, or null.
+ * publishing, deployments, and curl to anything but a local server (a rule's `*` matches spaces, so
+ * `curl * http://localhost:*` alone would also match a call that adds a remote URL). Returns a short
+ * description, or null.
  */
 export function askOperation(command, depth = 0) {
   if (typeof command !== 'string' || depth > 3) return null;
@@ -136,7 +165,14 @@ export function askOperation(command, depth = 0) {
     if (!t.length) continue;
     const head = base(t[0]);
     const words = t.slice(1).filter((x) => !x.startsWith('-')).map((x) => x.toLowerCase());
-    if (PACKAGE_MANAGERS.has(head)) { const v = words.find((w) => DEPENDENCY_VERBS.has(w)); if (v) return `${head} ${v}`; }
+    if (head === 'curl' && remoteCurl(t.slice(1))) return 'curl to a remote host';
+    if (PACKAGE_MANAGERS.has(head)) {
+      const [sub, rest] = subcommand(t.slice(1));
+      if (DEPENDENCY_VERBS.has(sub)) return `${head} ${sub}`;
+      if (sub === 'dlx') return `${head} dlx`;
+      // `pnpm exec npm install x` is still an install.
+      if (sub === 'exec' || sub === 'x') { const v = askOperation(rest.join(' '), depth + 1); if (v) return v; }
+    }
     if (DEPLOY_TOOLS[head]) { const any = DEPLOY_TOOLS[head].includes('*'); const v = any ? words[0] : words.find((w) => DEPLOY_TOOLS[head].includes(w)); if (any || v) return v ? `${head} ${v}` : head; }
     if (SHELLS.has(head) || head === 'eval') {
       const k = t.findIndex((x, n) => n > 0 && /^(-c|-command|\/c|\/k)$/i.test(x));
@@ -267,7 +303,7 @@ export function decide(event, scope, skill = 'forge') {
   if (!op) {
     const ask = askOperation(event.tool_input?.command);
     if (!ask || !shouldEnforce(scope, event, skill)) return { block: false };
-    return { block: false, ask: true, op: ask, reason: `FORGE asks before \`${ask}\`: it changes dependencies, publishes or deploys, which FORGE never does without the user's approval.` };
+    return { block: false, ask: true, op: ask, reason: `FORGE asks before \`${ask}\`: it changes dependencies, publishes, deploys or reaches a remote host, which FORGE never does without the user's approval.` };
   }
   if (!shouldEnforce(scope, event, skill)) return { block: false, op };
   return {
@@ -288,8 +324,8 @@ if (isMain) {
   process.stdin.on('data', (d) => { raw += d; });
   process.stdin.on('end', () => {
     let event; try { event = JSON.parse(raw); } catch { process.exit(0); }
-    // Fast path: a shell command with nothing git-, hosting-, package- or deploy-like in it needs no further checks.
-    if (!EDIT_TOOLS.has(event?.tool_name) && !/\b(git|gh|glab|npm|pnpm|yarn|bun|npx|pnpx|bunx|pip3?|poetry|uv|cargo|go|composer|gem|bundle|dotnet|flutter|dart|eas|vercel|netlify|firebase|wrangler|terraform|pulumi|kubectl|helm|fastlane|fly|flyctl|heroku|serverless|sls|docker)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
+    // Fast path: a shell command with nothing git-, hosting-, package-, deploy- or curl-like in it needs no further checks.
+    if (!EDIT_TOOLS.has(event?.tool_name) && !/\b(git|gh|glab|curl|npm|pnpm|yarn|bun|npx|pnpx|bunx|pip3?|poetry|uv|cargo|go|composer|gem|bundle|dotnet|flutter|dart|eas|vercel|netlify|firebase|wrangler|terraform|pulumi|kubectl|helm|fastlane|fly|flyctl|heroku|serverless|sls|docker)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
     const d = decide(event, scope, skill);
     if (d.block) { process.stderr.write(d.reason + '\n'); process.exit(2); }
     // "ask" overrides any allow rule: the user sees a permission prompt (a headless run treats it as denied).

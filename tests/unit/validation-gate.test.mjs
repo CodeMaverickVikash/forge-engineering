@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { plan, run, gate, mark, evidence, visualResults, visualCheck, devtoolsCheck, shotBudget, affectedCommand, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
+import { plan, run, gate, mark, evidence, resumeTarget, visualResults, visualCheck, devtoolsCheck, shotBudget, affectedCommand, formatPlan, formatScope, formatGate, resolveCommand, taskBase } from '../../skills/forge/scripts/validation-gate.mjs';
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/validation-gate.mjs');
 const OK_JS = 'process.exit(0)\n';
@@ -319,6 +319,29 @@ test('a screenshot saved anywhere in the task folder counts, so nothing has to b
     const ev = evidence(dir, 't');
     assert.deepEqual(ev.screenshots, ['.playwright-mcp/t/j1-auto-picked-1440.png'], 'traces are not screenshots');
     assert.match(ev.visual, /\[View j1 auto picked 1440\]\(\.playwright-mcp\/t\/j1-auto-picked-1440\.png\)/);
+  } finally { clean(dir); }
+});
+
+test('resume finds the stopped task that owns the working tree, not the newest report', async () => {
+  // A measured re-run read a newer VERIFIED report whose code had been stashed, and started a new pass over
+  // a BLOCKED task's tree instead of finishing it.
+  const dir = monorepo();
+  try {
+    assert.equal(await resumeTarget(dir), null, 'a clean tree has nothing to resume');
+    w(dir, 'apps/web/page.js', 'export default 2;\n');
+    assert.equal(cli(dir, 'run', '--task', 'a').status, 0);
+    w(dir, '.forge/tasks/a/report.md', '**Completion status:** BLOCKED. The last fix was never checked.\n');
+    w(dir, 'apps/web/page.js', 'export default 3;\n');
+    assert.equal(cli(dir, 'run', '--task', 'b').status, 0);
+    w(dir, '.forge/tasks/b/report.md', '**Completion status:** VERIFIED\n');
+    w(dir, 'apps/web/page.js', 'export default 2;\n'); // b's code stashed, a's restored
+    const r = await resumeTarget(dir);
+    assert.equal(r.task, 'a'); assert.equal(r.resume, true); assert.deepEqual(r.matched, ['apps/web']);
+    assert.match(cli(dir, 'resume').stdout, /^RESUME a: its report says BLOCKED/);
+    w(dir, '.forge/tasks/a/report.md', '**Completion status:** VERIFIED WITH LIMITATIONS\n');
+    assert.equal((await resumeTarget(dir)).resume, false, 'a finished task is built on, not resumed');
+    w(dir, 'apps/web/page.js', 'export default 4;\n');
+    assert.match(cli(dir, 'resume').stdout, /^NEW TASK: no FORGE task owns/);
   } finally { clean(dir); }
 });
 

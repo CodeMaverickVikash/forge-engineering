@@ -36,6 +36,9 @@
 //       Pre-browser completion gate (compact: only rows that need attention; --verbose lists all). Exit 0 = OPEN (every required check passed for the code as it is now),
 //       1 = CLOSED (a check failed, is missing, or went stale because its files changed since it passed),
 //       2 = BLOCKED (only environment blockers remain).
+//   node validation-gate.mjs resume [--json]
+//       Which FORGE task owns the working tree's changes, and whether to resume it (its report is missing or
+//       says BLOCKED, FAILED or NOT READY) or start a new task. The orchestrator's first command.
 //   node validation-gate.mjs ports --ports 3000,5173 [--wait <seconds>] [--host localhost] [--json]
 //       Which local ports accept connections (dev servers, API, database), in one call on any OS. --wait polls
 //       until all listen (exit 1 if one never does), instead of a shell loop with sleep.
@@ -386,6 +389,47 @@ function otherTaskPasses(root, task, head) {
     }
   }
   return out;
+}
+
+const STATUS_RE = /Completion status:?\**:?\s*\**\s*(VERIFIED WITH LIMITATIONS|VERIFIED|BLOCKED|FAILED|NOT READY)/i;
+
+/**
+ * Which task the working tree's changes belong to, so a run that stopped (a permission wall, an ended turn)
+ * is resumed where it stopped instead of restarted as a new task over the same code. A task owns the tree when
+ * an app's changed files are still byte for byte what one of its checks saw. A resume picks that task up when
+ * its report is missing or says BLOCKED, FAILED or NOT READY. Decided by the script, not by reading reports:
+ * a measured re-run read a newer VERIFIED report (whose code had been stashed) and started a new pass instead.
+ */
+export async function resumeTarget(root, { ctx = null } = {}) {
+  let tasks = [];
+  try { tasks = fs.readdirSync(path.join(root, '.forge', 'tasks')); } catch { return null; }
+  const p = await plan(root, { ctx });
+  if (!p.git) return null;
+  const changed = p.entries.filter((e) => e.files.length).map((e) => e.unit);
+  if (!changed.length) return null;
+  const fps = fingerprints(root, p);
+  const cands = [];
+  for (const t of tasks) {
+    const recs = readLedger(root, t).filter((r) => r.fingerprint && r.cycle !== 'baseline');
+    const matched = changed.filter((u) => recs.some((r) => r.unit === u && r.fingerprint === fps[u]));
+    if (!matched.length) continue;
+    const report = readText(path.join(root, '.forge', 'tasks', t, 'report.md'));
+    const status = report ? (report.match(STATUS_RE)?.[1].toUpperCase() ?? 'UNKNOWN') : 'NO REPORT';
+    cands.push({ task: t, status, matched, changed, last: recs.at(-1)?.at ?? '' });
+  }
+  cands.sort((a, b) => b.matched.length - a.matched.length || String(b.last).localeCompare(String(a.last)));
+  const best = cands[0];
+  return best ? { ...best, resume: !best.status.startsWith('VERIFIED') } : null;
+}
+
+export function formatResume(r) {
+  if (!r) return 'NEW TASK: no FORGE task owns the current changes. Start at step 1.';
+  const why = `${r.matched.join(', ')} still hold${r.matched.length === 1 ? 's' : ''} exactly the code its checks saw`;
+  if (!r.resume) return `NEW TASK: the current changes are task ${r.task}'s (${r.status}; ${why}). Build on them as a new task.`;
+  return [
+    `RESUME ${r.task}: its report says ${r.status} and ${why}.`,
+    `Keep its slug, spec.md and plan.md; skip steps 1-6. Run \`run --task ${r.task}\` (it re-runs only what is stale or missing), then do only what its report.md lists as open (unverified fixes, browser retests), then \`final --task ${r.task}\`.`,
+  ].join('\n');
 }
 
 export function readLedger(root, task) {
@@ -924,6 +968,11 @@ async function main() {
     console.log(o.json ? JSON.stringify(st) : st.map((x) => `${x.port}: ${x.listening ? 'listening' : 'free'}`).join('\n'));
     // With --wait, a port that never came up is a failure the caller must see.
     process.exit(wait > 0 && !st.every((x) => x.listening) ? 1 : 0);
+  }
+  if (cmd === 'resume') {
+    const r = await resumeTarget(root);
+    console.log(o.json ? JSON.stringify(r) : formatResume(r));
+    process.exit(0);
   }
   if (!['plan', 'run', 'mark', 'gate', 'evidence', 'final'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
   if (cmd !== 'evidence' && !isGitRepo(root) && !o.units) {

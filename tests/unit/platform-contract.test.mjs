@@ -11,7 +11,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES, validateProfile, loadPlatform, strongTier, renderPlatformDoc, supports, preApprovalProblems, allowedTools } from '../../skills/forge/scripts/platform.mjs';
 import { escalation, formatEscalation } from '../../skills/forge/scripts/review-target.mjs';
-import { run, plan, formatReviewDecision, portStatus, urlStatus } from '../../skills/forge/scripts/validation-gate.mjs';
+import { run, plan, formatReviewDecision, portStatus, urlStatus, upperDrive } from '../../skills/forge/scripts/validation-gate.mjs';
+
+test('checks run from an upper-case drive path on Windows', () => {
+  // From `c:\…`, Vitest loaded React twice and 235 passing tests failed with an invalid hook call.
+  const p = 'c:\\Users\\x\\repo\\apps\\web';
+  assert.equal(upperDrive(p), process.platform === 'win32' ? 'C:\\Users\\x\\repo\\apps\\web' : p);
+  assert.equal(upperDrive('/home/x/repo'), '/home/x/repo');
+});
 import { build } from '../../scripts/build.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

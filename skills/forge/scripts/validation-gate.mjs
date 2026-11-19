@@ -15,9 +15,11 @@
 //       Tests: a unit with its own changed files whose test script is a plain vitest/jest call runs only the
 //       related tests (`--changed` / `--changedSince`, traced through the module graph), and `final` accepts
 //       that, except for a unit that changed auth, payment or schema files: --full (alias --build) runs its
-//       full suite once before `final`. Consumers of a changed package, root config changes and other runners
-//       always run in full. A unit whose own and upstream changes are only tests needs no browser or device
-//       verification.
+//       full suite once before `final`. A consumer of a changed package also runs its related tests first,
+//       which open the pre-browser gate, and owes one full pass before `final`. Without --units, that pass
+//       starts in the background (log: validation/background-full.log) so it overlaps browser QA; --serial
+//       runs it in the foreground instead. Root config changes and other runners always run in full. A unit
+//       whose own and upstream changes are only tests needs no browser or device verification.
 //       Up to --jobs checks run at once, longest first (by the task's recorded durations). A unit's package.json
 //       checks run side by side; other toolchains (Maven, Gradle, dotnet) keep type check → lint → tests; builds
 //       run last. Tests of units that share a database run one at a time; a shared package with prebuilt output
@@ -372,6 +374,13 @@ function fingerprints(root, p, task = null, { upstreamOnly = false } = {}) {
   return out;
 }
 
+/**
+ * A Windows path with an upper-case drive letter. Started from `c:\…` (a VS Code terminal's usual cwd), Vitest
+ * loaded React twice, once per drive-letter spelling, and a measured run saw 235 tests fail with "Cannot read
+ * properties of null (reading 'useEffect')". The same code passed from `C:\…`.
+ */
+export const upperDrive = (p) => (process.platform === 'win32' ? p.replace(/^([a-z]):/, (_, d) => `${d.toUpperCase()}:`) : p);
+
 const headOf = (root) => { const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
 
 /**
@@ -465,8 +474,9 @@ export async function gate(root, task, { ctx = null, p = null, final = false } =
         // A pass of the related tests (the runner traces them through the module graph) is enough, except
         // where the unit changed auth, payment or schema files: there the final gate needs the full suite.
         if (last.scope === 'affected' && state === 'PASSED') {
-          if (final && c.fullAtFinal) Object.assign(row, { state: 'MISSING', reason: 'auth, payment or schema changed: only the related tests ran', hint: 'run `run --task <slug> --full` for the full suite' });
-          else if (c.fullAtFinal) row.affected = true;
+          const why = last.proofPending ? "a package it uses changed, and its related tests can't trace that package's changes" : 'auth, payment or schema changed';
+          if (final && (c.fullAtFinal || last.proofPending)) Object.assign(row, { state: 'MISSING', reason: `${why}: only the related tests ran`, hint: 'run `run --task <slug> --full` for the full suite' });
+          else if (c.fullAtFinal || last.proofPending) row.affected = true;
           else row.reason = 'related tests (dependency-traced)';
         }
         if (state === 'FAILED' && all.some((r) => r.cycle === 'baseline' && r.unit === e.unit && r.check === c.key && r.status === 'FAILED')) row.hint = 'also failed on the baseline: if it is the same failure, mark it PRE-EXISTING';
@@ -589,7 +599,7 @@ function execCheck(root, task, unit, check, cycle, timeoutMin) {
     out.write(`$ ${command}\n# cwd: ${unit}\n\n`);
     let tail = ''; let timedOut = false; let done = false;
     const finish = (r) => { if (done) return; done = true; clearTimeout(timer); out.end(); resolve({ command, durationMs: Date.now() - t0, log: posix(path.relative(root, log)), tail, ...r }); };
-    const child = spawn(command, { cwd: path.join(root, unit), shell: true, windowsHide: true, detached: process.platform !== 'win32', env: { ...process.env, CI: process.env.CI || '1', FORCE_COLOR: '0', NO_COLOR: '1' } });
+    const child = spawn(command, { cwd: upperDrive(path.join(root, unit)), shell: true, windowsHide: true, detached: process.platform !== 'win32', env: { ...process.env, CI: process.env.CI || '1', FORCE_COLOR: '0', NO_COLOR: '1' } });
     const keep = (d) => { out.write(d); tail = (tail + d.toString()).slice(-20000); };
     child.stdout.on('data', keep); child.stderr.on('data', keep);
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMin * 60000);
@@ -609,7 +619,7 @@ export async function run(root, task, opts = {}) {
   try { return await runLocked(root, task, opts); } finally { release(); }
 }
 
-async function runLocked(root, task, { units = null, checks = null, all = false, baseline = false, full = false, build = false, base = null, jobs = 0, timeout = 15, ctx = null, onProgress = null } = {}) {
+async function runLocked(root, task, { units = null, checks = null, all = false, baseline = false, full = false, build = false, serial = false, base = null, jobs = 0, timeout = 15, ctx = null, onProgress = null } = {}) {
   const p = await plan(root, { units, ctx, base: taskBase(root, task, base) });
   // --build is the old name of --full, from when this pass also ran the production builds.
   const fullPass = full || build;
@@ -648,7 +658,11 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
     const timed = () => slot(async () => {
       const pre = c.column === 'build' ? nonCodeState(root) : null;
       // Fix cycles run only the tests related to the change; `--full` (before final) runs the full suite once.
-      const affectedRun = !!c.affected && !fullPass && !baseline && (!c.affectedNeedsProof || provenUpstream(e.unit, c.key));
+      // A consumer of a changed package also starts with its related tests, which open the pre-browser gate,
+      // and owes one full pass before final (`proofPending`). The CLI starts that pass in the background, so
+      // it overlaps browser QA instead of delaying it: 148 s of a measured 14.6-minute run sat in this spot.
+      const proofPending = !!c.affected && !!c.affectedNeedsProof && !provenUpstream(e.unit, c.key);
+      const affectedRun = !!c.affected && !fullPass && !baseline && (!proofPending || !serial);
       const r = await execCheck(root, task, e.unit, affectedRun ? { ...c, command: c.affected, source: '' } : c, cycle, timeout);
       // A test that times out while other suites load the machine is not a verdict yet: re-run it alone once the
       // batch ends. A measured cycle reported admin tests FAILED ("Test timed out in 5000ms"); alone they passed.
@@ -657,7 +671,7 @@ async function runLocked(root, task, { units = null, checks = null, all = false,
         onProgress?.(`  … ${e.unit}:${c.key} timed out under load; re-running it alone after the batch`);
         return;
       }
-      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: alone && r.status === 'PASSED' ? 'passed when re-run alone after timing out under load' : r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, head, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', ...(affectedRun && { scope: 'affected' }) };
+      const rec = { cycle, unit: e.unit, check: c.key, column: c.column, command: r.command, status: r.status, exitCode: r.exitCode, reason: alone && r.status === 'PASSED' ? 'passed when re-run alone after timing out under load' : r.reason, durationMs: r.durationMs, log: r.log, fingerprint: fps[e.unit] ?? null, head, ...(c.column === 'test' && { upstream: upFps[e.unit] ?? null }), source: 'runner', ...(affectedRun && { scope: 'affected', ...(proofPending && { proofPending: true }) }) };
       if (pre) {
         const wrote = Object.fromEntries([...nonCodeState(root)].filter(([f, h]) => pre.get(f) !== h && h !== 'deleted'));
         if (Object.keys(wrote).length) rec.wrote = wrote;
@@ -963,11 +977,24 @@ export async function waitForPorts(ports, { host = 'localhost', seconds = 60, in
   }
 }
 
+/**
+ * `run --full` as a detached process, so the full suites a consumer still owes run while browser QA works.
+ * It takes the task's run lock, so a later `run --full` waits for it and then re-runs nothing that passed.
+ */
+export function startFullInBackground(root, task) {
+  const log = path.join(path.dirname(ledgerFile(root, task)), 'background-full.log');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const fd = fs.openSync(log, 'w');
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'run', '--task', task, '--full', '--root', root], { cwd: os.tmpdir(), detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
+  child.unref(); fs.closeSync(fd);
+  return { pid: child.pid, log: posix(path.relative(root, log)) };
+}
+
 function parseArgs(argv) {
   const o = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--json', '--all', '--baseline', '--full', '--build', '--init', '--verbose'].includes(a)) o[a.slice(2)] = true;
+    if (['--json', '--all', '--baseline', '--full', '--build', '--init', '--verbose', '--serial'].includes(a)) o[a.slice(2)] = true;
     else if (a.startsWith('--')) o[a.slice(2)] = argv[++i];
     else o._.push(a);
   }
@@ -976,7 +1003,7 @@ function parseArgs(argv) {
 
 async function main() {
   const o = parseArgs(process.argv.slice(2));
-  const cmd = o._[0]; const root = path.resolve(o.root ?? '.');
+  const cmd = o._[0]; const root = upperDrive(path.resolve(o.root ?? '.'));
   const list = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : null);
   const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] | ports --ports 3000,5173 (--help lists every option)';
   if (cmd === 'ports') {
@@ -1042,7 +1069,7 @@ async function main() {
     const onWait = (held) => progress(`Waiting for the validation run already in progress for this task (pid ${held.pid}, started ${held.startedAt}). Afterwards only the checks still needed run.`);
     let r;
     try {
-      r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, full: o.full || o.build, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15, onProgress: progress, onWait });
+      r = await run(root, o.task, { units: list(o.units), checks: list(o.checks), all: o.all, baseline: o.baseline, full: o.full || o.build, serial: o.serial, base: o.base, jobs: Number(o.jobs) || 0, timeout: Number(o.timeout) || 15, onProgress: progress, onWait });
     } catch (e) {
       if (e.code !== 'BUSY') throw e;
       console.error(`BUSY: ${e.message}`); process.exit(3);
@@ -1052,7 +1079,10 @@ async function main() {
     const L = [formatScope(r.plan, { orchestrator: !o.units }), `Validation cycle ${r.cycle}: ran ${r.results.length} check(s)${r.skipped.length ? `, ${r.skipped.length} already passing for the current code (not re-run)` : ''}${r.reused.length ? `, ${r.reused.length} reused from another task on the same commit and files (${r.reused.map((x) => `${x.unit}:${x.check} ← ${x.reusedFrom}`).join(', ')})` : ''}.`];
     if (passed.length) L.push(`PASSED: ${passed.map((x) => `${x.unit}:${x.check} \`${x.command}\` ${(x.durationMs / 1000).toFixed(1)}s`).join(', ')}`);
     for (const x of r.results.filter((y) => y.status !== 'PASSED')) L.push('', `✗ ${x.unit}:${x.check} ${x.status} \`${x.command}\`${x.reason ? ` (${x.reason})` : ''}; full log: ${x.log}`, x.tail.trimEnd().split('\n').slice(-25).join('\n'));
-    if (r.deferred.length) L.push(`Related tests only so far: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --full\` once, right before \`final\`, for the full suites.`);
+    // With the gate open, the full suites still owed start now in the background and overlap browser QA.
+    const bg = r.deferred.length && !o.units && !r.final && !o.baseline && !o.serial && r.gate?.result === 'OPEN' ? startFullInBackground(root, o.task) : null;
+    if (bg) L.push(`Full suites for ${r.deferred.join(', ')} are now running in the background (pid ${bg.pid}, log ${bg.log}). Start browser QA now; don't wait for them. \`run --task ${o.task} --full\`, right before \`final\`, waits for them and re-runs nothing that passed.`);
+    else if (r.deferred.length) L.push(`Related tests only so far: ${r.deferred.join(', ')}. Run \`run --task ${o.task} --full\` once, right before \`final\`, for the full suites.`);
     if (r.sideEffects.length) {
       const files = [...new Set(r.sideEffects.map((x) => x.file))].join(' ');
       L.push('', `Build side effect: ${r.sideEffects.map((x) => `${x.check} rewrote ${x.file}`).join(', ')}. Not a code change, so no check went stale. If it should not ship: git checkout -- ${files}`);

@@ -578,14 +578,47 @@ test('with a changed upstream package, related tests run only after a full pass 
     w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
     w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
     assert.equal(check(await plan(dir), 'packages/lib', 'test').affectedNeedsProof, true);
+    const libTest = async (final) => (await gate(dir, 't', { final })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test');
     await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal(last(), 'run', "first the full suite: the lib's tests can't trace the package's changed sources");
+    assert.equal(last(), 'run --changed --passWithNoTests', 'the related tests first: they open the pre-browser gate quickly');
+    assert.equal((await libTest(false)).state, 'PASSED');
+    const owed = await libTest(true);
+    assert.equal(owed.state, 'MISSING', "but final needs a full pass: the lib's tests can't trace the package's changed sources");
+    assert.match(owed.reason, /a package it uses changed/);
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'], full: true });
+    assert.equal(last(), 'run', '--full runs the suite the final gate still needs');
+    assert.equal((await libTest(true)).state, 'PASSED');
     w(dir, 'packages/lib/src/a.js', 'export const a = 3;\n');
     await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal(last(), 'run --changed --passWithNoTests', 'then, with the package unchanged since that full pass, only the related tests');
+    assert.equal(last(), 'run --changed --passWithNoTests');
+    assert.equal((await libTest(true)).state, 'PASSED', 'with the package unchanged since that full pass, the related tests are final');
     w(dir, 'packages/ui/src/index.js', 'export const a = 4;\n');
     await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal(last(), 'run', 'a new package change needs the full suite again');
+    assert.equal((await libTest(true)).state, 'MISSING', 'a new package change owes a full pass again');
+    w(dir, 'packages/ui/src/index.js', 'export const a = 5;\n');
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'], serial: true });
+    assert.equal(last(), 'run', '--serial runs that full pass in the foreground instead');
+  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+});
+
+test('the full pass a consumer owes runs in the background while browser QA starts, and --full waits for it', async () => {
+  // A measured run held browser QA for a 148 s full web suite; now the gate opens on the related tests.
+  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', dependencies: { '@acme/ui': '*' }, scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
+  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
+  process.env.FAKE_VITEST_LOG = log;
+  try {
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    const r = cli(dir, 'run', '--task', 't');
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /Pre-browser gate: OPEN/);
+    assert.match(r.stdout, /Full suites for [^\n]*packages\/lib:test[^\n]* are now running in the background \(pid \d+/);
+    const fin = cli(dir, 'run', '--task', 't', '--full');
+    assert.equal(fin.status, 0, fin.stdout + fin.stderr);
+    assert.match(fin.stdout, /Final gate \(full test suites\): OPEN/);
+    assert.ok(fs.readFileSync(log, 'utf8').split('\n').includes('run'), 'the full suite ran once, in the background');
+    const serial = cli(dir, 'run', '--task', 't2', '--serial');
+    assert.doesNotMatch(serial.stdout, /in the background/, '--serial keeps everything in the foreground');
   } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
 });
 

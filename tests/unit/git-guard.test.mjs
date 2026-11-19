@@ -155,7 +155,9 @@ test('dependency changes, publishing and deploys ask the user, even when a wildc
     assert.equal(askOperation(cmd), op, cmd);
   }
   for (const cmd of ['pnpm test', 'pnpm --filter @a/web exec vitest run src/add.test.ts', 'pnpm --filter web exec vitest run update', 'go test ./...', 'dotnet test', 'git status', 'npm run dev', 'docker ps',
-    'curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health', 'curl -X POST -H "Content-Type: application/json" -d \'{"a":1}\' http://127.0.0.1:3000/x', 'curl http://[::1]:8080/']) {
+    'curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health', 'curl -X POST -H "Content-Type: application/json" -d \'{"a":1}\' http://127.0.0.1:3000/x', 'curl http://[::1]:8080/',
+    // The exact local register call a measured browser pass made: escaped quotes inside a JSON body.
+    'curl -s -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d "{\\"name\\":\\"Qa Tester\\",\\"email\\":\\"qa-auto4@truart.test\\",\\"password\\":\\"QaTest#12345\\"}"']) {
     assert.equal(askOperation(cmd), null, `${cmd} runs without asking`);
   }
   const d = decide({ tool_name: 'Bash', tool_input: { command: 'pnpm --filter x add evil test' } }, 'agent');

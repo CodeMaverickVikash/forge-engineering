@@ -4,7 +4,7 @@ description: FORGE browser QA. Verifies web changes in a real browser and native
 disallowedTools: Agent
 model: sonnet
 effort: medium
-maxTurns: 45
+maxTurns: 70
 color: cyan
 skills:
   - forge-browser-qa

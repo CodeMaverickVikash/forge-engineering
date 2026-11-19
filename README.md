@@ -79,11 +79,11 @@ FORGE runs each specialist on the model that fits its job. **Your main model** i
 
 | Agent | What it does | Max turns |
 |---|---|---|
+| `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. | 70 |
 | `forge-devops-engineer` | Docker, CI/CD, Kubernetes and IaC config; validates locally, never deploys. | 60 |
 | `forge-frontend-engineer` | Web UI in any framework, with states, a11y and XSS safety. | 60 |
 | `forge-mobile-engineer` | React Native/Expo, Flutter, Android and iOS features, with tests. | 60 |
 | `forge-test-automation-engineer` | Deterministic unit, integration, E2E and regression tests; flake triage. | 60 |
-| `forge-browser-qa` | Verifies web changes in a real browser and native apps on emulators, after checks pass. | 45 |
 | `forge-dx-engineer` | Removes setup and workflow friction (scripts, task runners, dev containers). | 40 |
 | `forge-manual-qa` | Runs the app, CLIs and endpoints locally to probe edge cases and reproduce bugs. | 40 |
 | `forge-product-researcher` | Competitor and market research with cited sources. | 40 |

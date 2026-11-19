@@ -139,6 +139,9 @@ const CURL_VALUE_FLAGS = new Set(['-o', '--output', '-w', '--write-out', '-H', '
 const CURL_REDIRECT_FLAGS = /^(-x|--proxy|-K|--config|--connect-to|--resolve)$/;
 const LOCAL_HOST = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|0\.0\.0\.0)$/i;
 const isLocalUrl = (u) => LOCAL_HOST.test((String(u).match(/^(?:[a-z][\w+.-]*:\/\/)?(?:[^@/\s]*@)?(\[[^\]]*\]|[^/:?#\s]+)/i) || [])[1] ?? '');
+// What curl would take as a URL: a scheme, or a bare host (`example.com`, `api:8080/x`). Fragments of a quoted
+// JSON body that the tokenizer split apart (`Tester\",\"email`) are not, and a measured run was wrongly asked.
+const URL_LIKE = /^([a-z][\w+.-]*:\/\/\S+|\[[0-9a-f:]+\](:\d+)?(\/\S*)?|[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?|[\w-]+:\d+(\/\S*)?)$/i;
 /** True when a curl call reaches anything but this machine: FORGE pre-approves curl only for local servers. */
 function remoteCurl(args) {
   for (let i = 0; i < args.length; i++) {
@@ -146,7 +149,7 @@ function remoteCurl(args) {
     if (CURL_REDIRECT_FLAGS.test(x)) return true;
     if (x === '--url') { if (!isLocalUrl(args[++i])) return true; continue; }
     if (CURL_VALUE_FLAGS.has(x)) { i++; continue; }
-    if (!x.startsWith('-') && !isLocalUrl(x)) return true;
+    if (!x.startsWith('-') && URL_LIKE.test(x) && !isLocalUrl(x)) return true;
   }
   return false;
 }

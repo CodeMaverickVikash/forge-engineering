@@ -46,13 +46,14 @@ The first browser pass in the measured run hit its 45-turn cap. It had 6 journey
 - **Before screenshots** (visual fixes and UI improvements only): the reproduction pass, before any edit, captures at most 3 screenshots into `screenshots/before/`: the screens the change touches. Write "at most 3 screenshots" in the work order; "3 journeys" produced 17 shots in a measured run. New features have no before.
 - **At most 4 journeys per pass, at one viewport.** Add a second viewport only for layout assertions (one `evaluate` per page). Rank journeys by risk. Put the rest in a second pass, or list them as NOT RUN with the reason.
 - **Give it the session:** check the servers once with `V ports --ports <app,api,db>` (never netstat or `Get-NetTCPConnection` loops), then pass the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
-- **Same verifier for retests** (platform.md `continueSubagent`), with only the delta. Never relaunch a full pass after a fix.
+- **Retests carry only the delta**, through the same verifier where platform.md `continueSubagent` is supported, otherwise a fresh foreground one. Never relaunch a full pass after a fix.
 
 ## Delta retests
 
 Re-verifying the whole change after every fix was the biggest cost in measured runs: three full browser passes and three full reviews for one feature. So a retest covers only what changed:
 - **Snapshot before every verification wave:** `node "<FORGE_HOME>/scripts/verify-delta.mjs" snapshot --task <slug>`. After the fix, `verify-delta.mjs delta --task <slug>` prints the fix delta.
-- **Continue the same verifier** when the host can (platform.md `continueSubagent`). It still holds its findings and the code in cached context. Launch a fresh agent only when continuation fails.
+- **Continue the same verifier** only where platform.md `continueSubagent` is supported; it still holds its findings and the code in cached context. Otherwise follow its fallback: a fresh **foreground** verifier with the previous report and only the delta.
+- **A verifier that returns partial** (turn cap reached) is never resumed in the background. Launch a fresh foreground one with only the journeys still open and `evidence/qa-session.md`.
 - **Reviewer:** confirms each previous finding against the delta and reviews only the delta lines.
 - **Browser QA:** re-runs only the failed journeys plus the one adjacent journey most at risk, at one viewport. It covers more viewports only when the delta touches layout or CSS.
 - **Automated checks:** `validation-gate.mjs run --task <slug>` re-runs exactly what the fix made stale or what failed, and nothing that still passes. Start it only after every owner of the fix wave has returned. It must exit 0 (gate OPEN) **before** the browser retest.
@@ -94,7 +95,7 @@ GATE: (browser QA) pre-browser gate OPEN again at cycle <n> after the fix
 RETURN: Specialist Report; list each previous finding as resolved | still open | regressed
 ```
 
-Before you send it, take a new snapshot (`verify-delta.mjs snapshot --task <slug>`), so the next round's delta starts from what this round saw. Where the host supports it (platform.md `continueSubagent`), send the retest to the **same** verifier. It already holds the context, so it needs only the delta.
+Before you send it, take a new snapshot (`verify-delta.mjs snapshot --task <slug>`), so the next round's delta starts from what this round saw. Where platform.md `continueSubagent` is supported, send the retest to the **same** verifier, which already holds the context. Otherwise use its fallback, always in the foreground.
 
 ## Specialist report (what they return)
 

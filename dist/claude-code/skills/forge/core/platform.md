@@ -16,7 +16,7 @@ For an `unsupported` one, use the fallback. Try an `unverified` one once, and if
 | subagents | supported | `Agent` tool with `subagent_type: forge-<role>` (a plugin install namespaces it: `forge:forge-<role>`) |
 | parallelSubagents | supported | several `Agent` calls in one message |
 | foregroundWait | supported | pass `run_in_background: false` on every `Agent` call (left unset, Claude Code may start it in the background and the turn ends early); several such calls in one message still run in parallel. `Bash` and `PowerShell` without `run_in_background` block until done (`timeout` up to 600000 ms) |
-| continueSubagent | supported | `SendMessage` to the agent's ID (load it with `ToolSearch` first if it is listed only by name) |
+| continueSubagent | unsupported | Fallback: launch a new foreground `Agent` (`run_in_background: false`) with the previous report's path, `evidence/qa-session.md` and only the delta or the remaining journeys. Never `SendMessage`: it resumes the agent in the background, the /forge turn ends, and every later command needs approval (measured: the run ended BLOCKED) |
 | perCallModel | supported | `model: "opus"` or `"sonnet"` on the `Agent` call; the agent file stays unchanged |
 | toolRestriction | supported | `tools` / `disallowedTools` in agent frontmatter (read-only roles cannot edit) |
 | gitGuardHook | supported | `PreToolUse` hook running `scripts/git-guard.mjs` on FORGE agents and the /forge skill |

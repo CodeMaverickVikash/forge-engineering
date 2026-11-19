@@ -122,7 +122,7 @@ How to read these numbers:
 - Each figure is a single run, and model nondeterminism changes the team and the number of fix rounds, so treat them as indicative.
 - Agents launch asynchronously, so measure concurrency by grouping `Agent` launches on the same assistant `message.id`, not by counting stream events.
 - `new-feature` round 2 used `verify-delta` snapshot → delta → eol, and the retest work orders were marked RETEST.
-- Continuing the same verifier through `SendMessage` was **not** exercised. The runner passes `--no-session-persistence`, so subagents cannot be resumed, and FORGE correctly fell back to fresh delta retests. Pass `--persist-sessions` to test the continuation path.
+- Continuing the same verifier through `SendMessage` was **not** exercised. The runner passes `--no-session-persistence`, so subagents cannot be resumed, and FORGE correctly fell back to fresh delta retests. A later live run on a real project did exercise it: `SendMessage` resumed browser QA in the background, the `/forge` turn ended, every later command needed approval, and the task ended BLOCKED. The Claude Code profile now marks `continueSubagent` unsupported, and retests use a fresh foreground verifier.
 - One intermediate `architecture-analysis` run failed because the orchestrator analyzed a ~40-line scaffold alone. SKILL.md now requires specialists for analysis too, scaled to codebase size. The re-run above passed.
 
 ## Antigravity manual verification

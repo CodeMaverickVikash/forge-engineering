@@ -45,7 +45,7 @@ A measured run spent about 32 minutes of check time on one change: a baseline th
 The first browser pass in the measured run hit its 45-turn cap. It had 6 journeys across 2 viewports, 3 model types and 4 modes, plus account setup. Size every browser work order to fit:
 - **Before screenshots** (visual fixes and UI improvements only): the reproduction pass, before any edit, captures at most 3 screenshots into `screenshots/before/`: the screens the change touches. Write "at most 3 screenshots" in the work order; "3 journeys" produced 17 shots in a measured run. New features have no before.
 - **At most 4 journeys per pass, at one viewport.** Add a second viewport only for layout assertions (one `evaluate` per page). Rank journeys by risk. Put the rest in a second pass, or list them as NOT RUN with the reason.
-- **Give it the session:** check the servers once with `V ports --ports <app,api,db>` (never netstat or `Get-NetTCPConnection` loops), then pass the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
+- **Give it the session:** check the servers once with `V ports --ports <app,api,db> --urls <app URL,API health URL>` (never netstat, `Get-NetTCPConnection` loops or `curl` probes), then pass the running app URL and, when a previous pass recorded one, `evidence/qa-session.md` (throwaway local test account, servers started). A retest reuses them instead of registering a new user.
 - **Retests carry only the delta**, through the same verifier where platform.md `continueSubagent` is supported, otherwise a fresh foreground one. Never relaunch a full pass after a fix.
 
 ## Delta retests

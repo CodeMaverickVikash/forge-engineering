@@ -25,7 +25,7 @@ If the line above still shows a literal `$ARGUMENTS` placeholder, the request is
 5. Never expose secrets, tokens or cookies, or read `.env` values into reports.
 6. Ask the user only when [the clarification policy](core/lifecycle.md#clarification-policy) requires it; otherwise record the assumption and continue.
 7. For implementation tasks, don't stop after planning: finish, verify and report.
-8. Follow the host's permission model; never bypass it. Run commands from the project root as plain commands (`git log`, `pnpm --filter <pkg> …`), one per call: never `git -C <path>`, shell loops, `$VAR` or `node -e` edits (use Read/Grep/Edit), and check servers with `V ports --ports <a,b>`, not `curl -o /dev/null` probes: the pre-approved workflow (platform.md `preApprovedScripts`) matches the plain form. Full policy: [core/safety.md](core/safety.md).
+8. Follow the host's permission model; never bypass it. Run commands from the project root as plain commands (`git log`, `pnpm --filter <pkg> …`), one per call: never `git -C <path>`, shell loops, `$VAR` or `node -e` edits (use Read/Grep/Edit), and check servers with `V ports --ports <a,b> --urls <local page,health URL>` (listening + HTTP status in one call), never `curl` probes: the pre-approved workflow (platform.md `preApprovedScripts`) matches the plain form. Full policy: [core/safety.md](core/safety.md).
 9. **Stay in this turn until the final answer.** Wait for every agent and every `V` command in the foreground (platform.md `foregroundWait`); never end the turn with work pending or "I'll report back". A later turn loses this skill's pre-approvals: in a measured run every gate re-run after that point was denied and the task ended BLOCKED.
 
 ## Operating mode (decide once)

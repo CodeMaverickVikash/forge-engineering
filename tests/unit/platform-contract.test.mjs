@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES, validateProfile, loadPlatform, strongTier, renderPlatformDoc, supports, preApprovalProblems, allowedTools } from '../../skills/forge/scripts/platform.mjs';
 import { escalation, formatEscalation } from '../../skills/forge/scripts/review-target.mjs';
-import { run, plan, formatReviewDecision, portStatus } from '../../skills/forge/scripts/validation-gate.mjs';
+import { run, plan, formatReviewDecision, portStatus, urlStatus } from '../../skills/forge/scripts/validation-gate.mjs';
 import { build } from '../../scripts/build.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -169,6 +170,20 @@ test('ports reports listening and free ports in one call', async () => {
   } finally { await new Promise((r) => srv.close(r)); }
   const [closed] = await portStatus([port], '127.0.0.1');
   assert.equal(closed.listening, false);
+});
+
+test('ports --urls gives local HTTP status in the same call, and never reaches the network', async () => {
+  // Measured runs probed servers with `curl -o /dev/null -w "%{http_code}"`, a permission prompt every time.
+  const srv = http.createServer((req, res) => { res.statusCode = req.url === '/health' ? 200 : 404; res.end(); }).listen(0, '127.0.0.1');
+  await new Promise((r) => srv.once('listening', r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const [ok, missing, remote] = await urlStatus([`${base}/health`, `${base}/nope`, 'https://example.com/']);
+    assert.equal(ok.status, 200);
+    assert.equal(missing.status, 404);
+    assert.equal(remote.status, null);
+    assert.match(remote.error, /only http\(s\) URLs on this machine/);
+  } finally { await new Promise((r) => srv.close(r)); }
 });
 
 test('the escalation line in a validation plan comes from the host profile', async () => {

@@ -39,7 +39,8 @@
 //   node validation-gate.mjs resume [--json]
 //       Which FORGE task owns the working tree's changes, and whether to resume it (its report is missing or
 //       says BLOCKED, FAILED or NOT READY) or start a new task. The orchestrator's first command.
-//   node validation-gate.mjs ports --ports 3000,5173 [--wait <seconds>] [--host localhost] [--json]
+//   node validation-gate.mjs ports --ports 3000,5173 [--urls http://localhost:3000/api/health,...] [--wait <seconds>] [--host localhost] [--json]
+//       --urls adds each local URL's HTTP status (local hosts only), instead of curl probes.
 //       Which local ports accept connections (dev servers, API, database), in one call on any OS. --wait polls
 //       until all listen (exit 1 if one never does), instead of a shell loop with sleep.
 //   node validation-gate.mjs evidence --task <slug> [--init] [--json]
@@ -935,6 +936,23 @@ export function portStatus(ports, host = 'localhost', timeoutMs = 800) {
   return Promise.all(ports.map(probe));
 }
 
+/**
+ * The HTTP status of local URLs (an app's page, an API health route). Measured runs probed them with
+ * `curl -s -o /dev/null -w "%{http_code}"`, which hit a permission prompt every time. Local hosts only:
+ * this is a dev-server check, never a way to reach the network.
+ */
+export async function urlStatus(urls, timeoutMs = 5000) {
+  const LOCAL = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|0\.0\.0\.0)$/i;
+  return Promise.all(urls.map(async (url) => {
+    let u; try { u = new URL(url); } catch { return { url, status: null, error: 'not a URL' }; }
+    if (!/^https?:$/.test(u.protocol) || !LOCAL.test(u.hostname)) return { url, status: null, error: 'only http(s) URLs on this machine are checked' };
+    try {
+      const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+      return { url, status: r.status };
+    } catch (e) { return { url, status: null, error: e?.cause?.code || e?.name || 'unreachable' }; }
+  }));
+}
+
 /** Wait until every port listens or the time runs out, so nobody polls with a shell loop and sleep. */
 export async function waitForPorts(ports, { host = 'localhost', seconds = 60, intervalMs = 1000 } = {}) {
   const until = Date.now() + seconds * 1000;
@@ -963,12 +981,17 @@ async function main() {
   const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] | ports --ports 3000,5173 (--help lists every option)';
   if (cmd === 'ports') {
     const ports = (o.ports || '').split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0 && n < 65536);
-    if (!ports.length) { console.error('usage: validation-gate.mjs ports --ports 3000,5173 [--wait <seconds>] [--host localhost] [--json]'); process.exit(2); }
+    const urls = (o.urls || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (!ports.length && !urls.length) { console.error('usage: validation-gate.mjs ports --ports 3000,5173 [--urls http://localhost:3000/health,...] [--wait <seconds>] [--host localhost] [--json]'); process.exit(2); }
     const wait = Number(o.wait) || 0;
-    const st = wait > 0 ? await waitForPorts(ports, { host: o.host || 'localhost', seconds: Math.min(wait, 540) }) : await portStatus(ports, o.host || 'localhost');
-    console.log(o.json ? JSON.stringify(st) : st.map((x) => `${x.port}: ${x.listening ? 'listening' : 'free'}`).join('\n'));
-    // With --wait, a port that never came up is a failure the caller must see.
-    process.exit(wait > 0 && !st.every((x) => x.listening) ? 1 : 0);
+    const st = !ports.length ? [] : wait > 0 ? await waitForPorts(ports, { host: o.host || 'localhost', seconds: Math.min(wait, 540) }) : await portStatus(ports, o.host || 'localhost');
+    const http = await urlStatus(urls);
+    console.log(o.json ? JSON.stringify(urls.length ? { ports: st, urls: http } : st) : [
+      ...st.map((x) => `${x.port}: ${x.listening ? 'listening' : 'free'}`),
+      ...http.map((x) => `${x.url}: ${x.status ?? `no response (${x.error})`}`),
+    ].join('\n'));
+    // With --wait, a port that never came up is a failure the caller must see; so is a URL with no response.
+    process.exit((wait > 0 && !st.every((x) => x.listening)) || http.some((x) => x.status === null) ? 1 : 0);
   }
   if (cmd === 'resume') {
     const r = await resumeTarget(root);

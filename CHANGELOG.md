@@ -42,6 +42,7 @@ All notable changes to FORGE are documented here. The format follows [Keep a Cha
   - Agents guessed the path to `validation-gate.mjs` six ways. Probes showed that no rule matches a PowerShell command with a backslash path, so those generated rules were dropped. Work orders now carry the exact forward-slash command.
   - The shared rules encouraged "chained commands"; they now ask for one plain command per call, from the project root.
   - `pnpm … build` and `prettier --write` are now pre-approved.
+- **Server checks without `curl`.** `V ports --urls <local URLs>` adds each URL's HTTP status to the listening check, in one call, for local hosts only. Runs 7 and 9 each spent a permission prompt on `curl -s -o /dev/null -w "%{http_code}"` probes.
 - **Evidence:** `final` counts a screenshot saved anywhere in `.playwright-mcp/<slug>/` (traces excepted). Run 6 spent two minutes and five refusals moving correct screenshots into `screenshots/after/`.
 - **Baseline only when red checks are expected.** Run 6's baseline re-ran every suite before any edit, which took 2.5 minutes and found everything green.
 - **Security: `curl` beyond localhost asks.** A rule's `*` matches spaces, so `curl * http://localhost:*` also matched a call that adds a remote URL. The guard hook now answers "ask" for any curl call with a non-local URL, proxy or config file. It also reads a package manager's subcommand after `--filter <pkg>`, so `pnpm --filter web exec vitest run update` no longer asks.

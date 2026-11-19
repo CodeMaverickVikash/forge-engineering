@@ -79,8 +79,8 @@ export const supports = (p, k) => capability(p, k).status === 'supported';
  */
 export function strongTier(p, roles) {
   const who = roles.join(', ');
-  if (!p) return `Launch ${who} on the strong model tier (core/platform.md names it).`;
-  if (!supports(p, 'perCallModel')) return `Launch ${who}; this host can't pick a model per delegation (${p.displayName}), so record the escalation as unavailable in the report.`;
+  if (!p) return `Launch ${who} on the strong model tier (core/platform.md names it)`;
+  if (!supports(p, 'perCallModel')) return `Launch ${who}; this host can't pick a model per delegation (${p.displayName}), so record the escalation as unavailable in the report`;
   return `Launch ${who} with model ${p.models.strong}`;
 }
 export const modelName = (p, tier) => (p ? p.models[tier] : NEUTRAL_MODELS[tier]);

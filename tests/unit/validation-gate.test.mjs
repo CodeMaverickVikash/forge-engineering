@@ -687,6 +687,11 @@ test('devtoolsCheck: a browser-visible change needs a DevTools record or a state
     w(dir, '.forge/tasks/t/evidence/index.md', '- DevTools unavailable: the Chrome DevTools MCP is not connected\n');
     assert.equal(devtoolsCheck(dir, 't', g, ev()), null, 'a stated reason is accepted (and the answer may not say browser-verified)');
     w(dir, '.forge/tasks/t/evidence/index.md', '');
+    w(dir, '.forge/tasks/t/reports/browser-qa-2.md', 'SUMMARY: Chrome DevTools MCP only.\n### Console / network\n- Console: no errors.\n');
+    assert.match(devtoolsCheck(dir, 't', g, ev()), /no DevTools console\/network record/, 'a report without the network record is not enough');
+    w(dir, '.forge/tasks/t/reports/browser-qa-2.md', 'SUMMARY: Chrome DevTools MCP only.\n### Console / network\n- Console: no errors.\n- Network: all 200/304.\n');
+    assert.equal(devtoolsCheck(dir, 't', g, ev()), null, "a parallel QA pass's own report with both records counts");
+    fs.rmSync(path.join(dir, '.forge/tasks/t/reports'), { recursive: true });
     w(dir, '.forge/tasks/t/evidence/devtools.md', '- /studio: no new console errors\n');
     assert.equal(devtoolsCheck(dir, 't', g, ev()), null);
     w(dir, 'apps/web/page.js', 'export default 1;\n');

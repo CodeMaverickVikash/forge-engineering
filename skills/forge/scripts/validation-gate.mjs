@@ -915,6 +915,11 @@ export function devtoolsCheck(root, task, g, ev) {
   if (!(g.next?.browser ?? []).length) return null;
   if (/^\s*[-*]?\s*(Visual evidence|DevTools( MCP)?) unavailable:\s*\S/im.test(ev.index)) return null;
   if (fs.existsSync(path.join(evidenceDir(root, task), 'devtools.md'))) return null;
+  // A browser QA report that records both, read with DevTools, counts too. Parallel QA passes each leave the
+  // shared evidence files to the orchestrator, and a measured run spent a minute copying that record over.
+  const reports = path.join(taskDir(root, task), 'reports');
+  let names = []; try { names = fs.readdirSync(reports).filter((f) => /browser|qa/i.test(f) && f.endsWith('.md')); } catch { /* none */ }
+  if (names.some((f) => { const t = readText(path.join(reports, f)); return /devtools/i.test(t) && /^[^#\n]*\bconsole\b[^\n]*:/im.test(t) && /^[^#\n]*\bnetwork\b[^\n]*:/im.test(t); })) return null;
   return 'no DevTools console/network record: read them with the Chrome DevTools MCP into evidence/devtools.md, or write "DevTools unavailable: <reason>" in evidence/index.md (then the web is not browser-verified)';
 }
 

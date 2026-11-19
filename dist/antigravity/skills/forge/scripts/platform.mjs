@@ -54,7 +54,31 @@ export function validateProfile(p) {
     if (c.status !== 'supported' && !c.fallback) out.push(`capability ${k}: an ${c.status} capability needs a fallback`);
   }
   for (const k of Object.keys(caps)) if (!CAPABILITIES[k]) out.push(`capability ${k} is not part of the contract`);
+  if (caps.preApprovedScripts?.status === 'supported') out.push(...preApprovalProblems(p.preApproved));
   return out;
+}
+
+// What FORGE may never pre-approve: anything that writes history or the hosting platform, installs, publishes,
+// deploys or deletes, and any single-word pattern (`pnpm*` would allow every pnpm command).
+const FORBIDDEN_RE = /^\*|^\S+$|\b(commit|push|merge|rebase|reset|stash|clean|checkout|switch|tag|publish|deploy|release|install|add|remove|uninstall|upgrade|update|rm|del|apply|destroy|drop)\b(?!-base)/i;
+
+/** The pre-approved workflow must be narrow: specific command prefixes, never a bare tool or a write. */
+export function preApprovalProblems(pre) {
+  if (!pre || !Array.isArray(pre.commands) || !pre.commands.length) return ['preApprovedScripts is supported, so preApproved.commands must list the command patterns'];
+  const out = [];
+  // FORGE's own script folders are checked by shape, not by words: an install path may contain any folder name.
+  const own = (c) => /^node "?[^"*]*\/skills\/forge[\w-]*(\/\.\.\/forge[\w-]*)?\/scripts\/\*$/.test(c) || /^node "?\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/forge[\w-]*(\/\.\.\/forge[\w-]*)?\/scripts\/\*$/.test(c);
+  // An interpreter runs whatever it is given (`node -e`, `bash -c`), so only FORGE's own scripts may follow one.
+  const interpreter = (c) => /^(node|deno|bun x|python3?|py|bash|sh|zsh|pwsh|powershell|cmd|ruby|perl|php)\b/i.test(c) && !/^(python3? -m pytest|php artisan test)\b/.test(c);
+  for (const c of pre.commands) if (typeof c !== 'string' || (!own(c) && (FORBIDDEN_RE.test(c) || interpreter(c)))) out.push(`preApproved command "${c}" is too broad or can change history, dependencies or deployments`);
+  for (const m of pre.mcp ?? []) if (!/^mcp__[\w-]+$/.test(m)) out.push(`preApproved mcp "${m}" must be a server name like mcp__playwright`);
+  return out;
+}
+
+/** The host's allow rules for the /forge turn, from the profile (Bash and PowerShell forms of each command). */
+export function allowedTools(p) {
+  const pre = p.preApproved;
+  return [...(pre.read ?? []).map((r) => `Read(${r})`), ...pre.commands.flatMap((c) => [`Bash(${c})`, `PowerShell(${c})`]), ...(pre.mcp ?? [])].join(', ');
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));

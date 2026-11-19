@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter, serializeFrontmatter } from './lib/frontmatter.mjs';
-import { validateProfile, renderPlatformDoc, supports } from '../skills/forge/scripts/platform.mjs';
+import { validateProfile, renderPlatformDoc, supports, allowedTools } from '../skills/forge/scripts/platform.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
@@ -80,13 +80,17 @@ const guardCommand = (scope) => `node "${GUARD_HOME_TOKEN}/scripts/git-guard.mjs
 const guardHooksYaml = (scope) => [
   'hooks:', '  PreToolUse:', '    - matcher: "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit"', '      hooks:', '        - type: command',
   `          command: '${guardCommand(scope)}'`, '          timeout: 10'].join('\n');
+// The host's pre-approved /forge workflow (profile `preApproved`), as the skill's allow rules.
+const withAllowed = (text, profile) => text.replace(/^(---\n[\s\S]*?\n)(---\n)/, (m, head, close) => `${head}allowed-tools: ${allowedTools(profile)}\n${close}`);
 const withGuard = (text, scope) => text.replace(/^(---\n[\s\S]*?\n)(---\n)/, (m, head, close) => `${head}${guardHooksYaml(scope)}\n${close}`);
 
 function buildClaude(out, skills, agents) {
   const dir = path.join(out, 'claude-code');
   const profile = loadProfile('claude-code');
   const guard = supports(profile, 'gitGuardHook');
-  for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), s === 'forge' && guard ? (t) => withGuard(norm(t), 'skill') : undefined);
+  const pre = supports(profile, 'preApprovedScripts');
+  const forgeSkill = (t) => { let x = norm(t); if (pre) x = withAllowed(x, profile); return guard ? withGuard(x, 'skill') : x; };
+  for (const s of skills) copyDir(path.join(ROOT, 'skills', s), path.join(dir, 'skills', s), s === 'forge' && (guard || pre) ? forgeSkill : undefined);
   if (guard) write(path.join(dir, 'hooks', 'hooks.json'), JSON.stringify({
     description: 'FORGE git guard: blocks commit, push, merge, rebase, history rewrites and PR creation by FORGE agents and during /forge turns. Other sessions are unaffected.',
     hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: guardCommand('plugin'), timeout: 10 }] }] }

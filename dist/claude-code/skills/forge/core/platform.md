@@ -20,7 +20,7 @@ For an `unsupported` one, use the fallback. Try an `unverified` one once, and if
 | perCallModel | supported | `model: "opus"` or `"sonnet"` on the `Agent` call; the agent file stays unchanged |
 | toolRestriction | supported | `tools` / `disallowedTools` in agent frontmatter (read-only roles cannot edit) |
 | gitGuardHook | supported | `PreToolUse` hook running `scripts/git-guard.mjs` on FORGE agents and the /forge skill |
-| preApprovedScripts | supported | `allowed-tools` on the forge skill: reading `~/.claude/skills/forge*/**` and `node` on FORGE's own script folders. It holds only for the turn that ran `/forge` |
+| preApprovedScripts | supported | `allowed-tools` on the forge skill, generated from this profile (`preApproved`): FORGE's own files and scripts, the project's test, lint, type check and dev commands, read-only git, localhost checks and the Playwright and DevTools MCP tools. It holds for the turn that ran `/forge`, subagents included; every part of a chained command must match, and anything else (installs, publish, deploy, git writes) still asks |
 | userQuestion | supported | `AskUserQuestion` from the main thread (`multiSelect: true` to pick several) |
 | deferredTools | supported | `ToolSearch` with `select:<tool>,<tool>` before calling a tool that is listed only by name |
 | browserTools | supported | Playwright MCP and Chrome DevTools MCP (`claude mcp add …`); each tool call follows the user's permission rules |

@@ -86,9 +86,10 @@ function Install-ForgePlatform([string]$Label, [string]$Root, [string]$SrcName, 
     $token = [regex]::Escape('${CLAUDE_PLUGIN_ROOT}/skills/forge')
     $utf8 = New-Object System.Text.UTF8Encoding $false   # no BOM: frontmatter must start at byte 0
     foreach ($p in $items) {
-      $f = $null
-      if ($p -like 'agents/*.md') { $f = Join-Path $Root $p } elseif ($p -eq 'skills/forge') { $f = Join-Path $Root 'skills/forge/SKILL.md' }
-      if ($f -and (Test-Path $f)) {
+      $files = @()
+      if ($p -like 'agents/*.md') { $files = @(Join-Path $Root $p) } elseif ($p -eq 'skills/forge') { $files = @((Join-Path $Root 'skills/forge/SKILL.md'), (Join-Path $Root 'skills/forge/platform.json')) }
+      foreach ($f in $files) {
+        if (-not (Test-Path $f)) { continue }
         $text = [IO.File]::ReadAllText($f)
         if ($text -match $token) { [IO.File]::WriteAllText($f, ($text -replace $token, $guardHome.Replace('$', '$$')), $utf8) }
       }

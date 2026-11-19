@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { CAPABILITIES, validateProfile, loadPlatform, strongTier, renderPlatformDoc, supports } from '../../skills/forge/scripts/platform.mjs';
+import { CAPABILITIES, validateProfile, loadPlatform, strongTier, renderPlatformDoc, supports, preApprovalProblems, allowedTools } from '../../skills/forge/scripts/platform.mjs';
 import { escalation, formatEscalation } from '../../skills/forge/scripts/review-target.mjs';
 import { run, plan, formatReviewDecision, portStatus } from '../../skills/forge/scripts/validation-gate.mjs';
 import { build } from '../../scripts/build.mjs';
@@ -92,6 +92,19 @@ test('Scenario C: capability detection: invalid declarations are rejected; unsup
   assert.match(doc, /Verification: \*\*docs-only\*\*/, 'an unverified host says so');
 });
 
+test("Scenario G: FORGE pre-approves only its workflow, never history, dependency or deployment changes", () => {
+  const bad = ['git commit*', 'git push*', 'git merge main*', 'pnpm add*', 'npm install*', 'npm publish*', 'pnpm*', '*', 'rm -rf *', 'terraform apply*',
+    'node -e *', 'node C:/evil/scripts/*', 'node "C:/x/skills/forge/scripts/../../evil/*', 'python -c *', 'bash -c *', 'powershell -Command *'];
+  for (const c of bad) assert.equal(preApprovalProblems({ commands: [c] }).length, 1, `${c} is refused`);
+  const claude = profile('claude-code');
+  assert.deepEqual(preApprovalProblems(claude.preApproved), [], 'the shipped set passes');
+  const rules = allowedTools(claude);
+  for (const r of ['Bash(pnpm --filter * exec vitest*)', 'PowerShell(pnpm test*)', 'Bash(git diff*)', 'mcp__playwright', 'mcp__chrome-devtools', 'Read(~/.claude/skills/forge*/**)']) assert.ok(rules.includes(r), r);
+  assert.doesNotMatch(rules, /Bash\((git (commit|push)|pnpm add|npm (install|publish))/);
+  const noPre = structuredClone(claude); delete noPre.preApproved;
+  assert.match(validateProfile(noPre).join(';'), /preApproved\.commands must list/, 'a host claiming pre-approval must say exactly what');
+});
+
 test('the build writes each host its own profile, and the scripts read it at run time', () => {
   const out = tmp('forge-build-');
   try {
@@ -105,6 +118,9 @@ test('the build writes each host its own profile, and the scripts read it at run
     }
     assert.ok(fs.existsSync(path.join(out, 'claude-code', 'hooks', 'hooks.json')), 'the git guard ships where the host supports hooks');
     assert.ok(!fs.existsSync(path.join(out, 'antigravity', 'hooks')), 'and not where it does not');
+    const skill = (h) => fs.readFileSync(path.join(out, h, 'skills', 'forge', 'SKILL.md'), 'utf8');
+    assert.match(skill('claude-code'), /^allowed-tools: Read\(/m, 'Claude Code gets the pre-approved workflow');
+    assert.doesNotMatch(skill('antigravity'), /allowed-tools/, 'a host without pre-approval gets no rules it cannot honor');
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });
 

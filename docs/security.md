@@ -47,6 +47,10 @@ Notes:
 - **Best effort against shell tricks:** a git alias or a script file that runs git internally is not parsed. The rules and the reviewer still apply, and host deny rules (below) add another layer.
 - **Antigravity** has no equivalent hook mechanism in FORGE yet, so there it relies on the rules.
 
+## Pre-approved /forge workflow (Claude Code)
+
+The forge skill's `allowed-tools` rules come from `adapters/claude-code/platform.json` (`preApproved`). They cover FORGE's own files and scripts, the project's test, lint, type check and dev commands, read-only git, `curl` to localhost, and the Playwright and DevTools MCP servers. They apply only during a `/forge` turn, need no settings or workspace trust, and every part of a chained command must match. The platform contract refuses git writes, installs, publish and deploy, single-word patterns and interpreters other than FORGE's own scripts. Anything else still asks you, and the git guard still blocks commits and pushes. To narrow the set, edit `preApproved` and rebuild.
+
 ## Recommended hard guardrails (optional)
 
 Instructions are strong, but **deny rules make them unconditional**. In Claude Code (`~/.claude/settings.json` or `.claude/settings.json`):

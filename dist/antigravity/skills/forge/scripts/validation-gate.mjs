@@ -428,6 +428,7 @@ export function formatResume(r) {
   if (!r.resume) return `NEW TASK: the current changes are task ${r.task}'s (${r.status}; ${why}). Build on them as a new task.`;
   return [
     `RESUME ${r.task}: its report says ${r.status} and ${why}.`,
+    'Resume it (unless the request names a clearly different feature). Reports of other tasks, newer VERIFIED ones included, describe code that is not in the working tree: never start a new pass from them.',
     `Keep its slug, spec.md and plan.md; skip steps 1-6. Run \`run --task ${r.task}\` (it re-runs only what is stale or missing), then do only what its report.md lists as open (unverified fixes, browser retests), then \`final --task ${r.task}\`.`,
   ].join('\n');
 }

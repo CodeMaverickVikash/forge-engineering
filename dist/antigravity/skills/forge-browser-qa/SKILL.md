@@ -78,7 +78,7 @@ Where and how:
 ## Efficiency budget
 
 Browser passes were the most expensive part of measured FORGE runs: up to 71 turns. Every call re-reads the whole context, so fewer, denser calls are faster and cheaper:
-- **Reuse the app URL from the work order.** Check ports with one `node "<FORGE_HOME>/scripts/validation-gate.mjs" ports --ports <list>` call. Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
+- **Reuse the app URL from the work order.** Check ports with one `node "<FORGE_HOME>/scripts/validation-gate.mjs" ports --ports <list>` call; after starting a server, wait for it with the same command plus `--wait 90`, never a shell loop with `sleep`. Start a server only if none was given, and use a free port so you don't collide with the user's running apps.
 - **Prefer `browser_snapshot` / `take_snapshot`** (a text accessibility tree) for assertions. Screenshots are for evidence only: the list above, at most about 8 per pass (one per changed screen and state), never one per assertion. `validation-gate.mjs evidence` flags shots over budget.
 - **Batch checks.** Use one `browser_evaluate` / `evaluate_script` that returns several facts at once (text, counts, focus target, overflow), instead of one call per fact. Read the console and network once per page, after the journey.
 - **Never wait on a timeout.** In measured passes, `browser_run_code` was 55–65% of the wall time. Almost every call lasted about 30 s, Playwright's default timeout, however little it did.

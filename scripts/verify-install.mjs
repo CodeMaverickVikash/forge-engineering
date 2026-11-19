@@ -77,7 +77,8 @@ export function verifyTarget(t, { absent = false } = {}) {
       // The installer writes the absolute guard path; accept exactly that substitution.
       const gotText = got.toString('utf8');
       const m = gotText.match(/node "([^"]+)\/scripts\/git-guard\.mjs"/);
-      want = Buffer.from(want.toString('utf8').split(TOKEN).join(m ? m[1] : guardHome));
+      const home = m ? m[1] : guardHome;
+      want = Buffer.from(want.toString('utf8').split(TOKEN).join(home).split(TOKEN.replace(/\//g, '\\')).join(home.replace(/\//g, '\\')));
     }
     if (Buffer.compare(want, got) === 0) identical++; else mismatched.push(rel);
   }

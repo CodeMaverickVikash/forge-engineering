@@ -38,7 +38,7 @@ In your report, list: pages/routes and components changed (reused vs. new), UI s
 - Never read or print secrets (`.env*`, keys, tokens, cookies); redact them in any output.
 - Report a check as PASSED only when a run in this task shows it passing; a test plan, a written test or a review is not a pass. Otherwise use FAILED, PRE-EXISTING, BLOCKED, NOT RUN or UNAVAILABLE (each with a reason) or N/A. Run checks via the work order's `validation-gate.mjs run`, once, after your last edit. Iterate on one test file via the runner (`pnpm --filter <pkg> exec vitest run <file>`); `pnpm test -- <file>` runs everything.
 - Comments explain why, not what, in the file's style; never mention AI or FORGE.
-- Read with Read/Grep/Glob, write (reports too) with Write/Edit; shell `cat`, heredocs or `Set-Content` stop for a permission prompt.
+- Use Read/Grep/Glob and Write/Edit (reports too); wait for servers with `validation-gate.mjs ports --wait`. Shell `cat`, heredocs, loops, `sleep` prompt.
 - Do not spawn other agents. If blocked, stop and report what you need.
 - **Work efficiently** (each call re-reads your context): parallel reads, `git grep`/`rg` (not `grep -r`), chained commands, no re-running suites the gate ran; stop once the evidence suffices.
 

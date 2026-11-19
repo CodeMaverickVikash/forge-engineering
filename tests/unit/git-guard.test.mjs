@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { forbiddenOperation, forgeTurnActive, decide } from '../../skills/forge/scripts/git-guard.mjs';
+import { forbiddenOperation, forgeTurnActive, decide, askOperation } from '../../skills/forge/scripts/git-guard.mjs';
 
 const GUARD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/forge/scripts/git-guard.mjs');
 
@@ -137,4 +137,25 @@ test('hook protocol: exit 2 with a reason blocks; exit 0 allows; garbage input a
   assert.equal(run(JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git status' } })).status, 0);
   assert.equal(run(JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' } })).status, 0);
   assert.equal(run('not json').status, 0);
+});
+
+test('dependency changes, publishing and deploys ask the user, even when a wildcard allow rule matches', () => {
+  // A rule's `*` matches spaces, so `pnpm --filter * test*` also matches `pnpm --filter x add pkg test`.
+  for (const [cmd, op] of [
+    ['pnpm --filter x add evil test', 'pnpm add'], ['npm install', 'npm install'], ['yarn upgrade', 'yarn upgrade'],
+    ['npm publish', 'npm publish'], ['bash -c "pnpm publish"', 'pnpm publish'], ['go get example.com/x', 'go get'],
+    ['pip install requests', 'pip install'], ['eas build -p android', 'eas build'], ['terraform apply', 'terraform apply'],
+    ['vercel --prod', 'vercel'], ['kubectl apply -f x.yaml', 'kubectl apply'], ['docker push img', 'docker push'],
+  ]) {
+    assert.equal(askOperation(cmd), op, cmd);
+  }
+  for (const cmd of ['pnpm test', 'pnpm --filter @a/web exec vitest run src/add.test.ts', 'go test ./...', 'dotnet test', 'git status', 'npm run dev', 'docker ps']) {
+    assert.equal(askOperation(cmd), null, `${cmd} runs without asking`);
+  }
+  const d = decide({ tool_name: 'Bash', tool_input: { command: 'pnpm --filter x add evil test' } }, 'agent');
+  assert.equal(d.block, false, 'not blocked: the user may approve it');
+  assert.equal(d.ask, true);
+  const r = spawnSync(process.execPath, [GUARD, '--scope', 'agent'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm install left-pad' } }), encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.equal(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision, 'ask', 'the hook protocol answer that overrides allow rules');
 });

@@ -15,6 +15,10 @@
 //
 // Read-only git (status, diff, log, show, stash list...) is always allowed. A malformed event is
 // allowed, so a guard problem never breaks ordinary shell use.
+//
+// It also answers "ask" (a permission prompt, whatever the allow rules say) for commands that change
+// dependencies, publish or deploy. FORGE pre-approves its workflow with wildcard rules such as
+// `pnpm --filter * test*`, and a rule's `*` matches spaces, so `pnpm --filter x add pkg test` would match.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -113,6 +117,33 @@ function glabVerdict(args) {
   const [a, b] = args.filter((x) => !x.startsWith('-'));
   if (a === 'mr' && ['create', 'merge', 'approve', 'revoke', 'note', 'update', 'close', 'reopen'].includes(b)) return `glab mr ${b}`;
   if (a === 'issue' && ['create', 'note', 'update', 'close', 'reopen', 'delete'].includes(b)) return `glab issue ${b}`;
+  return null;
+}
+
+const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'npx', 'pnpx', 'bunx', 'pip', 'pip3', 'poetry', 'uv', 'cargo', 'go', 'composer', 'gem', 'bundle', 'dotnet', 'flutter', 'dart']);
+const DEPENDENCY_VERBS = new Set(['add', 'install', 'i', 'ci', 'remove', 'rm', 'uninstall', 'un', 'update', 'up', 'upgrade', 'publish', 'unpublish', 'link', 'unlink', 'require', 'get', 'deprecate', 'dist-tag', 'owner']);
+const DEPLOY_TOOLS = { eas: ['build', 'submit', 'update'], vercel: ['*'], netlify: ['deploy'], firebase: ['deploy'], wrangler: ['deploy', 'publish'], terraform: ['apply', 'destroy', 'import'], pulumi: ['up', 'destroy'], kubectl: ['apply', 'delete', 'create', 'replace', 'patch', 'rollout', 'scale'], helm: ['install', 'upgrade', 'uninstall', 'rollback'], fastlane: ['*'], fly: ['deploy'], flyctl: ['deploy'], heroku: ['*'], serverless: ['deploy'], sls: ['deploy'], docker: ['push'] };
+
+/**
+ * A command that needs the user's say-so even inside FORGE's pre-approved workflow: dependency changes,
+ * publishing, deployments. Returns a short description, or null.
+ */
+export function askOperation(command, depth = 0) {
+  if (typeof command !== 'string' || depth > 3) return null;
+  for (const seg of splitSegments(command)) {
+    let t = tokenize(seg);
+    while (t.length && (WRAPPERS.has(t[0]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(t[0]))) t = t.slice(1);
+    if (!t.length) continue;
+    const head = base(t[0]);
+    const words = t.slice(1).filter((x) => !x.startsWith('-')).map((x) => x.toLowerCase());
+    if (PACKAGE_MANAGERS.has(head)) { const v = words.find((w) => DEPENDENCY_VERBS.has(w)); if (v) return `${head} ${v}`; }
+    if (DEPLOY_TOOLS[head]) { const any = DEPLOY_TOOLS[head].includes('*'); const v = any ? words[0] : words.find((w) => DEPLOY_TOOLS[head].includes(w)); if (any || v) return v ? `${head} ${v}` : head; }
+    if (SHELLS.has(head) || head === 'eval') {
+      const k = t.findIndex((x, n) => n > 0 && /^(-c|-command|\/c|\/k)$/i.test(x));
+      const inner = head === 'eval' ? t.slice(1).join(' ') : k > 0 ? t.slice(k + 1).join(' ') : null;
+      if (inner) { const v = askOperation(inner, depth + 1); if (v) return v; }
+    }
+  }
   return null;
 }
 
@@ -233,7 +264,11 @@ export function decide(event, scope, skill = 'forge') {
   }
   if (!event || !['Bash', 'PowerShell'].includes(event.tool_name)) return { block: false };
   const op = forbiddenOperation(event.tool_input?.command);
-  if (!op) return { block: false };
+  if (!op) {
+    const ask = askOperation(event.tool_input?.command);
+    if (!ask || !shouldEnforce(scope, event, skill)) return { block: false };
+    return { block: false, ask: true, op: ask, reason: `FORGE asks before \`${ask}\`: it changes dependencies, publishes or deploys, which FORGE never does without the user's approval.` };
+  }
   if (!shouldEnforce(scope, event, skill)) return { block: false, op };
   return {
     block: true, op,
@@ -253,10 +288,12 @@ if (isMain) {
   process.stdin.on('data', (d) => { raw += d; });
   process.stdin.on('end', () => {
     let event; try { event = JSON.parse(raw); } catch { process.exit(0); }
-    // Fast path: a shell command with nothing git-, gh- or glab-like in it needs no further checks.
-    if (!EDIT_TOOLS.has(event?.tool_name) && !/\b(git|gh|glab)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
+    // Fast path: a shell command with nothing git-, hosting-, package- or deploy-like in it needs no further checks.
+    if (!EDIT_TOOLS.has(event?.tool_name) && !/\b(git|gh|glab|npm|pnpm|yarn|bun|npx|pnpx|bunx|pip3?|poetry|uv|cargo|go|composer|gem|bundle|dotnet|flutter|dart|eas|vercel|netlify|firebase|wrangler|terraform|pulumi|kubectl|helm|fastlane|fly|flyctl|heroku|serverless|sls|docker)\b/i.test(String(event?.tool_input?.command ?? ''))) process.exit(0);
     const d = decide(event, scope, skill);
     if (d.block) { process.stderr.write(d.reason + '\n'); process.exit(2); }
+    // "ask" overrides any allow rule: the user sees a permission prompt (a headless run treats it as denied).
+    if (d.ask) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: d.reason } }) + '\n');
     process.exit(0);
   });
 }

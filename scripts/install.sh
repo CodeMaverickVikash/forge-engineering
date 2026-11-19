@@ -89,8 +89,10 @@ install_platform() {
     local files=("$root/$p"); [ "$p" = "skills/forge" ] && files=("$root/skills/forge/SKILL.md" "$root/skills/forge/platform.json")
     if [ "$DRY" = 1 ]; then continue; fi
     for f in "${files[@]}"; do
-      if grep -q 'CLAUDE_PLUGIN_ROOT}/skills/forge' "$f" 2>/dev/null; then
-        sed "s|\${CLAUDE_PLUGIN_ROOT}/skills/forge|$home|g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+      if grep -q 'CLAUDE_PLUGIN_ROOT}[/\\]skills[/\\]forge' "$f" 2>/dev/null; then
+        # PowerShell rules also carry the Windows (backslash) form of the path.
+        local winhome; winhome="$(printf '%s' "$home" | sed 's|/|\\\\|g')"
+        sed -e "s|\${CLAUDE_PLUGIN_ROOT}/skills/forge|$home|g" -e "s|\${CLAUDE_PLUGIN_ROOT}\\\\skills\\\\forge|$winhome|g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
       fi
     done
   done

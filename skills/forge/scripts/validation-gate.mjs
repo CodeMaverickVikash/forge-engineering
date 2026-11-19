@@ -36,8 +36,9 @@
 //       Pre-browser completion gate (compact: only rows that need attention; --verbose lists all). Exit 0 = OPEN (every required check passed for the code as it is now),
 //       1 = CLOSED (a check failed, is missing, or went stale because its files changed since it passed),
 //       2 = BLOCKED (only environment blockers remain).
-//   node validation-gate.mjs ports --ports 3000,5173 [--host localhost] [--json]
-//       Which local ports accept connections (dev servers, API, database), in one call on any OS.
+//   node validation-gate.mjs ports --ports 3000,5173 [--wait <seconds>] [--host localhost] [--json]
+//       Which local ports accept connections (dev servers, API, database), in one call on any OS. --wait polls
+//       until all listen (exit 1 if one never does), instead of a shell loop with sleep.
 //   node validation-gate.mjs evidence --task <slug> [--init] [--json]
 //       List the task's evidence as clickable links: screenshots and traces in .playwright-mcp/<slug>/
 //       (screenshots/{before,after,responsive,workflows}, git-ignored), the rest in .forge/tasks/<slug>/evidence/.
@@ -886,6 +887,16 @@ export function portStatus(ports, host = 'localhost', timeoutMs = 800) {
   return Promise.all(ports.map(probe));
 }
 
+/** Wait until every port listens or the time runs out, so nobody polls with a shell loop and sleep. */
+export async function waitForPorts(ports, { host = 'localhost', seconds = 60, intervalMs = 1000 } = {}) {
+  const until = Date.now() + seconds * 1000;
+  for (;;) {
+    const st = await portStatus(ports, host);
+    if (st.every((x) => x.listening) || Date.now() >= until) return st;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 function parseArgs(argv) {
   const o = { _: [] };
   for (let i = 0; i < argv.length; i++) {
@@ -904,10 +915,12 @@ async function main() {
   const usage = 'usage: validation-gate.mjs plan|run|mark|gate|evidence|final --task <slug> [--root <dir>] [--units a,b] [--json] | ports --ports 3000,5173 (--help lists every option)';
   if (cmd === 'ports') {
     const ports = (o.ports || '').split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0 && n < 65536);
-    if (!ports.length) { console.error('usage: validation-gate.mjs ports --ports 3000,5173 [--host localhost] [--json]'); process.exit(2); }
-    const st = await portStatus(ports, o.host || 'localhost');
+    if (!ports.length) { console.error('usage: validation-gate.mjs ports --ports 3000,5173 [--wait <seconds>] [--host localhost] [--json]'); process.exit(2); }
+    const wait = Number(o.wait) || 0;
+    const st = wait > 0 ? await waitForPorts(ports, { host: o.host || 'localhost', seconds: Math.min(wait, 540) }) : await portStatus(ports, o.host || 'localhost');
     console.log(o.json ? JSON.stringify(st) : st.map((x) => `${x.port}: ${x.listening ? 'listening' : 'free'}`).join('\n'));
-    process.exit(0);
+    // With --wait, a port that never came up is a failure the caller must see.
+    process.exit(wait > 0 && !st.every((x) => x.listening) ? 1 : 0);
   }
   if (!['plan', 'run', 'mark', 'gate', 'evidence', 'final'].includes(cmd) || !o.task || !/^[\w.-]+$/.test(o.task)) { console.error(usage); process.exit(2); }
   if (cmd !== 'evidence' && !isGitRepo(root) && !o.units) {

@@ -25,13 +25,13 @@ If the line above still shows a literal `$ARGUMENTS` placeholder, the request is
 5. Never expose secrets, tokens or cookies, or read `.env` values into reports.
 6. Ask the user only when [the clarification policy](core/lifecycle.md#clarification-policy) requires it; otherwise record the assumption and continue.
 7. For implementation tasks, don't stop after planning: finish, verify and report.
-8. Follow the host's permission model; never bypass it. Full policy: [core/safety.md](core/safety.md).
+8. Follow the host's permission model; never bypass it. Run commands from the project root as plain commands (`git log`, `pnpm --filter <pkg> …`), never `git -C <path>`: the pre-approved workflow (platform.md `preApprovedScripts`) matches the plain form. Full policy: [core/safety.md](core/safety.md).
 9. **Stay in this turn until the final answer.** Wait for every agent and every `V` command in the foreground (platform.md `foregroundWait`); never end the turn with work pending or "I'll report back". A later turn loses this skill's pre-approvals: in a measured run every gate re-run after that point was denied and the task ended BLOCKED.
 
 ## Operating mode (decide once)
 
 - **Mode A: native subagents.** Use it when the host can delegate (platform.md `subagents`) and `forge-*` agents exist; use the exact names you see (plugins may namespace them, for example `forge:forge-backend-engineer`).
-  - **Launch in waves:** every agent of a wave goes in **one message**. Launching one per message measured up to 4× slower.
+  - **Launch in waves:** every agent of a wave goes in **one message**, each in the foreground (platform.md `foregroundWait`), so they run in parallel and you wait for all of them in this turn. Launching one per message measured up to 4× slower; a background launch ended the turn early in a measured run.
     1. **Discovery:** the read-only analysts the task needs.
     2. **Implementation:** engineers with disjoint file ownership, after the contract is frozen in `plan.md`.
     3. **Validation:** `V run` (step 7) (+ `forge-qa-lead` / `forge-test-automation-engineer` when needed, + `forge-code-reviewer` only per [G13](#never-skipped-s-and-up)).
@@ -61,7 +61,7 @@ Size the task, then run only the phases it needs ([core/lifecycle.md](core/lifec
 Pick exactly one size; when in doubt pick the larger. Any new feature, endpoint, screen or public contract is at least **M**. **Size up one step** for auth, payments, PII, migrations or schema, a public API contract, more than ~8 files, or more than one deployable unit.
 
 1. **Understand.** Classify the task type ([core/routing.md](core/routing.md)) and assess risk.
-2. **Explore.** Run `node "<FORGE_HOME>/../forge-project-exploration/scripts/detect-stack.mjs" --root . --write` (no Node: follow the `forge-project-exploration` manual procedure). Read and revalidate `.forge/knowledge.md`. For M/L you may delegate deep mapping to `forge-project-explorer`, and record the baseline of the apps you will touch (`V run --task <slug> --baseline --units <a,b>`, `V` as in step 7). Let it **finish before any implementer starts**: a baseline that overlaps edits is useless.
+2. **Explore.** Run `node "<FORGE_HOME>/../forge-project-exploration/scripts/detect-stack.mjs" --root . --write` (no Node: follow the `forge-project-exploration` manual procedure). Read and revalidate `.forge/knowledge.md`. Earlier task reports in `.forge/tasks/` describe what was true then; **the code is the truth**. If they describe work that is no longer in the tree (reverted, stashed), build on the code as it is, never restore a stash, mention it in the answer, and don't stop to ask. For M/L you may delegate deep mapping to `forge-project-explorer`, and record the baseline of the apps you will touch (`V run --task <slug> --baseline --units <a,b>`, `V` as in step 7). Let it **finish before any implementer starts**: a baseline that overlaps edits is useless.
    **Capabilities:** run the local skill inventory (`forge-skill-discovery`). Search online (`forge-skill-scout`) only when the user asks or an M/L task has a real gap. Recommend only free, open-source, license-verified skills, and **install nothing without the user's explicit approval of that batch**.
 3. **Specify.** Load `forge-prompt-enhancement`. For M/L, write `.forge/tasks/<slug>/spec.md` from [templates/task-specification.md](templates/task-specification.md); it is the single source of truth, grounded in code you have read.
 4. **Architect.** Pick the smallest team that covers the risks ([core/routing.md](core/routing.md)). For L, `forge-architect` writes the approach and an ADR.

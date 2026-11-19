@@ -15,7 +15,7 @@ For an `unsupported` one, use the fallback. Try an `unverified` one once, and if
 | skillDir | supported | `${CLAUDE_SKILL_DIR}`, or the folder of the loaded SKILL.md |
 | subagents | supported | `Agent` tool with `subagent_type: forge-<role>` (a plugin install namespaces it: `forge:forge-<role>`) |
 | parallelSubagents | supported | several `Agent` calls in one message |
-| foregroundWait | supported | `Agent`, `Bash` and `PowerShell` calls without `run_in_background` block until they finish (`timeout` up to 600000 ms for commands) |
+| foregroundWait | supported | pass `run_in_background: false` on every `Agent` call (left unset, Claude Code may start it in the background and the turn ends early); several such calls in one message still run in parallel. `Bash` and `PowerShell` without `run_in_background` block until done (`timeout` up to 600000 ms) |
 | continueSubagent | supported | `SendMessage` to the agent's ID (load it with `ToolSearch` first if it is listed only by name) |
 | perCallModel | supported | `model: "opus"` or `"sonnet"` on the `Agent` call; the agent file stays unchanged |
 | toolRestriction | supported | `tools` / `disallowedTools` in agent frontmatter (read-only roles cannot edit) |

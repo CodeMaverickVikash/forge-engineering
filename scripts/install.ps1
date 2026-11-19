@@ -84,6 +84,7 @@ function Install-ForgePlatform([string]$Label, [string]$Root, [string]$SrcName, 
     # Point the git-guard hooks at this install (plugin installs resolve the token natively).
     $guardHome = ((Resolve-Path (Join-Path $Root 'skills/forge')).Path) -replace '\\', '/'
     $token = [regex]::Escape('${CLAUDE_PLUGIN_ROOT}/skills/forge')
+    $winToken = [regex]::Escape('${CLAUDE_PLUGIN_ROOT}\skills\forge')   # PowerShell rules with Windows paths
     $utf8 = New-Object System.Text.UTF8Encoding $false   # no BOM: frontmatter must start at byte 0
     foreach ($p in $items) {
       $files = @()
@@ -91,7 +92,7 @@ function Install-ForgePlatform([string]$Label, [string]$Root, [string]$SrcName, 
       foreach ($f in $files) {
         if (-not (Test-Path $f)) { continue }
         $text = [IO.File]::ReadAllText($f)
-        if ($text -match $token) { [IO.File]::WriteAllText($f, ($text -replace $token, $guardHome.Replace('$', '$$')), $utf8) }
+        if ($text -match $token -or $text -match $winToken) { [IO.File]::WriteAllText($f, (($text -replace $token, $guardHome.Replace('$', '$$')) -replace $winToken, ($guardHome -replace '/', '\').Replace('$', '$$')), $utf8) }
       }
     }
     $lines = @("# FORGE install manifest $Version - paths relative to $Root") + $items

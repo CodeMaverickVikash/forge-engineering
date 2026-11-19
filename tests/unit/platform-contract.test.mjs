@@ -94,7 +94,9 @@ test('Scenario C: capability detection: invalid declarations are rejected; unsup
 
 test("Scenario G: FORGE pre-approves only its workflow, never history, dependency or deployment changes", () => {
   const bad = ['git commit*', 'git push*', 'git merge main*', 'pnpm add*', 'npm install*', 'npm publish*', 'pnpm*', '*', 'rm -rf *', 'terraform apply*',
-    'node -e *', 'node C:/evil/scripts/*', 'node "C:/x/skills/forge/scripts/../../evil/*', 'python -c *', 'bash -c *', 'powershell -Command *'];
+    'node -e *', 'node C:/evil/scripts/*', 'node "C:/x/skills/forge/scripts/../../evil/*', 'python -c *', 'bash -c *', 'powershell -Command *',
+    'git stash*', 'git stash pop*', 'git stash drop*'];
+  assert.deepEqual(preApprovalProblems({ commands: ['git stash show*', 'git stash list*', 'git ls-tree*'] }), [], 'read-only stash and tree views are fine');
   for (const c of bad) assert.equal(preApprovalProblems({ commands: [c] }).length, 1, `${c} is refused`);
   const claude = profile('claude-code');
   assert.deepEqual(preApprovalProblems(claude.preApproved), [], 'the shipped set passes');

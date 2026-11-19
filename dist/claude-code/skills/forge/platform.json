@@ -36,7 +36,7 @@
     },
     "foregroundWait": {
       "status": "supported",
-      "native": "`Agent`, `Bash` and `PowerShell` calls without `run_in_background` block until they finish (`timeout` up to 600000 ms for commands)"
+      "native": "pass `run_in_background: false` on every `Agent` call (left unset, Claude Code may start it in the background and the turn ends early); several such calls in one message still run in parallel. `Bash` and `PowerShell` without `run_in_background` block until done (`timeout` up to 600000 ms)"
     },
     "continueSubagent": {
       "status": "supported",
@@ -173,6 +173,9 @@
       "git rev-parse*",
       "git merge-base*",
       "git branch --show-current*",
+      "git ls-tree*",
+      "git stash list*",
+      "git stash show*",
       "curl http://localhost:*",
       "curl * http://localhost:*",
       "curl http://127.0.0.1:*",

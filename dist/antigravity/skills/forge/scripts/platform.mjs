@@ -60,7 +60,7 @@ export function validateProfile(p) {
 
 // What FORGE may never pre-approve: anything that writes history or the hosting platform, installs, publishes,
 // deploys or deletes, and any single-word pattern (`pnpm*` would allow every pnpm command).
-const FORBIDDEN_RE = /^\*|^\S+$|\b(commit|push|merge|rebase|reset|stash|clean|checkout|switch|tag|publish|deploy|release|install|add|remove|uninstall|upgrade|update|rm|del|apply|destroy|drop)\b(?!-base)/i;
+const FORBIDDEN_RE = /^\*|^\S+$|\b(commit|push|merge|rebase|reset|stash(?! (list|show)\b)|clean|checkout|switch|tag|publish|deploy|release|install|add|remove|uninstall|upgrade|update|rm|del|apply|destroy|drop)\b(?!-base)/i;
 
 /** The pre-approved workflow must be narrow: specific command prefixes, never a bare tool or a write. */
 export function preApprovalProblems(pre) {
@@ -75,10 +75,14 @@ export function preApprovalProblems(pre) {
   return out;
 }
 
-/** The host's allow rules for the /forge turn, from the profile (Bash and PowerShell forms of each command). */
+/**
+ * The host's allow rules for the /forge turn, from the profile: Bash and PowerShell forms of each command, plus a
+ * backslash form of FORGE's own script paths for PowerShell, which a measured run used (`C:\Users\...`) and was denied.
+ */
 export function allowedTools(p) {
   const pre = p.preApproved;
-  return [...(pre.read ?? []).map((r) => `Read(${r})`), ...pre.commands.flatMap((c) => [`Bash(${c})`, `PowerShell(${c})`]), ...(pre.mcp ?? [])].join(', ');
+  const win = (c) => (/^node "?\$\{CLAUDE_PLUGIN_ROOT\}\//.test(c) ? [`PowerShell(${c.replace(/\//g, '\\')})`] : []);
+  return [...(pre.read ?? []).map((r) => `Read(${r})`), ...pre.commands.flatMap((c) => [`Bash(${c})`, `PowerShell(${c})`, ...win(c)]), ...(pre.mcp ?? [])].join(', ');
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));

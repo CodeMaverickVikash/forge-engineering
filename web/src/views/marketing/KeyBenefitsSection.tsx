@@ -97,27 +97,31 @@ export const KeyBenefitsSection: React.FC = () => {
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold uppercase tracking-wider mb-3">
-            Core Principles
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400 text-xs font-bold uppercase tracking-wider mb-3">
+            Core Value Architecture
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Designed for Serious Software Engineering
+            Engineered for High-Trust Autonomy
           </h2>
           <p className="mt-4 text-base text-slate-600 dark:text-slate-400">
-            Engineered from the ground up for developers who need reliable, reproducible, and verifiable results from AI coding models.
+            Forge replaces the chaos of fragmented, copy-pasting AI coding with a systematic software engineering organization behind one terminal command.
           </p>
         </div>
 
-        {/* Benefits Tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-8">
+        {/* 5 Benefits Interactive Selector */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-10" role="tablist" aria-label="Core benefits">
           {benefits.map((b) => {
             const isSelected = activeTab === b.id;
             const Icon = b.icon;
             return (
               <button
                 key={b.id}
+                role="tab"
+                type="button"
+                aria-selected={isSelected}
+                aria-label={`Pillar ${b.id + 1}: ${b.title}`}
                 onClick={() => setActiveTab(b.id)}
-                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
                   isSelected
                     ? 'border-amber-500 bg-white dark:bg-[#111620] shadow-md ring-1 ring-amber-500/30'
                     : 'border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-900'
@@ -132,9 +136,9 @@ export const KeyBenefitsSection: React.FC = () => {
                   <span className="text-[10px] font-mono text-slate-400">0{b.id + 1}</span>
                 </div>
                 <div>
-                  <h3 className={`text-xs font-bold leading-snug ${isSelected ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                  <span className={`block text-xs font-bold leading-snug ${isSelected ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
                     {b.title}
-                  </h3>
+                  </span>
                 </div>
               </button>
             );
@@ -147,8 +151,8 @@ export const KeyBenefitsSection: React.FC = () => {
             
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-4">
-              <div className="inline-flex items-center gap-2 text-xs font-mono text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">
-                <CurrentIcon className="w-3.5 h-3.5" />
+              <div className="inline-flex items-center gap-2 text-xs font-mono text-amber-700 dark:text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">
+                <CurrentIcon className="w-3.5 h-3.5 text-amber-500" />
                 <span>Pillar 0{current.id + 1}: {current.title}</span>
               </div>
               
@@ -160,7 +164,7 @@ export const KeyBenefitsSection: React.FC = () => {
                 {current.description}
               </p>
 
-              <div className="pt-2 space-y-2.5">
+              <div className="space-y-2.5 pt-2">
                 {current.facts.map((fact, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -172,17 +176,18 @@ export const KeyBenefitsSection: React.FC = () => {
 
             {/* Right Interactive Code Box */}
             <div className="lg:col-span-5">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-300 shadow-inner overflow-hidden">
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1.5">
-                    <Terminal className="w-3.5 h-3.5 text-amber-500" />
-                    forge-runtime-evidence
-                  </span>
-                  <span className="text-emerald-400 font-mono">LIVE RECORD</span>
+              <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shadow-2xl font-mono text-xs">
+                <div className="px-4 py-2 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></div>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">evidence-preview.log</span>
                 </div>
-                <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed text-slate-300">
+                <div className="p-4 text-slate-300 whitespace-pre-line leading-relaxed overflow-x-auto text-[11px]">
                   {current.codeSnippet}
-                </pre>
+                </div>
               </div>
             </div>
 

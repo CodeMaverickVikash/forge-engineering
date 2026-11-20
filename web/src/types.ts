@@ -4,6 +4,16 @@ export type TaskStatus = 'VERIFIED' | 'VERIFIED WITH LIMITATIONS' | 'RUNNING' | 
 
 export type TaskSize = 'Q' | 'S' | 'M' | 'L';
 
+export interface TaskDiffItem {
+  path: string;
+  additions: number;
+  deletions: number;
+  diff: string;
+}
+
+export type FileChangeItem = FileChange;
+export type ReviewSectionItem = ReviewSection;
+
 export interface TaskItem {
   id: string;
   slug: string;
@@ -24,6 +34,10 @@ export interface TaskItem {
   commitGuard: 'ENFORCED' | 'BYPASS_DISABLED';
   evidenceCount: number;
   modelEscalated?: boolean;
+  events?: ExecutionEvent[];
+  files?: FileChange[];
+  diffs?: TaskDiffItem[];
+  reportSections?: ReviewSection[];
 }
 
 export type DivisionName = 

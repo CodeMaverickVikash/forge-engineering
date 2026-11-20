@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const distIndex = path.join(process.cwd(), 'dist', 'index.html');
+const baseDir = path.dirname(fileURLToPath(import.meta.url));
+const distIndex = path.join(baseDir, 'dist', 'index.html');
 if (!fs.existsSync(distIndex)) {
-  console.error('dist/index.html not found');
+  console.error('dist/index.html not found at', distIndex);
   process.exit(1);
 }
 
@@ -18,7 +20,7 @@ if (html.includes('id="root"')) {
   console.log('✔ HTML contains React root mounting point');
 }
 
-const cssDir = path.join(process.cwd(), 'dist', 'assets');
+const cssDir = path.join(baseDir, 'dist', 'assets');
 const assetFiles = fs.readdirSync(cssDir);
 console.log('✔ Found bundle asset files in dist/assets:', assetFiles.join(', '));
 

@@ -40,7 +40,12 @@ const STEPS: Step[] = [
 export const HeroSection: React.FC = () => {
   const { setCurrentView, createNewTask } = useApp();
   const [activeStep, setActiveStep] = useState<number>(1);
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+    return true;
+  });
   const [heroPromptInput, setHeroPromptInput] = useState<string>('Build real-time notification badge with dropdown menu and sound toggle');
 
   // Auto-advance sequence when playing
@@ -67,7 +72,7 @@ export const HeroSection: React.FC = () => {
         
         {/* Top Announcement Pill */}
         <div className="flex justify-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium shadow-sm hover:border-amber-500/50 transition-colors">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold shadow-sm hover:border-amber-500/50 transition-colors">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
             <span>FORGE v1.2: One-command engineering for Claude Code & Antigravity</span>
             <ChevronRight className="w-3.5 h-3.5 text-amber-500" />
@@ -78,7 +83,7 @@ export const HeroSection: React.FC = () => {
         <div className="text-center max-w-4xl mx-auto mb-12">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.1] mb-6">
             From Idea to Production.<br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 dark:from-amber-400 dark:via-amber-300 dark:to-amber-500">
               One Intelligent Engineering Workflow.
             </span>
           </h1>
@@ -90,7 +95,7 @@ export const HeroSection: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <button
               onClick={() => setCurrentView('app-dashboard')}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:-translate-y-0.5 flex items-center justify-center gap-2 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <span>Get Started</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -100,411 +105,334 @@ export const HeroSection: React.FC = () => {
                 const el = document.getElementById('how-it-works');
                 el?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all duration-200 shadow-sm flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
-              <Cpu className="w-4 h-4 text-amber-500" />
-              <span>See How It Works</span>
+              <span>How It Works</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Inline Live Command Try-out */}
-          <form 
-            onSubmit={handleLaunchFromHero}
-            className="max-w-2xl mx-auto flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-lg shadow-black/5 dark:shadow-black/20 backdrop-blur-md"
-          >
-            <div className="flex items-center gap-2 pl-3 text-amber-500 font-mono text-sm font-semibold">
-              <Terminal className="w-4 h-4" />
-              <span>/forge</span>
+          {/* Quick Try Command Bar */}
+          <form onSubmit={handleLaunchFromHero} className="max-w-2xl mx-auto">
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-white dark:bg-[#111620] border border-slate-200 dark:border-slate-800 shadow-xl flex items-center gap-2">
+              <span className="font-mono text-sm font-bold text-amber-500 pl-3">/forge</span>
+              <input
+                type="text"
+                aria-label="Forge task prompt"
+                value={heroPromptInput}
+                onChange={(e) => setHeroPromptInput(e.target.value)}
+                placeholder="Enter an engineering task..."
+                className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none font-sans"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                <span>Dispatch</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <input
-              type="text"
-              value={heroPromptInput}
-              onChange={(e) => setHeroPromptInput(e.target.value)}
-              placeholder="What do you want built? (e.g., Fix the payment retry race condition)"
-              className="flex-1 bg-transparent border-none text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none px-2"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-100 hover:bg-amber-500 hover:text-slate-950 dark:hover:bg-amber-400 dark:hover:text-slate-950 font-medium text-xs transition-colors shrink-0 flex items-center gap-1.5"
-            >
-              <span>Dispatch</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </form>
         </div>
 
-        {/* ---------------- PRODUCT DEMONSTRATION WORKFLOW ---------------- */}
-        <div id="product-demo" className="mt-14 max-w-5xl mx-auto">
-          
-          {/* Demo Controls Bar */}
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Interactive Engineering Workflow Demonstration
-              </span>
-            </div>
-
-            {/* Play/Pause & Reset Controls */}
-            <div className="flex items-center gap-2 text-xs">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                title={isPlaying ? 'Pause Auto-advance' : 'Resume Auto-advance'}
-              >
-                {isPlaying ? <Pause className="w-3.5 h-3.5 text-amber-500" /> : <Play className="w-3.5 h-3.5 text-emerald-500" />}
-                <span className="hidden sm:inline">{isPlaying ? 'Pause' : 'Play'}</span>
-              </button>
-              <button
-                onClick={() => setActiveStep(1)}
-                className="p-1 rounded-md border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                title="Restart Demonstration"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Stepper Navigation Pills */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1.5 mb-4">
-            {STEPS.map((step) => {
-              const isActive = activeStep === step.id;
-              const isPast = activeStep > step.id;
-              return (
-                <button
-                  key={step.id}
-                  onClick={() => {
-                    setActiveStep(step.id);
-                    setIsPlaying(false);
-                  }}
-                  className={`px-2.5 py-2 rounded-lg text-left transition-all border text-xs flex flex-col justify-between ${
-                    isActive 
-                      ? 'border-amber-500 bg-amber-500/10 text-slate-900 dark:text-white shadow-sm ring-1 ring-amber-500/30' 
-                      : isPast
-                      ? 'border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400'
-                      : 'border-transparent text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                      0{step.id}
-                    </span>
-                    {isPast && <Check className="w-3 h-3 text-emerald-500" />}
-                  </div>
-                  <span className="font-semibold truncate text-[11px]">{step.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Demonstration Interactive Screen Shell */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111620] shadow-2xl overflow-hidden font-sans">
+        {/* ================= INTERACTIVE WORKFLOW STEP SIMULATOR ================= */}
+        <div id="product-demo" className="max-w-5xl mx-auto">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111620] shadow-2xl overflow-hidden">
             
-            {/* Window title bar */}
-            <div className="border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between">
+            {/* Top window bar with Play/Pause & Reset */}
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0A0D12] flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                <div className="flex items-center gap-1.5 mr-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-500/80"></div>
+                  <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                  <div className="w-3 h-3 rounded-full bg-emerald-500/80"></div>
                 </div>
-                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 ml-2">
-                  forge-session: live-notification-center [Size M]
+                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                  Interactive Forge Lifecycle Simulator
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="font-mono text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Step {activeStep} of 7: {STEPS[activeStep - 1].label}
-                </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  aria-label={isPlaying ? 'Pause demo playback' : 'Play demo playback'}
+                >
+                  {isPlaying ? <Pause className="w-3 h-3 text-amber-500" /> : <Play className="w-3 h-3 text-emerald-500" />}
+                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(1)}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  title="Restart Demonstration"
+                  aria-label="Restart demonstration"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="sr-only">Restart demonstration</span>
+                </button>
               </div>
             </div>
 
-            {/* Dynamic Step Content Area */}
-            <div className="p-6 min-h-[380px] flex flex-col justify-center">
+            {/* Stepper Tabs Bar (Steps 1 to 7) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0A0D12]/50 text-xs font-mono" role="tablist" aria-label="Demo steps">
+              {STEPS.map((step) => {
+                const isActive = activeStep === step.id;
+                const isPassed = activeStep > step.id;
+                return (
+                  <button
+                    key={step.id}
+                    role="tab"
+                    type="button"
+                    aria-selected={isActive}
+                    aria-label={`Step ${step.id}: ${step.label}`}
+                    onClick={() => {
+                      setActiveStep(step.id);
+                      setIsPlaying(false);
+                    }}
+                    className={`p-3 text-left transition-colors relative border-r border-b sm:border-b-0 border-slate-200 dark:border-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+                      isActive
+                        ? 'bg-white dark:bg-[#111620] text-amber-700 dark:text-amber-400 font-bold'
+                        : isPassed
+                        ? 'text-emerald-600 dark:text-emerald-400 hover:bg-white/40'
+                        : 'text-slate-500 hover:bg-white/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold">0{step.id}</span>
+                      {isPassed && <Check className="w-3 h-3 text-emerald-500" />}
+                    </div>
+                    <div className="text-[11px] truncate font-semibold">{step.label}</div>
+                    
+                    {/* Active Step Indicator Line & Auto-advance Progress */}
+                    {isActive && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500">
+                        {isPlaying && (
+                          <div className="h-full bg-amber-400 animate-pulse w-full"></div>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Step Simulator Content Panels */}
+            <div className="p-6 sm:p-8 min-h-[360px] flex flex-col justify-between">
               
-              {/* STEP 1: TASK INTAKE */}
+              {/* Step 1: Intake */}
               {activeStep === 1 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-                    <Terminal className="w-4 h-4 text-amber-500" />
-                    <span>USER ENTRY COMMAND</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 1: NATURAL LANGUAGE INTAKE
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">Size: M (Feature)</span>
                   </div>
-                  <div className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-sm border border-slate-800 shadow-inner flex items-center gap-3">
-                    <span className="text-amber-400 font-bold">$</span>
-                    <span className="text-amber-300">/forge</span>
-                    <span className="text-white">Build real-time notification badge with dropdown menu and sound toggle</span>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Understand Requirements and Estimate Risk
+                  </h3>
+                  <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-slate-300 border border-slate-800">
+                    <span className="text-amber-500">$</span> /forge Build real-time notification badge with dropdown menu and sound toggle
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
-                      <div className="text-[11px] text-slate-400">Classified Task Size</div>
-                      <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Size M (Feature)</div>
-                    </div>
-                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
-                      <div className="text-[11px] text-slate-400">Security / Data Risk</div>
-                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Standard Tier (Low Risk)</div>
-                    </div>
-                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
-                      <div className="text-[11px] text-slate-400">Autonomy Guard</div>
-                      <div className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-0.5">Zero Commit Policy Enforced</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: CONTEXT ANALYSIS */}
-              {activeStep === 2 && (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Search className="w-4 h-4 text-amber-500" />
-                      <span>EXPLORING CODEBASE WITH DETECT-STACK.MJS</span>
-                    </div>
-                    <span className="text-emerald-500 font-semibold">116 Signatures Verified</span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-900 font-mono text-xs text-slate-300 space-y-1.5 border border-slate-800">
-                    <p className="text-slate-400">[00:00.12] Scanning repository files for stack signatures...</p>
-                    <p className="text-emerald-400">✔ Found runtime: Node.js 24.22.1 (ESM) + pnpm 12.15.0</p>
-                    <p className="text-emerald-400">✔ Found frontend: React 19 + Tailwind CSS 3.4 + Vite 6.1</p>
-                    <p className="text-emerald-400">✔ Found test runner: Vitest 2.1 (42 test suites located)</p>
-                    <p className="text-emerald-400">✔ Found browser QA: Playwright 1.49 + Chrome DevTools MCP</p>
-                    <p className="text-amber-400">→ Written grounded context to .forge/context.json</p>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Deterministic evidence detection prevents hallucinations and stops agents from guessing the wrong package manager or test framework.
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Forge parses the request, identifies domain requirements, assesses security triggers (e.g. auth, payments, database), and chooses the minimal specialist team.
                   </p>
                 </div>
               )}
 
-              {/* STEP 3: SPECIFICATION & PLAN */}
+              {/* Step 2: Context Analysis */}
+              {activeStep === 2 && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 2: EVIDENCE-BASED DISCOVERY
+                    </span>
+                    <span className="text-xs font-mono text-emerald-500 font-bold">116 Signatures Verified</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Explore Codebase with Deterministic Stack Detection
+                  </h3>
+                  <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-slate-300 border border-slate-800 space-y-1">
+                    <div className="text-slate-500"># Executing detect-stack.mjs into .forge/context.json</div>
+                    <div>✔ Languages: TypeScript ^5.7, React ^19.0, Tailwind CSS</div>
+                    <div>✔ Testing: Vitest (Unit) + Playwright (Browser QA)</div>
+                    <div>✔ Conventions: Disjoint module ownership enforced</div>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Zero guesswork. The stack detector scans manifests, package managers, and lockfiles to eliminate repetitive context questions.
+                  </p>
+                </div>
+              )}
+
+              {/* Step 3: Spec & Plan */}
               {activeStep === 3 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <FileCode className="w-4 h-4 text-amber-500" />
-                      <span>GROUNDED SPECIFICATION & DISJOINT PLAN GENERATION</span>
-                    </div>
-                    <span className="text-amber-500 font-semibold">spec.md + plan.md</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 3: GROUNDED SPECIFICATION
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">spec.md + plan.md</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Acceptance Criteria (Grounded)</span>
-                      </div>
-                      <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc pl-4">
-                        <li>Real-time counter updates badge on incoming SSE message</li>
-                        <li>Dropdown shows recent notifications with 'Mark All Read'</li>
-                        <li>Sound toggle persists state in localStorage</li>
-                        <li>Accessibility: aria-live="polite" and Esc dismiss</li>
-                      </ul>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Frozen Contracts & Strict Disjoint File Ownership
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+                      <div className="font-bold text-slate-900 dark:text-white">spec.md</div>
+                      <div className="text-slate-500 mt-1">Single source of truth with testable acceptance criteria (Given/When/Then).</div>
                     </div>
-
-                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Strict File Ownership Matrix</span>
-                      </div>
-                      <div className="space-y-1.5 font-mono text-[11px]">
-                        <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                          <span>NotificationBell.tsx</span>
-                          <span className="text-amber-500">forge-frontend-engineer</span>
-                        </div>
-                        <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                          <span>api/notifications/route.ts</span>
-                          <span className="text-amber-500">forge-backend-engineer</span>
-                        </div>
-                        <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                          <span>notifications.test.ts</span>
-                          <span className="text-amber-500">forge-test-automation</span>
-                        </div>
-                      </div>
+                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+                      <div className="font-bold text-slate-900 dark:text-white">plan.md</div>
+                      <div className="text-slate-500 mt-1">Defines disjoint file assignments so parallel agents never collide.</div>
                     </div>
                   </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    By freezing shared contracts before parallel implementation begins, agents build against verified specifications rather than hallucinations.
+                  </p>
                 </div>
               )}
 
-              {/* STEP 4: AGENT DISPATCH */}
+              {/* Step 4: Dispatch */}
               {activeStep === 4 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Cpu className="w-4 h-4 text-amber-500" />
-                      <span>PARALLEL SUBAGENT WAVE DISPATCHED</span>
-                    </div>
-                    <span className="text-emerald-500 font-semibold">4 Native Subagents Active</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 4: SPECIALIST SUBAGENTS
+                    </span>
+                    <span className="text-xs font-mono text-emerald-500 font-bold">Parallel Execution</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-xs">
-                        FE
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">forge-frontend-engineer</div>
-                        <div className="text-[11px] text-slate-500 truncate">Writing UI components & animation states</div>
-                      </div>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Launch Targeted Native Specialist Agents
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-1">
+                      <div className="font-bold text-amber-700 dark:text-amber-400 font-mono">forge-architect</div>
+                      <div className="text-slate-500 text-[11px]">Freezes state & API contract</div>
                     </div>
-
-                    <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold text-xs">
-                        BE
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">forge-backend-engineer</div>
-                        <div className="text-[11px] text-slate-500 truncate">Implementing SSE stream & auth session verification</div>
-                      </div>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-1">
+                      <div className="font-bold text-blue-600 dark:text-blue-400 font-mono">forge-frontend-engineer</div>
+                      <div className="text-slate-500 text-[11px]">Builds NotificationBell.tsx</div>
                     </div>
-
-                    <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold text-xs">
-                        QA
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">forge-browser-qa</div>
-                        <div className="text-[11px] text-slate-500 truncate">Staged: Waiting behind Pre-Browser Gate</div>
-                      </div>
-                      <span className="text-[10px] text-amber-500 font-mono">GATED</span>
-                    </div>
-
-                    <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-500 flex items-center justify-center font-bold text-xs">
-                        CR
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">forge-code-reviewer</div>
-                        <div className="text-[11px] text-slate-500 truncate">Staged: Waiting for uncommitted diff batch</div>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">STANDBY</span>
+                    <div className="p-3 rounded-xl border border-purple-500/20 bg-purple-500/5 space-y-1">
+                      <div className="font-bold text-purple-600 dark:text-purple-400 font-mono">forge-browser-qa</div>
+                      <div className="text-slate-500 text-[11px]">Playwright & DevTools MCP</div>
                     </div>
                   </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    The routing matrix selects only the specialists required for the task. Every agent has calibrated turn budgets and least-privilege tool allow-lists.
+                  </p>
                 </div>
               )}
 
-              {/* STEP 5: CODE IMPLEMENTATION */}
+              {/* Step 5: Implementation */}
               {activeStep === 5 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <FileCode className="w-4 h-4 text-amber-500" />
-                      <span>INSPECTING UNCOMMITTED DIFFS (DISJOINT CHANGES)</span>
-                    </div>
-                    <span className="text-emerald-500 font-mono">+142 / -12 lines</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 5: SAFE IMPLEMENTATION
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">Working Tree Diffs</span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-slate-950 font-mono text-xs overflow-x-auto text-slate-300 border border-slate-800 space-y-0.5">
-                    <div className="text-slate-500">--- a/src/components/NotificationBell.tsx</div>
-                    <div className="text-slate-500">+++ b/src/components/NotificationBell.tsx</div>
-                    <div className="text-slate-400">{"@@ -18,6 +18,18 @@ export function NotificationBell() {"}</div>
-                    <div className="text-emerald-400">{"+  const { unreadCount, toggleSound, soundEnabled } = useNotifications();"}</div>
-                    <div className="text-emerald-400">{"+  return ("}</div>
-                    <div className="text-emerald-400">{"+    <button aria-label=\"unread notifications\" className=\"relative\">"}</div>
-                    <div className="text-emerald-400">{"+      <Bell className=\"w-5 h-5 text-slate-200\" />"}</div>
-                    <div className="text-emerald-400">{"+      {unreadCount > 0 && ("}</div>
-                    <div className="text-emerald-400">{"+        <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full\">"}</div>
-                    <div className="text-emerald-400">{"+          {unreadCount}"}</div>
-                    <div className="text-emerald-400">{"+        </span>"}</div>
-                    <div className="text-emerald-400">{"+      )}"}</div>
-                    <div className="text-emerald-400">{"+    </button>"}</div>
-                    <div className="text-emerald-400">{"+  );"}</div>
-                    <div className="text-slate-400">{"}"}</div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Minimal, Production-Quality Code Changes
+                  </h3>
+                  <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-slate-300 border border-slate-800 space-y-1">
+                    <div className="text-emerald-400">+ export function NotificationBell() &#123;</div>
+                    <div className="text-emerald-400">+   const &#123; unreadCount, toggleSound &#125; = useNotifications();</div>
+                    <div className="text-emerald-400">+   return &lt;button aria-label="notifications"&gt;&lt;Bell /&gt;&lt;/button&gt;;</div>
+                    <div className="text-emerald-400">+ &#125;</div>
                   </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Changes are written directly to your local files with zero unapproved commits. Diffs are inspectable at any time.
+                  </p>
                 </div>
               )}
 
-              {/* STEP 6: GATES & BROWSER QA */}
+              {/* Step 6: Gates & QA */}
               {activeStep === 6 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-emerald-500" />
-                      <span>QUALITY GATES G1–G15 & PLAYWRIGHT + DEVTOOLS MCP</span>
-                    </div>
-                    <span className="text-emerald-500 font-semibold">Pre-Browser Gate: OPEN</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">
+                      STEP 6: HONEST VERIFICATION
+                    </span>
+                    <span className="text-xs font-mono text-emerald-500 font-bold">G1–G15 Gating</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 space-y-2">
-                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
-                        <span>Pre-Browser Gate Suite</span>
-                        <span className="text-[10px] text-emerald-500 font-mono">ALL PASSED</span>
-                      </div>
-                      <div className="space-y-1 text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                        <div className="flex justify-between"><span>G1 Syntax & Format:</span><span className="text-emerald-500">PASS</span></div>
-                        <div className="flex justify-between"><span>G2 TypeScript Check:</span><span className="text-emerald-500">PASS (0 err)</span></div>
-                        <div className="flex justify-between"><span>G3 ESLint:</span><span className="text-emerald-500">PASS</span></div>
-                        <div className="flex justify-between"><span>G4 Unit & Regr Tests:</span><span className="text-emerald-500">PASS (42/42)</span></div>
-                      </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    G1–G15 Quality Gates & Pre-Browser Gate Enforcement
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                      ✔ G1 Syntax Pass
                     </div>
-
-                    <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
-                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
-                        <span>Browser QA (Playwright + MCP)</span>
-                        <span className="text-[10px] text-emerald-500 font-mono">VERIFIED</span>
-                      </div>
-                      <div className="space-y-1 text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                        <div className="flex justify-between"><span>Playwright Journeys:</span><span className="text-emerald-500">3 Passed</span></div>
-                        <div className="flex justify-between"><span>DevTools Console Errors:</span><span className="text-emerald-500">0 Exceptions</span></div>
-                        <div className="flex justify-between"><span>Network 4xx/5xx:</span><span className="text-emerald-500">0 Failed</span></div>
-                        <div className="flex justify-between"><span>Indexed Evidence:</span><span className="text-amber-500">3 Screenshots</span></div>
-                      </div>
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                      ✔ G2 Type Safety
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                      ✔ G4 Unit Tests (42)
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                      ✔ G9 Pre-Browser OPEN
                     </div>
                   </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Browser QA begins only when G1–G8 pass with exit code 0. Playwright verifies real DOM journeys and Chrome DevTools audits for zero console errors.
+                  </p>
                 </div>
               )}
 
-              {/* STEP 7: VERIFIED DELIVERY */}
+              {/* Step 7: Delivery */}
               {activeStep === 7 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                      <span>COMPLETED TASK & DELIVERY REPORT (SAFE AUTONOMY)</span>
-                    </div>
-                    <span className="text-emerald-500 font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                      STATUS: VERIFIED
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-emerald-500 font-bold">
+                      STEP 7: VERIFIED DELIVERY RECORD
                     </span>
+                    <span className="text-xs font-mono text-emerald-500 font-bold">Status: VERIFIED</span>
                   </div>
-                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                        Task Finished with Comprehensive Evidence
-                      </div>
-                      <span className="text-xs font-mono text-slate-500">Duration: 3m 28s</span>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    13-Section Engineering Report Saved with Evidence
+                  </h3>
+                  <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2 text-xs">
+                    <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Task Completed: 15/15 Quality Gates Passed</span>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      All 15 quality gates satisfied. 5 files edited cleanly across disjoint boundaries. Independent code review by forge-code-reviewer approved. 
-                      <strong className="text-slate-900 dark:text-slate-200 block mt-1">
-                        Zero git commits or pull requests were created. Code is ready in your working tree for inspection.
-                      </strong>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      Report persisted to <code className="font-mono text-slate-800 dark:text-slate-200 font-bold">.forge/tasks/live-notification-center/report.md</code>. All files remain safely uncommitted in your working tree for your final code review and commit.
                     </p>
-                    <div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
-                      <button
-                        onClick={() => setCurrentView('app-report')}
-                        className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-colors flex items-center gap-1.5"
-                      >
-                        <span>View 13-Section Engineering Report</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setCurrentView('app-live')}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        Open In Live Execution Console
-                      </button>
-                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={() => setCurrentView('app-report')}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shadow-md shadow-amber-500/20"
+                    >
+                      <span>View 13-Section Engineering Report</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentView('app-live')}
+                      className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                    >
+                      Open In Live Execution Console
+                    </button>
                   </div>
                 </div>
               )}
+
             </div>
 
             {/* Bottom status bar of the demo */}
             <div className="border-t border-slate-200 dark:border-slate-800 px-4 py-2.5 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between text-[11px] text-slate-500">
               <div className="flex items-center gap-4">
-                <span>Working Directory: <strong className="font-mono text-slate-700 dark:text-slate-300">acme-app/</strong></span>
+                <span>Working Directory: <strong className="font-mono text-slate-700 dark:text-slate-300">skills-agent/web/</strong></span>
                 <span className="hidden sm:inline">Pre-Browser Gate: <strong className="text-emerald-500">OPEN (exit 0)</strong></span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-mono text-emerald-500">Git Guard Active</span>
+                <span className="font-mono text-emerald-500 font-semibold">Git Guard Active</span>
               </div>
             </div>
 

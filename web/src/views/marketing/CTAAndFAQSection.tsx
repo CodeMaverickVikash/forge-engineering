@@ -57,14 +57,14 @@ export const CTAAndFAQSection: React.FC = () => {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[250px] bg-amber-500/15 blur-[120px] rounded-full pointer-events-none" />
           
           <div className="max-w-3xl mx-auto relative z-10 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-mono font-semibold">
-              <Flame className="w-3.5 h-3.5 fill-amber-500" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-mono font-bold">
+              <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
               <span>PRODUCTION-READY ORCHESTRATION</span>
             </div>
 
             <h2 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
               Spend Less Time Managing AI.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 dark:from-amber-400 dark:via-amber-300 dark:to-amber-500">
                 More Time Building Software.
               </span>
             </h2>
@@ -76,7 +76,7 @@ export const CTAAndFAQSection: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <button
                 onClick={() => setCurrentView('app-dashboard')}
-                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:-translate-y-0.5 flex items-center justify-center gap-2 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <span>Start Building with Forge</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -84,7 +84,7 @@ export const CTAAndFAQSection: React.FC = () => {
 
               <button
                 onClick={() => setCurrentView('app-intake')}
-                className="w-full sm:w-auto px-6 py-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <Terminal className="w-4 h-4 text-amber-500" />
                 <span>Try Command Intake</span>
@@ -98,12 +98,13 @@ export const CTAAndFAQSection: React.FC = () => {
                   <span className="text-amber-500">$</span> {installCommand}
                 </span>
                 <button
+                  type="button"
                   onClick={handleCopy}
-                  className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] shrink-0 flex items-center gap-1 transition-colors"
-                  title="Copy command"
+                  className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] shrink-0 flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  aria-label="Copy install command"
                 >
                   {copiedInstall ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedInstall ? 'Copied' : 'Copy'}</span>
+                  <span role="status" aria-live="polite">{copiedInstall ? 'Copied' : 'Copy'}</span>
                 </button>
               </div>
             </div>
@@ -138,15 +139,24 @@ export const CTAAndFAQSection: React.FC = () => {
                   className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#111620] overflow-hidden transition-colors"
                 >
                   <button
+                    type="button"
+                    id={`faq-trigger-${idx}`}
+                    aria-expanded={isOpen}
+                    aria-controls={`faq-panel-${idx}`}
                     onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 font-semibold text-sm text-slate-900 dark:text-white hover:text-amber-500 transition-colors"
+                    className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 font-semibold text-sm text-slate-900 dark:text-white hover:text-amber-700 dark:hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-colors"
                   >
                     <span>{faq.q}</span>
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />}
                   </button>
 
                   {isOpen && (
-                    <div className="px-5 pb-5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                    <div
+                      id={`faq-panel-${idx}`}
+                      role="region"
+                      aria-labelledby={`faq-trigger-${idx}`}
+                      className="px-5 pb-5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/80 pt-3"
+                    >
                       {faq.a}
                     </div>
                   )}

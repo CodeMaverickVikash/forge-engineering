@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { TaskItem, ProjectContext } from '../types';
-import { SAMPLE_TASKS, SAMPLE_PROJECT_CONTEXT } from '../lib/data';
+import { SAMPLE_TASKS, SAMPLE_PROJECT_CONTEXT, FORGE_LIFECYCLE_PHASES } from '../lib/data';
 
 export type ActiveView = 
   | 'marketing' 
@@ -25,6 +25,8 @@ interface AppContextType {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
   createNewTask: (request: string) => string;
+  stepTaskPhase: (taskId: string) => void;
+  fastForwardTask: (taskId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -58,13 +60,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branch: `forge/${slug.slice(0, 16)}`,
       commitGuard: 'ENFORCED',
       evidenceCount: 1,
-      modelEscalated: false
+      modelEscalated: false,
+      events: [
+        { id: `ev-${Date.now()}-1`, timestamp: 'Just now', phase: 1, type: 'lifecycle', title: 'Task Understood & Classified', detail: `Analyzed request: "${request}". Classifying size and risk tier.`, badge: 'Size M' },
+        { id: `ev-${Date.now()}-2`, timestamp: 'Just now', phase: 2, type: 'tool', title: 'Stack Detector Execution', detail: 'Executed detect-stack.mjs into .forge/context.json', badge: '116 signatures' }
+      ],
+      files: [
+        { path: `src/features/${slug}.ts`, status: 'added', linesAdded: 45, linesRemoved: 0, owner: 'forge-frontend-engineer', disjointChecked: true }
+      ],
+      diffs: [
+        { path: `src/features/${slug}.ts`, additions: 45, deletions: 0, diff: `+ // Initial implementation for ${slug}\n+ export function executeFeature() { return true; }` }
+      ]
     };
 
     setTasks((prev) => [newTask, ...prev]);
     setSelectedTaskId(newTask.id);
     setCurrentView('app-live');
     return newTask.id;
+  };
+
+  const stepTaskPhase = (taskId: string) => {
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t;
+      const nextPhase = Math.min(t.phase + 1, 10);
+      const phaseInfo = FORGE_LIFECYCLE_PHASES.find((p) => p.phase === nextPhase);
+      const isComplete = nextPhase === 10;
+      return {
+        ...t,
+        phase: nextPhase,
+        phaseName: phaseInfo ? phaseInfo.name : t.phaseName,
+        status: isComplete ? 'VERIFIED' : 'RUNNING',
+        gatesPassed: isComplete ? 15 : Math.min(15, Math.floor((nextPhase / 10) * 15)),
+        completedAt: isComplete ? 'Just now' : undefined
+      };
+    }));
+  };
+
+  const fastForwardTask = (taskId: string) => {
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t;
+      return {
+        ...t,
+        phase: 10,
+        phaseName: 'Report',
+        status: 'VERIFIED',
+        gatesPassed: 15,
+        completedAt: 'Just now'
+      };
+    }));
   };
 
   return (
@@ -80,6 +123,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         commandPaletteOpen,
         setCommandPaletteOpen,
         createNewTask,
+        stepTaskPhase,
+        fastForwardTask,
       }}
     >
       {children}

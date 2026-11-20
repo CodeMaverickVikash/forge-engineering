@@ -64,7 +64,6 @@ test('run executes each check once, the gate opens, and only checks whose files 
     assert.deepEqual(r1.results.map((x) => `${x.unit}:${x.check}:${x.status}`).sort(),
       ['apps/web:test:PASSED', 'packages/ui:build:PASSED', 'packages/ui:test:PASSED'],
       "the app's production build is left to the user; the package's runs because its consumer imports the output");
-    assert.deepEqual(r1.deferred, []);
     assert.ok(r1.results.every((x) => fs.existsSync(path.join(dir, x.log))), 'every check leaves its full log as evidence');
     assert.equal(r1.gate.result, 'OPEN');
     const buildRow = r1.gate.rows.find((x) => x.unit === 'apps/web' && x.check === 'build');
@@ -365,7 +364,7 @@ test('one run call validates and answers the gate; final checks everything phase
     const b = cli(dir, 'run', '--task', 't', '--build');
     assert.equal(b.status, 0);
     assert.match(b.stdout, /ran 0 check\(s\), 3 already passing/, '--build (old name of --full) runs no build');
-    assert.match(b.stdout, /Final gate \(full test suites\): OPEN/);
+    assert.match(b.stdout, /Final gate: OPEN/);
 
     const f = cli(dir, 'final', '--task', 't');
     assert.equal(f.status, 1, 'a comment error makes the final check fail');
@@ -530,96 +529,56 @@ const FAKE_VITEST = {
   'packages/lib/node_modules/.bin/vitest.cmd': '@node "%~dp0/../vitest/cli.js" %*\r\n',
 };
 
-test('a low-risk change is final with its related tests; no full suite runs', async () => {
-  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
+const withFakeVitest = async (extra, fn) => {
+  const dir = monorepo({ 'packages/lib/src/a.js': 'export const a = 1;\n', ...extra, ...FAKE_VITEST });
   const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
   process.env.FAKE_VITEST_LOG = log;
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
-  try {
-    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
-    await run(dir, 't', { units: ['packages/lib'] });
-    assert.deepEqual(calls(), ['run --changed --passWithNoTests']);
-    const row = (await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test');
-    assert.equal(row.state, 'PASSED', 'the runner traced the related tests through the module graph; that is enough here');
-    const again = await run(dir, 't', { units: ['packages/lib'], full: true });
-    assert.deepEqual(again.results, [], '--full has nothing to add for a low-risk change');
-    assert.deepEqual(calls(), ['run --changed --passWithNoTests']);
-  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
-});
+  try { await fn(dir, calls); } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+};
+const libTest = async (dir) => (await gate(dir, 't')).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test');
 
-test('auth, payment or schema changes: fix cycles run the related tests; the final gate needs the full suite', async () => {
-  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/auth/session.js': 'export const a = 1;\n', ...FAKE_VITEST });
-  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
-  process.env.FAKE_VITEST_LOG = log;
-  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
-  try {
+test('FORGE runs only the related tests, even for auth changes; final hands the full-suite command to the user', async () => {
+  await withFakeVitest({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }), 'packages/lib/src/auth/session.js': 'export const a = 1;\n' }, async (dir, calls) => {
     w(dir, 'packages/lib/src/auth/session.js', 'export const a = 2;\n');
-    const r1 = await run(dir, 't', { units: ['packages/lib'] });
-    assert.equal(r1.results[0].status, 'PASSED', r1.results[0].tail);
-    assert.deepEqual(calls(), ['run --changed --passWithNoTests'], 'a fix cycle runs only the related tests');
-    assert.equal((await gate(dir, 't')).result, 'OPEN', 'which is enough for the browser');
-    const fin = await gate(dir, 't', { final: true });
-    assert.equal(fin.rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'MISSING', 'but not for the final gate of an auth change');
-
-    const full = await run(dir, 't', { units: ['packages/lib'], full: true });
-    assert.deepEqual(full.results.map((x) => `${x.check}:${x.status}`), ['test:PASSED']);
-    assert.deepEqual(calls().slice(1), ['run'], '--full runs the full suite once');
-    assert.equal((await gate(dir, 't', { final: true })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test').state, 'PASSED');
-  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
-});
-
-test('with a changed upstream package, related tests run only after a full pass has seen that upstream state', async () => {
-  // packages/lib consumes packages/ui (prebuilt), the shape of an app consuming a changed shared contract.
-  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', dependencies: { '@acme/ui': '*' }, scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
-  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
-  process.env.FAKE_VITEST_LOG = log;
-  const last = () => fs.readFileSync(log, 'utf8').trim().split('\n').at(-1);
-  try {
-    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
-    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
-    assert.equal(check(await plan(dir), 'packages/lib', 'test').affectedNeedsProof, true);
-    const libTest = async (final) => (await gate(dir, 't', { final })).rows.find((x) => x.unit === 'packages/lib' && x.check === 'test');
-    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal(last(), 'run --changed --passWithNoTests', 'the related tests first: they open the pre-browser gate quickly');
-    assert.equal((await libTest(false)).state, 'PASSED');
-    const owed = await libTest(true);
-    assert.equal(owed.state, 'MISSING', "but final needs a full pass: the lib's tests can't trace the package's changed sources");
-    assert.match(owed.reason, /a package it uses changed/);
-    await run(dir, 't', { units: ['packages/lib'], checks: ['test'], full: true });
-    assert.equal(last(), 'run', '--full runs the suite the final gate still needs');
-    assert.equal((await libTest(true)).state, 'PASSED');
-    w(dir, 'packages/lib/src/a.js', 'export const a = 3;\n');
-    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal(last(), 'run --changed --passWithNoTests');
-    assert.equal((await libTest(true)).state, 'PASSED', 'with the package unchanged since that full pass, the related tests are final');
-    w(dir, 'packages/ui/src/index.js', 'export const a = 4;\n');
-    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
-    assert.equal((await libTest(true)).state, 'MISSING', 'a new package change owes a full pass again');
-    w(dir, 'packages/ui/src/index.js', 'export const a = 5;\n');
-    await run(dir, 't', { units: ['packages/lib'], checks: ['test'], serial: true });
-    assert.equal(last(), 'run', '--serial runs that full pass in the foreground instead');
-  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
-});
-
-test('the full pass a consumer owes runs in the background while browser QA starts, and --full waits for it', async () => {
-  // A measured run held browser QA for a 148 s full web suite; now the gate opens on the related tests.
-  const dir = monorepo({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', dependencies: { '@acme/ui': '*' }, scripts: { test: 'vitest run' } }), 'packages/lib/src/a.js': 'export const a = 1;\n', ...FAKE_VITEST });
-  const log = path.join(dir, '..', path.basename(dir) + '-vitest.log');
-  process.env.FAKE_VITEST_LOG = log;
-  try {
-    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
-    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
     const r = cli(dir, 'run', '--task', 't');
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(r.stdout, /Pre-browser gate: OPEN/);
-    assert.match(r.stdout, /Full suites for [^\n]*packages\/lib:test[^\n]* are now running in the background \(pid \d+/);
-    const fin = cli(dir, 'run', '--task', 't', '--full');
-    assert.equal(fin.status, 0, fin.stdout + fin.stderr);
-    assert.match(fin.stdout, /Final gate \(full test suites\): OPEN/);
-    assert.ok(fs.readFileSync(log, 'utf8').split('\n').includes('run'), 'the full suite ran once, in the background');
-    const serial = cli(dir, 'run', '--task', 't2', '--serial');
-    assert.doesNotMatch(serial.stdout, /in the background/, '--serial keeps everything in the foreground');
-  } finally { delete process.env.FAKE_VITEST_LOG; fs.rmSync(log, { force: true }); clean(dir); }
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests'], 'one related-tests run, no full suite');
+    assert.doesNotMatch(r.stdout, /background|--full/, 'nothing is owed or started in the background');
+    const row = await libTest(dir);
+    assert.equal(row.state, 'PASSED');
+    assert.equal(row.relatedOnly, true);
+    const f = cli(dir, 'final', '--task', 't');
+    assert.match(f.stdout, /\| Shared: packages\/lib \| N\/A \| UNAVAILABLE \| PASSED \(related\) \| N\/A \|/);
+    assert.match(f.stdout, /Final gate: OPEN/, 'the related tests are final');
+    assert.match(f.stdout, /Full test suite: not run by FORGE .*`npm run test` \(packages\/lib\)/, 'final hands the full-suite command to the user');
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests'], 'final runs nothing');
+  });
+});
+
+test('a consumer of a changed package runs its related tests too; no full pass is owed', async () => {
+  // packages/lib consumes packages/ui (prebuilt). A measured run held browser QA for a 148 s full web suite here.
+  await withFakeVitest({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', dependencies: { '@acme/ui': '*' }, scripts: { test: 'vitest run' } }) }, async (dir, calls) => {
+    w(dir, 'packages/ui/src/index.js', 'export const a = 2;\n');
+    assert.equal(check(await plan(dir), 'packages/lib', 'test').affected, 'npx --no-install vitest run --changed --passWithNoTests', 'a pure consumer');
+    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    await run(dir, 't', { units: ['packages/lib'], checks: ['test'] });
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests']);
+    assert.equal((await libTest(dir)).state, 'PASSED', 'final accepts it; no MISSING full pass');
+  });
+});
+
+test('--full runs the full suite only when asked, once, and then the command is no longer handed over', async () => {
+  await withFakeVitest({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', scripts: { test: 'vitest run' } }) }, async (dir, calls) => {
+    w(dir, 'packages/lib/src/a.js', 'export const a = 2;\n');
+    await run(dir, 't', { units: ['packages/lib'] });
+    const full = await run(dir, 't', { units: ['packages/lib'], full: true });
+    assert.deepEqual(full.results.map((x) => `${x.check}:${x.status}`), ['test:PASSED']);
+    assert.deepEqual(calls(), ['run --changed --passWithNoTests', 'run'], '--full re-runs the related-only pass as the full suite');
+    assert.deepEqual((await run(dir, 't', { units: ['packages/lib'], full: true })).results, [], 'a second --full has nothing to add');
+    assert.equal((await libTest(dir)).relatedOnly, undefined);
+    assert.doesNotMatch(cli(dir, 'final', '--task', 't').stdout, /Full test suite: not run/);
+  });
 });
 
 test('--help prints every option, so nobody reads the script source to learn them', () => {
